@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; worker-src 'self' blob:;">
     <title>Indestructible 转 CombatEvolution 格式工具</title>
     <style>
         :root {
@@ -126,9 +125,12 @@
         .log-line { display: flex; gap: 8px; align-items: flex-start; padding: 2px 0; }
         .log-icon { width: 18px; flex: 0 0 18px; text-align: center; }
         .log-text { flex: 1 1 auto; }
+        .log-more { margin-left: 6px; padding: 0 6px; font-size: 12px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--border) 70%, transparent); background: transparent; color: color-mix(in srgb, var(--muted) 80%, white); cursor: pointer; }
+        .log-more:hover { filter: brightness(1.08); }
         .success { color: var(--success); }
         .error { color: var(--error); }
         .info { color: var(--info); }
+        .warn { color: var(--warn); }
         
         #dropZone { border: 2px dashed var(--drop-border); padding: 30px 15px; text-align: center; border-radius: 12px; margin-bottom: 15px; cursor: pointer; transition: all 0.2s; background: var(--drop-bg); color: var(--muted); font-size: 14px; user-select: none; }
         #dropZone:hover, #dropZone.dragover { border-color: var(--drop-hover-border); background-color: var(--drop-hover-bg); color: var(--text); }
@@ -139,6 +141,14 @@
         .file-item:last-child { border-bottom: none; }
         .file-remove { background: transparent; border: none; color: var(--error); cursor: pointer; font-size: 16px; padding: 0 5px; }
         .file-remove:hover { filter: brightness(1.1); }
+        .file-meta { display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); flex: 0 0 auto; }
+        .tag-selected { background: color-mix(in srgb, var(--card) 88%, var(--bg)); color: var(--muted); }
+        .tag-processing { background: color-mix(in srgb, var(--primary) 18%, transparent); border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); color: color-mix(in srgb, var(--primary) 75%, var(--text)); }
+        .tag-success { background: color-mix(in srgb, var(--success) 18%, transparent); border-color: color-mix(in srgb, var(--success) 45%, var(--border)); color: var(--success); }
+        .tag-failed { background: color-mix(in srgb, var(--error) 18%, transparent); border-color: color-mix(in srgb, var(--error) 45%, var(--border)); color: var(--error); }
+        .tag-canceled { background: color-mix(in srgb, var(--muted) 18%, transparent); border-color: color-mix(in srgb, var(--muted) 40%, var(--border)); color: var(--muted); }
 
         .prefix-suffix-group { display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; background: color-mix(in srgb, var(--card) 92%, var(--bg)); padding: 10px; border-radius: 10px; border: 1px solid var(--border); }
         .prefix-suffix-group label { font-size: 14px; display: flex; flex-direction: column; gap: 5px; }
@@ -146,6 +156,14 @@
 
         .button-group { display: flex; flex-direction: column; gap: 10px; align-items: stretch; width: 100%; }
         .progress-text { font-weight: 700; color: var(--success); flex-grow: 1; text-align: center; }
+        .option { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); padding: 6px 10px; border: 1px solid var(--border); border-radius: 999px; background: color-mix(in srgb, var(--card) 92%, var(--bg)); }
+        .option input { accent-color: var(--primary); }
+
+        .context-menu { position: fixed; z-index: 9999; min-width: 160px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 6px; }
+        .context-menu button { width: 100%; text-align: left; background: transparent; border: none; color: var(--text); padding: 10px 10px; border-radius: 10px; cursor: pointer; font-size: 14px; }
+        .context-menu button:hover { background: color-mix(in srgb, var(--primary) 12%, transparent); }
+        .context-menu button:disabled { color: var(--btn-disabled-text); cursor: not-allowed; }
+        .context-menu button:disabled:hover { background: transparent; }
         
         @media (min-width: 600px) {
             .btn { width: auto; }
@@ -189,11 +207,17 @@
         </div>
         
         <div id="fileList"></div>
+
+        <div id="contextMenu" class="context-menu" style="display:none;">
+            <button type="button" id="ctxRemove">移除该文件</button>
+            <button type="button" id="ctxClear">清空列表</button>
+        </div>
         
         <div class="button-group">
             <button class="btn" id="convertBtn" onclick="processFiles()">批量转换并下载</button>
             <button class="btn btn-warn" id="retryBtn" onclick="retryFailed()" style="display: none;">重试失败文件</button>
             <button class="btn btn-secondary" id="clearLogBtn" onclick="clearLog()">清空日志</button>
+            <label class="option"><input type="checkbox" id="soundToggle">完成提示音</label>
             <span id="progressText" class="progress-text"></span>
         </div>
         
@@ -207,11 +231,22 @@
         let processedCount = 0;
         let isProcessing = false;
         let workerObjectUrl = null;
+        let abortRequested = false;
+        const fileState = new Map();
+        let runStartMs = 0;
+        const FILE_SIZE_WARN_BYTES = 20 * 1024 * 1024;
 
         document.addEventListener('DOMContentLoaded', () => {
             const dropZone = document.getElementById('dropZone');
             const fileInput = document.getElementById('fileInput');
+            const prefixInput = document.getElementById('prefixInput');
+            const suffixInput = document.getElementById('suffixInput');
             initTheme();
+            initConfig(prefixInput, suffixInput);
+            initHotkeys();
+            initSoundToggle();
+            initContextMenu();
+            initMobileFocusAssist();
 
             dropZone.addEventListener('click', () => fileInput.click());
             
@@ -235,6 +270,16 @@
                 fileInput.value = ''; // Reset to allow re-selecting same files
             });
         });
+
+        function formatBytes(bytes) {
+            const n = typeof bytes === 'number' ? bytes : 0;
+            if (!Number.isFinite(n) || n <= 0) return '0 B';
+            const units = ['B', 'KB', 'MB', 'GB'];
+            const idx = Math.min(units.length - 1, Math.floor(Math.log(n) / Math.log(1024)));
+            const v = n / Math.pow(1024, idx);
+            const fixed = v >= 100 || idx === 0 ? 0 : (v >= 10 ? 1 : 2);
+            return `${v.toFixed(fixed)} ${units[idx]}`;
+        }
 
         function getFirstJsonChar(text) {
             if (typeof text !== 'string') return '';
@@ -267,6 +312,9 @@
                     log(`已忽略非 JSON 文件: ${name || '(未知文件名)'}`, "info");
                     continue;
                 }
+                if (typeof file.size === 'number' && file.size >= FILE_SIZE_WARN_BYTES) {
+                    log(`文件较大（${formatBytes(file.size)}），转换可能会卡顿: ${name}`, "warn");
+                }
                 const likely = await looksLikeJsonFile(file);
                 if (!likely) {
                     log(`已忽略疑似非 JSON 内容的文件: ${name}`, "error");
@@ -274,10 +322,32 @@
                 }
                 if (!selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
                     selectedFiles.push(file);
+                    setFileStatus(file, 'selected');
                     added++;
                 }
             }
             if (added > 0) renderFileList();
+        }
+
+        function makeFileKey(file) {
+            const lm = typeof file.lastModified === 'number' ? file.lastModified : 0;
+            return `${file.name}::${file.size}::${lm}`;
+        }
+
+        function getFileStatus(file) {
+            const key = makeFileKey(file);
+            const entry = fileState.get(key);
+            return entry && typeof entry === 'object' ? entry : { status: 'selected', detail: '' };
+        }
+
+        function setFileStatus(file, status, detail = '') {
+            const key = makeFileKey(file);
+            fileState.set(key, { status, detail: detail || '' });
+        }
+
+        function deleteFileStatus(file) {
+            const key = makeFileKey(file);
+            fileState.delete(key);
         }
 
         function renderFileList() {
@@ -289,11 +359,22 @@
             list.style.display = 'block';
             list.innerHTML = '';
             selectedFiles.forEach((file, index) => {
+                const st = getFileStatus(file);
+                const tagText = st.status === 'processing' ? '处理中' : (st.status === 'success' ? '成功' : (st.status === 'failed' ? '失败' : (st.status === 'canceled' ? '已取消' : '已选')));
+                const tagClass = st.status === 'processing' ? 'tag-processing' : (st.status === 'success' ? 'tag-success' : (st.status === 'failed' ? 'tag-failed' : (st.status === 'canceled' ? 'tag-canceled' : 'tag-selected')));
+                const canRemove = !isProcessing && st.status !== 'processing';
                 const div = document.createElement('div');
                 div.className = 'file-item';
+                div.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    showContextMenu(e.clientX, e.clientY, index);
+                });
                 div.innerHTML = `
-                    <span>📄 ${file.name} <span style="color:#666;font-size:12px;">(${(file.size/1024).toFixed(1)} KB)</span></span>
-                    <button class="file-remove" onclick="removeFile(${index}, event)" title="移除">✖</button>
+                    <span class="file-meta">
+                        <span class="tag ${tagClass}">${tagText}</span>
+                        <span class="file-name">📄 ${file.name} <span class="muted" style="font-size:12px;">(${(file.size/1024).toFixed(1)} KB)</span></span>
+                    </span>
+                    <button class="file-remove" onclick="removeFile(${index}, event)" title="移除" ${canRemove ? '' : 'disabled'} style="${canRemove ? '' : 'opacity:0.5; cursor:not-allowed;'}">✖</button>
                 `;
                 list.appendChild(div);
             });
@@ -301,6 +382,9 @@
 
         function removeFile(index, event) {
             event.stopPropagation();
+            if (isProcessing) return;
+            const f = selectedFiles[index];
+            if (f) deleteFileStatus(f);
             selectedFiles.splice(index, 1);
             renderFileList();
         }
@@ -314,13 +398,56 @@
             document.getElementById('retryBtn').style.display = 'none';
         }
 
+        function clearAll() {
+            if (isProcessing) return;
+            selectedFiles = [];
+            failedFiles = [];
+            totalCount = 0;
+            processedCount = 0;
+            fileState.clear();
+            document.getElementById('retryBtn').style.display = 'none';
+            updateProgress();
+            renderFileList();
+            clearLog();
+        }
+
+        function cancelConversion() {
+            if (!isProcessing) return;
+            abortRequested = true;
+            isDownloading = false;
+            runStartMs = 0;
+            if (Array.isArray(selectedFiles)) {
+                for (const f of selectedFiles) {
+                    const st = getFileStatus(f);
+                    if (st.status === 'processing') setFileStatus(f, 'canceled');
+                }
+            }
+            cleanupAfterRun();
+            totalCount = 0;
+            processedCount = 0;
+            updateProgress();
+            setProcessingState(false);
+            log('已取消转换。', 'info');
+        }
+
         function updateProgress() {
             const pt = document.getElementById('progressText');
             if (totalCount > 0) {
-                pt.textContent = `进度: ${processedCount} / ${totalCount}`;
+                const elapsed = isProcessing && runStartMs > 0 ? ` | 用时: ${formatDuration(performance.now() - runStartMs)}` : '';
+                pt.textContent = `进度: ${processedCount} / ${totalCount}${elapsed}`;
             } else {
                 pt.textContent = '';
             }
+        }
+
+        function formatDuration(ms) {
+            const n = typeof ms === 'number' ? ms : 0;
+            if (!Number.isFinite(n) || n <= 0) return '0s';
+            const s = n / 1000;
+            if (s < 60) return `${s.toFixed(s >= 10 ? 1 : 2)}s`;
+            const m = Math.floor(s / 60);
+            const rs = s - m * 60;
+            return `${m}m ${rs.toFixed(0)}s`;
         }
 
         function log(msg, type='info') {
@@ -329,10 +456,33 @@
             line.className = `log-line ${type}`;
             const icon = document.createElement('span');
             icon.className = 'log-icon';
-            icon.textContent = type === 'success' ? '✓' : (type === 'error' ? '✕' : '•');
+            icon.textContent = type === 'success' ? '✓' : (type === 'error' ? '✕' : (type === 'warn' ? '!' : '•'));
             const text = document.createElement('span');
             text.className = 'log-text';
-            text.textContent = `[${new Date().toLocaleTimeString()}] ` + msg;
+            const prefix = `[${new Date().toLocaleTimeString()}] `;
+            const full = prefix + (msg ?? '');
+            const maxLen = 320;
+            if (typeof full === 'string' && full.length > maxLen) {
+                const short = full.slice(0, maxLen) + '…';
+                text.textContent = short;
+                const btn = document.createElement('button');
+                btn.className = 'log-more';
+                btn.type = 'button';
+                btn.textContent = '展开';
+                let expanded = false;
+                btn.addEventListener('click', () => {
+                    expanded = !expanded;
+                    text.textContent = expanded ? full : short;
+                    btn.textContent = expanded ? '收起' : '展开';
+                });
+                line.appendChild(icon);
+                line.appendChild(text);
+                line.appendChild(btn);
+                logDiv.appendChild(line);
+                logDiv.scrollTop = logDiv.scrollHeight;
+                return;
+            }
+            text.textContent = full;
             line.appendChild(icon);
             line.appendChild(text);
             logDiv.appendChild(line);
@@ -368,6 +518,7 @@
                 retryBtn.disabled = false;
                 clearLogBtn.disabled = false;
             }
+            renderFileList();
         }
 
         function updateThemeToggleLabel(mode) {
@@ -397,6 +548,161 @@
             const current = localStorage.getItem('ce_converter_theme_mode') || 'auto';
             const next = current === 'auto' ? 'light' : (current === 'light' ? 'dark' : 'auto');
             applyThemeMode(next);
+        }
+
+        function initConfig(prefixInput, suffixInput) {
+            const savedPrefix = localStorage.getItem('ce_converter_output_prefix');
+            const savedSuffix = localStorage.getItem('ce_converter_output_suffix');
+            if (typeof savedPrefix === 'string') prefixInput.value = savedPrefix;
+            if (typeof savedSuffix === 'string') suffixInput.value = savedSuffix;
+            prefixInput.addEventListener('input', () => localStorage.setItem('ce_converter_output_prefix', prefixInput.value));
+            suffixInput.addEventListener('input', () => localStorage.setItem('ce_converter_output_suffix', suffixInput.value));
+        }
+
+        function initSoundToggle() {
+            const key = 'ce_converter_done_sound';
+            const el = document.getElementById('soundToggle');
+            if (!el) return;
+            const saved = localStorage.getItem(key);
+            el.checked = saved === '1';
+            el.addEventListener('change', () => {
+                localStorage.setItem(key, el.checked ? '1' : '0');
+            });
+        }
+
+        function shouldPlayDoneSound() {
+            return localStorage.getItem('ce_converter_done_sound') === '1';
+        }
+
+        function playDoneSound() {
+            if (!shouldPlayDoneSound()) return;
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) return;
+            const ctx = new Ctx();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = 880;
+            gain.gain.value = 0.0001;
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            const t0 = ctx.currentTime;
+            gain.gain.setValueAtTime(0.0001, t0);
+            gain.gain.exponentialRampToValueAtTime(0.25, t0 + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.18);
+            osc.start(t0);
+            osc.stop(t0 + 0.2);
+            osc.onended = () => ctx.close().catch(() => {});
+        }
+
+        function initMobileFocusAssist() {
+            document.addEventListener('focusin', (e) => {
+                const t = e.target;
+                if (!(t instanceof HTMLElement)) return;
+                if (t.tagName !== 'INPUT' && t.tagName !== 'TEXTAREA') return;
+                const isMobile = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+                if (!isMobile) return;
+                setTimeout(() => {
+                    try {
+                        t.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                    } catch {}
+                }, 50);
+            });
+        }
+
+        function initContextMenu() {
+            const menu = document.getElementById('contextMenu');
+            if (!menu) return;
+            const btnRemove = document.getElementById('ctxRemove');
+            const btnClear = document.getElementById('ctxClear');
+
+            const hide = () => {
+                menu.style.display = 'none';
+                menu.dataset.index = '';
+            };
+
+            btnRemove.addEventListener('click', () => {
+                if (isProcessing) return hide();
+                const idx = Number(menu.dataset.index);
+                if (Number.isFinite(idx)) removeFile(idx, { stopPropagation() {} });
+                hide();
+            });
+            btnClear.addEventListener('click', () => {
+                if (isProcessing) return hide();
+                clearAll();
+                hide();
+            });
+
+            document.addEventListener('click', (e) => {
+                if (menu.style.display !== 'none' && !menu.contains(e.target)) hide();
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') hide();
+            });
+            window.addEventListener('blur', hide);
+
+            window.showContextMenu = (x, y, index) => {
+                if (isProcessing) return;
+                menu.dataset.index = String(index);
+                btnRemove.disabled = !(index >= 0 && index < selectedFiles.length);
+                btnClear.disabled = selectedFiles.length === 0;
+                menu.style.display = 'block';
+                const rect = menu.getBoundingClientRect();
+                const maxX = Math.max(8, window.innerWidth - rect.width - 8);
+                const maxY = Math.max(8, window.innerHeight - rect.height - 8);
+                const nx = Math.min(Math.max(8, x), maxX);
+                const ny = Math.min(Math.max(8, y), maxY);
+                menu.style.left = `${nx}px`;
+                menu.style.top = `${ny}px`;
+            };
+        }
+
+        function sanitizeFileNamePart(part) {
+            const s = String(part ?? '');
+            const cleaned = s
+                .replace(/[\\\/:\*\?"<>\|\u0000-\u001F]/g, '_')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .replace(/[. ]+$/g, '');
+            if (!cleaned) return '';
+            return cleaned.length > 120 ? cleaned.slice(0, 120) : cleaned;
+        }
+
+        function makeSafeDownloadName(prefix, baseName, suffix) {
+            const p = sanitizeFileNamePart(prefix);
+            const b = sanitizeFileNamePart(baseName) || 'converted';
+            const s = sanitizeFileNamePart(suffix);
+            const joined = `${p}${b}${s}`;
+            const safe = sanitizeFileNamePart(joined) || 'converted';
+            return `${safe}.json`;
+        }
+
+        function isTypingInInput(target) {
+            const el = target;
+            const tag = el && el.tagName ? el.tagName.toLowerCase() : '';
+            return tag === 'input' || tag === 'textarea' || (el && el.isContentEditable);
+        }
+
+        function initHotkeys() {
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    if (isTypingInInput(e.target)) return;
+                    if (!isProcessing) processFiles();
+                } else if (e.key === 'Escape') {
+                    if (isProcessing) {
+                        cancelConversion();
+                    } else {
+                        clearAll();
+                    }
+                }
+            });
+
+            document.addEventListener('paste', (e) => {
+                const files = e.clipboardData && e.clipboardData.files ? e.clipboardData.files : null;
+                if (files && files.length > 0) {
+                    handleFiles(files).catch(err => log(`读取文件失败: ${err?.message || err}`, "error"));
+                }
+            });
         }
 
         function customStringify(obj, indentLevel = 0) {
@@ -771,22 +1077,27 @@
 
             self.onmessage = async function(e) {
                 const file = e.data.file;
+                const jobId = e.data.jobId;
                 try {
-                    const text = await file.text();
+                    let text = await file.text();
                     const c = getFirstJsonChar(text.slice(0, 4096));
                     if (c !== '{' && c !== '[') {
                         throw new Error("文件内容不像 JSON（开头未发现 { 或 [）");
                     }
-                    const json = JSON.parse(text);
+                    let json = JSON.parse(text);
+                    text = null;
                     
                     validateSchema(json);
                     
-                    const ceJson = convertData(json);
-                    const jsonStr = customStringify(ceJson);
+                    let ceJson = convertData(json);
+                    json = null;
+                    let jsonStr = customStringify(ceJson);
+                    ceJson = null;
                     
-                    self.postMessage({ success: true, fileName: file.name, jsonStr: jsonStr, originalFile: file });
+                    self.postMessage({ success: true, jobId: jobId, fileName: file.name, jsonStr: jsonStr });
+                    jsonStr = null;
                 } catch (err) {
-                    self.postMessage({ success: false, fileName: file.name, error: err.message, originalFile: file });
+                    self.postMessage({ success: false, jobId: jobId, fileName: file.name, error: err.message });
                 }
             };
         `;
@@ -796,14 +1107,26 @@
         let isDownloading = false;
         let filesToProcess = [];
         let currentProcessingIndex = 0;
+        let resendFilesQueue = [];
+        let inFlightJobs = new Map();
+        let inFlightOrder = [];
+        let nextJobId = 1;
 
         function processDownloadQueue() {
+            if (abortRequested) {
+                downloadQueue.length = 0;
+                isDownloading = false;
+                return;
+            }
             if (isDownloading || downloadQueue.length === 0) return;
             isDownloading = true;
             
             let item = downloadQueue.shift();
+            let jsonStr = item && typeof item.jsonStr === 'string' ? item.jsonStr : '';
+            if (item) item.jsonStr = null;
             
-            let blob = new Blob([item.jsonStr], { type: "application/json" });
+            let blob = new Blob([jsonStr], { type: "application/json" });
+            jsonStr = null;
             let url = URL.createObjectURL(blob);
             
             let a = document.createElement('a');
@@ -812,7 +1135,7 @@
             let prefix = document.getElementById('prefixInput').value.trim();
             let suffix = document.getElementById('suffixInput').value.trim();
             let baseName = item.fileName.replace(/\.json$/i, '');
-            let newName = prefix + baseName + suffix + '.json';
+            let newName = makeSafeDownloadName(prefix, baseName, suffix);
             
             a.download = newName;
             
@@ -821,6 +1144,7 @@
             document.body.removeChild(a);
             
             URL.revokeObjectURL(url);
+            a.href = '';
             log(`成功转换并下载: ${item.fileName} -> ${newName}`, "success");
             
             setTimeout(() => {
@@ -828,6 +1152,29 @@
                 processDownloadQueue();
                 maybeFinishProcessing();
             }, 150);
+        }
+
+        function cleanupAfterRun() {
+            downloadQueue.length = 0;
+            resendFilesQueue.length = 0;
+            filesToProcess.length = 0;
+            currentProcessingIndex = 0;
+            inFlightJobs.clear();
+            inFlightOrder.length = 0;
+
+            if (myWorker) {
+                myWorker.terminate();
+                myWorker = null;
+            }
+            if (workerObjectUrl) {
+                URL.revokeObjectURL(workerObjectUrl);
+                workerObjectUrl = null;
+            }
+        }
+
+        function removeInFlightOrder(jobId) {
+            const idx = inFlightOrder.indexOf(jobId);
+            if (idx >= 0) inFlightOrder.splice(idx, 1);
         }
 
         function createWorker() {
@@ -852,49 +1199,107 @@
             
             myWorker.onmessage = function(e) {
                 const result = e.data;
+                const jobId = result && typeof result.jobId === 'number' ? result.jobId : null;
+                const originalFile = jobId !== null ? inFlightJobs.get(jobId) : null;
+                if (jobId !== null) {
+                    inFlightJobs.delete(jobId);
+                    removeInFlightOrder(jobId);
+                }
+                if (abortRequested) {
+                    if (originalFile) setFileStatus(originalFile, 'canceled');
+                    renderFileList();
+                    return;
+                }
                 processedCount++;
                 updateProgress();
 
                 if (result.success) {
-                    downloadQueue.push(result);
+                    if (originalFile) setFileStatus(originalFile, 'success');
+                    downloadQueue.push({ fileName: result.fileName, jsonStr: result.jsonStr });
                     processDownloadQueue();
                 } else {
-                    failedFiles.push(result.originalFile);
+                    if (originalFile) failedFiles.push(originalFile);
+                    if (originalFile) setFileStatus(originalFile, 'failed', result.error || '');
                     log(`转换失败: ${result.fileName} (错误: ${result.error})`, "error");
                     document.getElementById('retryBtn').style.display = 'inline-block';
                 }
                 
                 sendNextBatch();
+                renderFileList();
                 maybeFinishProcessing();
             };
             
             myWorker.onerror = function(err) {
                 log(`Worker 发生系统级错误或崩溃: ${err.message}`, "error");
-                // 崩溃后重启 Worker，并把当前失败的记下，继续处理下一个
-                if (filesToProcess[currentProcessingIndex - 1]) {
-                    failedFiles.push(filesToProcess[currentProcessingIndex - 1]);
-                    document.getElementById('retryBtn').style.display = 'inline-block';
-                    processedCount++;
-                    updateProgress();
+                const suspectedJobId = inFlightOrder.length > 0 ? inFlightOrder[inFlightOrder.length - 1] : null;
+                if (suspectedJobId !== null) {
+                    const suspectedFile = inFlightJobs.get(suspectedJobId);
+                    inFlightJobs.delete(suspectedJobId);
+                    inFlightOrder.pop();
+                    if (suspectedFile) {
+                        failedFiles.push(suspectedFile);
+                        setFileStatus(suspectedFile, 'failed', err?.message || 'Worker 崩溃');
+                        document.getElementById('retryBtn').style.display = 'inline-block';
+                        processedCount++;
+                        updateProgress();
+                    }
                 }
-                createWorker();
-                sendNextBatch();
+
+                const toResend = [];
+                for (const jid of inFlightOrder) {
+                    const f = inFlightJobs.get(jid);
+                    if (f) toResend.push(f);
+                }
+                inFlightJobs.clear();
+                inFlightOrder.length = 0;
+                resendFilesQueue = toResend.concat(resendFilesQueue);
+
+                const ok = createWorker();
+                if (!ok) {
+                    const remaining = resendFilesQueue.concat(filesToProcess.slice(currentProcessingIndex));
+                    resendFilesQueue = [];
+                    filesToProcess = [];
+                    currentProcessingIndex = 0;
+                    convertInMainThread(remaining);
+                    return;
+                }
+
+                while (inFlightJobs.size < 3) {
+                    const sent = sendNextBatch();
+                    if (!sent) break;
+                }
+                renderFileList();
                 maybeFinishProcessing();
             };
             return true;
         }
 
         function sendNextBatch() {
-            if (currentProcessingIndex < filesToProcess.length) {
-                // 每次发1个过去，防止大文件堆积卡死Worker和内存
-                myWorker.postMessage({ file: filesToProcess[currentProcessingIndex] });
+            if (!myWorker) return false;
+            if (abortRequested) return false;
+            let file = null;
+            if (resendFilesQueue.length > 0) {
+                file = resendFilesQueue.shift();
+            } else if (currentProcessingIndex < filesToProcess.length) {
+                file = filesToProcess[currentProcessingIndex];
                 currentProcessingIndex++;
+            } else {
+                return false;
             }
+            const jobId = nextJobId++;
+            inFlightJobs.set(jobId, file);
+            inFlightOrder.push(jobId);
+            myWorker.postMessage({ file, jobId });
+            return true;
         }
 
         function triggerWorker(files) {
             filesToProcess = files;
             currentProcessingIndex = 0;
+            resendFilesQueue = [];
+            inFlightJobs.clear();
+            inFlightOrder.length = 0;
+            nextJobId = 1;
             
             const ok = createWorker();
             if (!ok) {
@@ -912,11 +1317,20 @@
         async function convertInMainThread(files) {
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
+                if (abortRequested) {
+                    setFileStatus(file, 'canceled');
+                    processedCount++;
+                    updateProgress();
+                    continue;
+                }
+                setFileStatus(file, 'processing');
+                renderFileList();
                 try {
-                    const text = await file.text();
+                    let text = await file.text();
                     const c = getFirstJsonChar(text.slice(0, 4096));
                     if (c !== '{' && c !== '[') throw new Error("文件内容不像 JSON（开头未发现 { 或 [）");
-                    const json = JSON.parse(text);
+                    let json = JSON.parse(text);
+                    text = null;
                     const isIndestructible = (json && typeof json === 'object') && (
                         json.combat_behavior !== undefined ||
                         json.attributes !== undefined ||
@@ -926,16 +1340,21 @@
                         json.default_livingmotions !== undefined
                     );
                     if (!isIndestructible) throw new Error("文件格式不匹配，未检测到 Indestructible 特有字段");
-                    const result = await convertIndestructibleToCE(json);
-                    const jsonStr = customStringify(result);
+                    let result = await convertIndestructibleToCE(json);
+                    json = null;
+                    let jsonStr = customStringify(result);
+                    result = null;
                     processedCount++;
                     updateProgress();
-                    downloadQueue.push({ success: true, fileName: file.name, jsonStr, originalFile: file });
+                    setFileStatus(file, 'success');
+                    downloadQueue.push({ fileName: file.name, jsonStr });
+                    jsonStr = null;
                     processDownloadQueue();
                 } catch (err) {
                     processedCount++;
                     updateProgress();
                     failedFiles.push(file);
+                    setFileStatus(file, 'failed', err?.message || String(err));
                     log(`转换失败: ${file.name} (错误: ${err?.message || err})`, "error");
                     document.getElementById('retryBtn').style.display = 'inline-block';
                 }
@@ -1166,21 +1585,36 @@
             if (!allResultsReceived) return;
             const noPendingDownloads = downloadQueue.length === 0 && !isDownloading;
             if (!noPendingDownloads) return;
+            const duration = runStartMs > 0 ? performance.now() - runStartMs : 0;
+            runStartMs = 0;
+            cleanupAfterRun();
             setProcessingState(false);
-            log(`处理完成：成功 ${totalCount - failedFiles.length} 个，失败 ${failedFiles.length} 个。`, failedFiles.length > 0 ? "error" : "success");
+            const summaryType = failedFiles.length > 0 ? "error" : "success";
+            const timeText = duration > 0 ? ` 用时 ${formatDuration(duration)}` : '';
+            log(`处理完成：成功 ${totalCount - failedFiles.length} 个，失败 ${failedFiles.length} 个。${timeText}`, summaryType);
+            playDoneSound();
+            updateProgress();
         }
 
         function processFiles() {
+            if (isProcessing) {
+                log("正在处理中，请勿重复触发。", "info");
+                return;
+            }
             if (selectedFiles.length === 0) {
                 log("请先选择或拖放要转换的 JSON 文件！", "error");
                 return;
             }
 
+            abortRequested = false;
             failedFiles = [];
             document.getElementById('retryBtn').style.display = 'none';
             totalCount = selectedFiles.length;
             processedCount = 0;
+            runStartMs = performance.now();
             updateProgress();
+            for (const f of selectedFiles) setFileStatus(f, 'processing');
+            renderFileList();
 
             log(`开始批量转换 ${totalCount} 个文件 (启用异步加速)...`, "info");
             setProcessingState(true);
@@ -1188,14 +1622,22 @@
         }
 
         function retryFailed() {
+            if (isProcessing) {
+                log("正在处理中，请勿重复触发。", "info");
+                return;
+            }
             if (failedFiles.length === 0) return;
             const filesToRetry = [...failedFiles];
             failedFiles = [];
             document.getElementById('retryBtn').style.display = 'none';
             
+            abortRequested = false;
             totalCount = filesToRetry.length;
             processedCount = 0;
+            runStartMs = performance.now();
             updateProgress();
+            for (const f of filesToRetry) setFileStatus(f, 'processing');
+            renderFileList();
 
             log(`重试 ${totalCount} 个失败文件...`, "info");
             setProcessingState(true);
