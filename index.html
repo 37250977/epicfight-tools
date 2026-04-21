@@ -56,8 +56,12 @@
             align-items: start;
         }
         @media (max-width: 900px) {
-            .container { grid-template-columns: 1fr; height: auto; }
+            .container { grid-template-columns: 1fr; height: auto; display: flex; flex-direction: column; }
             .resizer { display: none; }
+            .panel { width: 100%; box-sizing: border-box; }
+            #preview-panel { height: 50vh !important; position: relative !important; top: 0 !important; margin-top: 20px; }
+            .slider-row { grid-template-columns: 30px 1fr 50px; gap: 5px; }
+            .form-group input[type="number"], .form-group input[type="text"] { font-size: 16px; } /* 防止 iOS 缩放 */
         }
         .panel {
             background: var(--card);
