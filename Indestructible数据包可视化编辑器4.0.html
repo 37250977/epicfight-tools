@@ -1,0 +1,2120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Indestructible 数据包可视化编辑器</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --border: #e2e8f0;
+            --text: #1e293b;
+            --input-bg: #ffffff;
+            --hover-btn: #2563eb;
+            --sec-bg: #64748b;
+            --sec-hover: #475569;
+            --danger-bg: #ef4444;
+            --danger-hover: #dc2626;
+            --panel-bg: #f1f5f9;
+        }
+        body.dark-mode {
+            --primary: #3b82f6;
+            --bg: #0f172a;
+            --card: #1e293b;
+            --border: #334155;
+            --text: #f8fafc;
+            --input-bg: #0f172a;
+            --hover-btn: #60a5fa;
+            --sec-bg: #475569;
+            --sec-hover: #64748b;
+            --danger-bg: #dc2626;
+            --danger-hover: #ef4444;
+            --panel-bg: #334155;
+        }
+        body{margin:0;padding:20px;background:var(--bg);color:var(--text);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;transition: background-color 0.3s, color 0.3s;}
+        *{box-sizing:border-box}
+        .container{max-width:1800px;margin:0 auto;display:grid;grid-template-columns:minmax(600px,1fr) 10px minmax(400px,1fr);gap:15px}
+        @media (max-width:1100px){.container{grid-template-columns:1fr !important;}.resizer{display:none;}}
+        .resizer { width: 10px; cursor: col-resize; background: transparent; transition: background 0.2s; border-radius: 4px; }
+        .resizer:hover, .resizer.dragging { background: var(--primary); }
+        .panel{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.1);transition: background-color 0.3s, border-color 0.3s;}
+        .editor{max-height:calc(100vh - 40px);overflow-y:auto}
+        .preview{position:sticky;top:20px;max-height:calc(100vh - 40px);display:flex;flex-direction:column}
+        h2,h3,h4{margin:0 0 12px;color:var(--text)}
+        .section-header { cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; transition: color 0.2s; }
+        .section-header:hover { color: var(--primary); }
+        .top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+        .top p,.hint{margin:0;color:var(--text);font-size:12px;opacity:0.8}
+        .section{border-top:2px solid var(--border);margin-top:20px;padding-top:20px}
+        .section-head{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+        .grid2,.grid3{display:grid;gap:12px}
+        .grid2{grid-template-columns:repeat(2,minmax(0,1fr))}
+        .grid3{grid-template-columns:repeat(3,minmax(0,1fr))}
+        @media (max-width:860px){.grid2,.grid3{grid-template-columns:1fr}}
+        .form-group{margin-bottom:12px}
+        .form-group label{display:block;font-weight:600;font-size:13px;margin-bottom:5px}
+        input[type="text"],input[type="number"],textarea,select{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg);color:var(--text);transition:all 0.2s ease;}
+        input[type="text"]:focus,input[type="number"]:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 2px rgba(59,130,246,0.2);outline:none;}
+        textarea{min-height:120px;resize:vertical}
+        .btn{border:none;border-radius:6px;background:var(--primary);color:#fff;padding:8px 14px;cursor:pointer;transition:all 0.2s ease;}
+        .btn:hover{background:var(--hover-btn);transform:translateY(-1px);box-shadow:0 2px 4px rgba(0,0,0,0.1);}
+        .btn:active{transform:scale(0.98);}
+        .btn.secondary{background:var(--sec-bg)}
+        .btn.secondary:hover{background:var(--sec-hover)}
+        .btn.danger{background:var(--danger-bg)}
+        .btn.danger:hover{background:var(--danger-hover)}
+        .btn.mini{padding:2px 8px;font-size:12px}
+        .array-item,.sub-panel{position:relative;border:1px solid var(--border);border-radius:8px;background:var(--panel-bg);padding:12px;margin-bottom:12px}
+        .sub-panel{background:var(--card)}
+        .remove-btn{position:absolute;top:8px;right:8px}
+        .row3{display:grid;grid-template-columns:minmax(120px,.7fr) minmax(0,1.3fr) auto;gap:8px;align-items:center;margin-bottom:8px}
+        @media (max-width:860px){.row3{grid-template-columns:1fr}}
+        .pill-list{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+        .pill{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;background:var(--panel-bg);color:var(--primary);font-size:12px;border:1px solid var(--border)}
+
+        .resource-box,.info{border:1px dashed #cbd5e1;background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:12px}
+        .info{border-style:solid;background:#eff6ff;color:#1e3a8a}
+        .code{margin-top:12px;background:#0f172a;color:#d4d4d4;border-radius:8px;padding:16px;white-space:pre;overflow:auto;font:13px/1.5 Consolas,"Courier New",monospace;flex:1}
+        .checkline{display:flex;align-items:center;gap:8px;font-size:14px}
+        .checkline input{margin:0}
+        .animation-path-input{width:100%}
+        .animation-autocomplete-panel{position:fixed;z-index:9999;min-width:260px;max-width:520px;max-height:280px;overflow-y:auto;background:#fff;border:1px solid #cbd5e1;border-radius:6px;box-shadow:0 10px 30px rgba(15,23,42,.18);display:none}
+        .animation-autocomplete-item{padding:8px 10px;cursor:pointer;border-bottom:1px solid #eef2f7;font-size:13px;line-height:1.4;word-break:break-all}
+        .animation-autocomplete-item:last-child{border-bottom:none}
+        .animation-autocomplete-item:hover,.animation-autocomplete-item.active{background:#eff6ff;color:#1d4ed8}
+        .animation-autocomplete-group{border-bottom:1px solid #e2e8f0}
+        .animation-autocomplete-group:last-child{border-bottom:none}
+        .animation-autocomplete-group-title{position:sticky;top:0;z-index:1;padding:6px 10px;background:#f8fafc;color:#475569;font-size:12px;font-weight:600;border-bottom:1px solid #e2e8f0}
+        .animation-autocomplete-highlight{background:#fef3c7;color:#92400e;font-weight:700;border-radius:2px;padding:0 1px}
+        .animation-autocomplete-empty{padding:8px 10px;color:#64748b;font-size:12px}
+        .floating-window {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            width: 400px;
+            height: 500px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            resize: both;
+            overflow: hidden;
+        }
+        .floating-header {
+            padding: 10px;
+            background: var(--panel-bg);
+            border-bottom: 1px solid var(--border);
+            cursor: move;
+            display: flex;
+            align-items: center;
+            font-weight: bold;
+            user-select: none;
+            color: var(--text);
+        }
+</style>
+</head>
+<body>
+<div id="app" class="container" :style="{ gridTemplateColumns: leftWidth + '% 10px minmax(0, 1fr)' }">
+    <div class="panel editor">
+        <div class="top">
+            <div>
+                <h2>Indestructible 数据包可视化编辑器</h2>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                    <button class="btn secondary" @click="toggleTheme" style="font-size:12px; padding:6px 12px;" title="切换深色/浅色模式">{{ isDarkMode ? '☀️ 浅色模式' : '🌙 深色模式' }}</button>
+                    <p style="margin:0;">常用字段可视化编辑，`combat_behavior` 先保留为可校验/可格式化 JSON 区块。</p>
+                </div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+                <button class="btn" @click="triggerImport">导入 JSON</button>
+                <button class="btn" @click="exportJSON">导出 JSON</button>
+                <button class="btn secondary" @click="copyJSON">复制 JSON</button>
+            </div>
+        </div>
+
+        <div class="resource-box">
+            <div class="section-head">
+                <div>
+                    <div style="font-size:12px;color:#2563eb;font-weight:700">动画资源索引</div>
+                    <div class="hint">导入资源目录后，动画路径输入框会出现分组联想和高亮匹配。</div>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    <button class="btn mini" @click="openAssetFolderPicker">导入资源文件夹</button>
+                    <button class="btn secondary mini" @click="clearAnimationLibrary" :disabled="availableAnimations.length===0">清空索引</button>
+                </div>
+            </div>
+            <div class="hint">{{ animationLibrarySummary }}</div>
+            <div class="pill-list" v-if="loadedAnimationMods.length">
+                <span class="pill" v-for="mod in loadedAnimationMods" :key="mod.modId">{{ mod.modId }} ({{ mod.count }})</span>
+            </div>
+        </div>
+
+        <div class="info">推荐保存路径：`数据包名/data/生物所属modid/advanced_mobpatch/生物id.json`</div>
+
+        <div class="section">
+            <div class="section-head" @click="toggleSection('basic')">
+                <h3 class="section-header">基础属性 <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['basic'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+            </div>
+            <div v-show="!collapsedSections['basic']">
+                <div class="grid2">
+                    <div class="form-group"><label>Model (模型)</label><input type="text" v-model="config.model"></div>
+                    <div class="form-group"><label>Armature (骨骼)</label><input type="text" v-model="config.armature"></div>
+                    <div class="form-group"><label>Renderer (渲染器)</label><input type="text" v-model="config.renderer"></div>
+                    <div class="form-group"><label>Faction (阵营)</label><input type="text" v-model="config.faction"></div>
+                    <div class="form-group"><label>Hit Sound (受击音效)</label><input type="text" v-model="config.hit_sound"></div>
+                    <div class="form-group"><label>Hit Particle (受击粒子)</label><input type="text" v-model="config.hit_particle"></div>
+                    <div class="form-group"><label>Swing Sound (挥击音效)</label><input type="text" v-model="config.swing_sound"></div>
+                    <div class="form-group"><label>Custom Texture (自定义血条贴图)</label><input type="text" v-model="config.custom_texture"></div>
+                    <div class="form-group"><label>Custom Name (自定义血条名称)</label><input type="text" v-model="config.custom_name"></div>
+                </div>
+                <div style="display:flex;gap:20px;flex-wrap:wrap">
+                    <label class="checkline"><input type="checkbox" v-model="config.isHumanoid"> isHumanoid (是否人形)</label>
+                    <label class="checkline"><input type="checkbox" v-model="config.boss_bar"> boss_bar (显示 Boss 血条)</label>
+                    <label class="checkline"><input type="checkbox" v-model="config.advanced"> advanced (高级模式)</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-head" @click="toggleSection('attributes')">
+                <h3 class="section-header">Attributes (属性配置) <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['attributes'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+            </div>
+            <div v-show="!collapsedSections['attributes']">
+                <div style="margin-bottom:10px;"><button class="btn mini" @click="addObjectField(config.attributes,'new_attribute',0)">+ 添加属性</button></div>
+                <div class="row3" v-for="(value,key) in config.attributes" :key="'attr-'+key">
+                    <input type="text" :value="key" @change="renameObjectKey(config.attributes,key,$event.target.value)">
+                    <input type="number" step="0.1" v-model.number="config.attributes[key]">
+                    <button class="btn danger mini" @click="removeObjectField(config.attributes,key)">删除</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-head" @click="toggleSection('defaultLiving')">
+                <h3 class="section-header">Default Living Motions (默认基础动作) <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['defaultLiving'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+            </div>
+            <div v-show="!collapsedSections['defaultLiving']">
+                <div style="margin-bottom:10px;"><button class="btn mini" @click="addObjectField(config.default_livingmotions,'new_motion','')">+ 添加动作键</button></div>
+                <div class="row3" v-for="(value,key) in config.default_livingmotions" :key="'motion-'+key">
+                    <input type="text" :value="key" @change="renameObjectKey(config.default_livingmotions,key,$event.target.value)">
+                    <div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="config.default_livingmotions[key]"><button class="btn secondary mini" title="预览动画" @click="previewAnimation(config.default_livingmotions[key])">▶</button></div>
+                    <button class="btn danger mini" @click="removeObjectField(config.default_livingmotions,key)">删除</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-head" @click="toggleSection('humanoidWeapon')">
+                <h3 class="section-header">Humanoid Weapon Motions (持武动作配置) <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['humanoidWeapon'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+            </div>
+            <div v-show="!collapsedSections['humanoidWeapon']">
+                <div style="margin-bottom:10px;"><button class="btn mini" @click="addWeaponMotion">+ 新增持武配置</button></div>
+                <div class="array-item" v-for="(wm,index) in config.humanoid_weapon_motions" :key="'wm-'+index">
+                    <button class="btn danger mini remove-btn" @click="config.humanoid_weapon_motions.splice(index,1)">X</button>
+                    <div class="grid2">
+                        <div class="form-group"><label>Weapon Categories (武器分类)</label><input type="text" :value="joinList(wm.weapon_categories)" @input="wm.weapon_categories=parseCommaList($event.target.value)"></div>
+                        <div class="form-group"><label>Style (持握姿势)</label><input type="text" v-model="wm.style"></div>
+                    </div>
+                    <div class="sub-panel">
+                        <div class="section-head">
+                            <h4>Living Motions (基础动作)</h4>
+                            <button class="btn mini" @click="addObjectField(wm.livingmotions,'new_motion','')">添加动作键</button>
+                        </div>
+                        <div class="row3" v-for="(value,key) in wm.livingmotions" :key="'wm-'+index+'-'+key">
+                            <input type="text" :value="key" @change="renameObjectKey(wm.livingmotions,key,$event.target.value)">
+                            <div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="wm.livingmotions[key]"><button class="btn secondary mini" title="预览动画" @click="previewAnimation(wm.livingmotions[key])">▶</button></div>
+                            <button class="btn danger mini" @click="removeObjectField(wm.livingmotions,key)">删除</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-head" @click="toggleSection('customGuard')">
+                <h3 class="section-header">Custom Guard Motion (自定义防御动作) <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['customGuard'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+            </div>
+            <div v-show="!collapsedSections['customGuard']">
+                <div style="margin-bottom:10px;"><button class="btn mini" @click="addGuardMotion">+ 新增防御配置</button></div>
+                <div class="array-item" v-for="(gm,index) in config.custom_guard_motion" :key="'gm-'+index">
+                    <button class="btn danger mini remove-btn" @click="config.custom_guard_motion.splice(index,1)">X</button>
+                    <div class="grid2">
+                    <div class="form-group"><label>Weapon Categories (武器分类)</label><input type="text" :value="joinList(gm.weapon_categories)" @input="gm.weapon_categories=parseCommaList($event.target.value)"></div>
+                    <div class="form-group"><label>Style (持握姿势)</label><input type="text" v-model="gm.style"></div>
+                    <div class="form-group"><label>Guard Animation (防御动画)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="gm.guard"><button class="btn secondary mini" title="预览动画" @click="previewAnimation(gm.guard)">▶</button></div></div>
+                    <div class="form-group"><label>Stamina Cost Multiply (耐力消耗倍率)</label><input type="number" step="0.1" v-model.number="gm.stamina_cost_multiply"></div>
+                    <div class="form-group"><label>Parry Cost Multiply (招架耐力消耗倍率)</label><input type="number" step="0.1" v-model.number="gm.parry_cost_multiply"></div>
+                    <div class="form-group"><label class="checkline" style="margin-top:18px;"><input type="checkbox" v-model="gm.can_block_projectile"> Can Block Projectile (能否格挡弹射物)</label></div>
+                </div>
+                <div class="sub-panel">
+                    <div class="section-head">
+                        <h4>Parry Animation (派生防御/招架动画)</h4>
+                        <button class="btn mini" @click="addStringItem(gm.parry_animation)">新增动画</button>
+                    </div>
+                    <div class="row3" v-for="(anim,aIdx) in gm.parry_animation" :key="'parry-'+index+'-'+aIdx">
+                        <div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" :value="anim" @input="gm.parry_animation[aIdx]=$event.target.value"><button class="btn secondary mini" title="预览动画" @click="previewAnimation(gm.parry_animation[aIdx])">▶</button></div>
+                        <div></div>
+                        <button class="btn danger mini" @click="gm.parry_animation.splice(aIdx,1)">删除</button>
+                    </div>
+                </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-head" @click="toggleSection('stunAnim')">
+                <h3 class="section-header">Stun Animations (受击硬直动画) <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['stunAnim'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+            </div>
+            <div v-show="!collapsedSections['stunAnim']">
+                <div style="margin-bottom:10px;"><button class="btn mini" @click="addObjectField(config.stun_animations,'new_stun','')">+ 添加硬直类型</button></div>
+                <div class="row3" v-for="(value,key) in config.stun_animations" :key="'stun-'+key">
+                    <input type="text" :value="key" @change="renameObjectKey(config.stun_animations,key,$event.target.value)">
+                    <div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="config.stun_animations[key]"><button class="btn secondary mini" title="预览动画" @click="previewAnimation(config.stun_animations[key])">▶</button></div>
+                    <button class="btn danger mini" @click="removeObjectField(config.stun_animations,key)">删除</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-head" @click="toggleSection('stunCmd')">
+                <h3 class="section-header">Stun Command List (硬直触发指令列表) <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['stunCmd'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+            </div>
+            <div v-show="!collapsedSections['stunCmd']">
+                <div style="margin-bottom:10px;"><button class="btn mini" @click="addStunCommand">+ 新增硬直指令</button></div>
+                <div class="array-item" v-for="(cmd,index) in config.stun_command_list" :key="'sc-'+index">
+                    <button class="btn danger mini remove-btn" @click="config.stun_command_list.splice(index,1)">X</button>
+                    <div class="grid3">
+                        <div class="form-group"><label>Stun Type (硬直类型)</label><input type="text" v-model="cmd.stun_type"></div>
+                        <div class="form-group" style="display:flex;align-items:center;"><label class="checkline"><input type="checkbox" v-model="cmd.execute_at_target"> Execute At Target (对目标执行)</label></div>
+                    </div>
+                    <div class="form-group"><label>Command (指令)</label><input type="text" v-model="cmd.command"></div>
+                </div>
+            </div>
+        </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-head">
+                <h3>Combat Behavior (战斗行为)</h3>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    <button class="btn mini" @click="addCombatBehavior">新增行为组</button>
+                    <button class="btn secondary mini" @click="generateTemplate">从参考 JSON 一键生成模板</button>
+                </div>
+            </div>
+            <div class="hint">完全图形化的战斗行为配置，可以精细控制生物的动作、防御、游荡等。</div>
+            
+            <div class="array-item" v-for="(cb, cbIdx) in config.combat_behavior" :key="'cb-'+cbIdx">
+                <button class="btn danger mini remove-btn" @click="config.combat_behavior.splice(cbIdx,1)">X</button>
+                <div class="grid2">
+                    <div class="form-group"><label>Weapon Categories (武器分类)</label><input type="text" :value="joinList(cb.weapon_categories)" @input="cb.weapon_categories=parseCommaList($event.target.value)"></div>
+                    <div class="form-group"><label>Style (持握姿势)</label><input type="text" v-model="cb.style"></div>
+                </div>
+                
+                <div class="sub-panel">
+                    <div class="section-head">
+                        <h4>Behavior Series (招式序列)</h4>
+                        <button class="btn mini" @click="addBehaviorSeries(cb)">新增 Series</button>
+                    </div>
+                    
+                    <div class="array-item" v-for="(series, sIdx) in cb.behavior_series" :key="'series-'+cbIdx+'-'+sIdx">
+                        <button class="btn danger mini remove-btn" @click="cb.behavior_series.splice(sIdx,1)">X</button>
+                        <div class="grid3">
+                            <div class="form-group"><label>Weight (权重)</label><input type="number" step="0.1" v-model.number="series.weight"></div>
+                            <div class="form-group"><label>Cooldown (冷却/tick)</label><input type="number" v-model.number="series.cooldown"></div>
+                            <div class="form-group" style="display:flex;align-items:center;"><label class="checkline"><input type="checkbox" v-model="series.canBeInterrupted"> canBeInterrupted</label></div>
+                            <div class="form-group" style="display:flex;align-items:center;"><label class="checkline"><input type="checkbox" v-model="series.looping"> looping</label></div>
+                        </div>
+
+                        <div class="sub-panel" style="background:#fff;">
+                            <div class="section-head">
+                                <h5>Behaviors (具体行为)</h5>
+                                <button class="btn mini" @click="addBehavior(series)">新增 Action</button>
+                            </div>
+                            
+                            <div class="array-item" style="background:#f8fafc;" v-for="(bhv, bIdx) in series.behaviors" :key="'bhv-'+cbIdx+'-'+sIdx+'-'+bIdx">
+                                <button class="btn danger mini remove-btn" @click="series.behaviors.splice(bIdx,1)">X</button>
+                                
+                                <div class="grid2">
+                                    <div class="form-group">
+                                        <label>Action Type (行为类型)</label>
+                                        <select v-model="bhv._type" @change="syncBehaviorType(bhv)">
+                                            <option value="animation">Animation (攻击/播放动画)</option>
+                                            <option value="guard">Guard (防御/格挡)</option>
+                                            <option value="wander">Wander (游荡)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>End By Hurt Level (受击打断等级)</label>
+                                        <input type="number" v-model.number="bhv.end_by_hurt_level" placeholder="默认: 2">
+                                    </div>
+                                </div>
+
+                                <!-- Conditions -->
+                                <div class="form-group">
+                                    <label>Conditions (前置条件)</label>
+                                    <div class="row3" v-for="(cond, cIdx) in bhv.conditions" :key="'cond-'+cIdx">
+                                        <input type="text" v-model="cond.predicate" placeholder="epicfight:within_distance">
+                                        <input type="text" :value="JSON.stringify(cond)" @change="updateCondition(cond, $event.target.value)" placeholder='额外参数如 {"min":0,"max":5}'>
+                                        <button class="btn danger mini" @click="bhv.conditions.splice(cIdx,1)">删</button>
+                                    </div>
+                                    <button class="btn mini" style="margin-top:4px;" @click="addCondition(bhv)">新增条件</button>
+                                </div>
+
+                                <!-- Type: Animation -->
+                                <div v-if="bhv._type==='animation'" class="grid2" style="border-top:1px solid #e2e8f0;padding-top:10px;">
+                                    <div class="form-group"><label>Animation (动画路径)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="bhv.animation"><button class="btn secondary mini" title="预览动画" @click="previewAnimation(bhv.animation)">▶</button></div></div>
+                                    <div class="form-group"><label>Play Speed (播放速度)</label><input type="number" step="0.1" v-model.number="bhv.play_speed"></div>
+                                    <div class="form-group"><label>Stamina Cost (耐力消耗)</label><input type="number" v-model.number="bhv.stamina"></div>
+                                    <div class="form-group"><label>Convert Time (前摇/过渡时间)</label><input type="number" v-model.number="bhv.convert_time"></div>
+                                    <div class="form-group"><label class="checkline"><input type="checkbox" v-model="bhv._enable_set_phase"> Set Phase (设定阶段)</label><input v-if="bhv._enable_set_phase" type="number" v-model.number="bhv.set_phase"></div>
+                                </div>
+                                <div v-if="bhv._type==='animation'" style="margin-top:10px;">
+                                    <label class="checkline" style="font-size:13px;font-weight:600;margin-bottom:8px;"><input type="checkbox" v-model="bhv._enable_damage_modifier"> Damage Modifier (伤害修饰)</label>
+                                    <div class="grid3" v-if="bhv._enable_damage_modifier">
+                                        <div class="form-group"><label>Damage (伤害倍率)</label><input type="number" step="0.1" v-model.number="bhv.damage_modifier.damage"></div>
+                                        <div class="form-group"><label>Impact (冲击倍率)</label><input type="number" step="0.1" v-model.number="bhv.damage_modifier.impact"></div>
+                                        <div class="form-group"><label>Armor Negation (破甲倍率)</label><input type="number" step="0.1" v-model.number="bhv.damage_modifier.armor_negation"></div>
+                                        <div class="form-group"><label>Stun Type (眩晕类型)</label><input type="text" v-model="bhv.damage_modifier.stun_type" placeholder="short"></div>
+                                    </div>
+                                </div>
+                                <div v-if="bhv._type==='animation'" style="margin-top:10px;border-top:1px solid #e2e8f0;padding-top:10px;">
+                                    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:8px;">Command Lists (事件/指令)</label>
+                                    <div class="grid3">
+                                        <div class="form-group">
+                                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                                                <label>Command List</label>
+                                                <button class="btn mini" @click="addCommandListItem(bhv,'command_list')">+</button>
+                                            </div>
+                                            <div class="array-item" v-for="(cmd, cIdx) in bhv.command_list" :key="'cmd-'+cIdx" style="padding:8px;margin-bottom:4px;">
+                                                <button class="btn danger mini remove-btn" style="top:4px;right:4px;" @click="bhv.command_list.splice(cIdx,1)">X</button>
+                                                <div style="display:flex;gap:4px;margin-bottom:4px;"><input type="number" step="0.1" v-model.number="cmd.time" placeholder="time" style="width:60px;"><label class="checkline"><input type="checkbox" v-model="cmd.execute_at_target"> at target</label></div>
+                                                <input type="text" v-model="cmd.command" placeholder="command">
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                                                <label>Hit Command List</label>
+                                                <button class="btn mini" @click="addCommandListItem(bhv,'hit_command_list')">+</button>
+                                            </div>
+                                            <div class="array-item" v-for="(cmd, cIdx) in bhv.hit_command_list" :key="'hit-'+cIdx" style="padding:8px;margin-bottom:4px;">
+                                                <button class="btn danger mini remove-btn" style="top:4px;right:4px;" @click="bhv.hit_command_list.splice(cIdx,1)">X</button>
+                                                <div style="margin-bottom:4px;"><label class="checkline"><input type="checkbox" v-model="cmd.execute_at_target"> at target</label></div>
+                                                <input type="text" v-model="cmd.command" placeholder="command">
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                                                <label>Blocked Command List</label>
+                                                <button class="btn mini" @click="addCommandListItem(bhv,'blocked_command_list')">+</button>
+                                            </div>
+                                            <div class="array-item" v-for="(cmd, cIdx) in bhv.blocked_command_list" :key="'blk-'+cIdx" style="padding:8px;margin-bottom:4px;">
+                                                <button class="btn danger mini remove-btn" style="top:4px;right:4px;" @click="bhv.blocked_command_list.splice(cIdx,1)">X</button>
+                                                <div style="display:flex;gap:4px;margin-bottom:4px;"><label class="checkline"><input type="checkbox" v-model="cmd.is_parry"> is_parry</label><label class="checkline"><input type="checkbox" v-model="cmd.execute_at_target"> at target</label></div>
+                                                <input type="text" v-model="cmd.command" placeholder="command">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Type: Guard -->
+                                <div v-if="bhv._type==='guard'" class="grid2" style="border-top:1px solid #e2e8f0;padding-top:10px;">
+                                    <div class="form-group"><label>Guard (取消防御反应时间/tick)</label><input type="number" v-model.number="bhv.guard"></div>
+                                    <div class="form-group"><label class="checkline"><input type="checkbox" v-model="bhv._enable_counter"> Counter Animation (防反动画)</label><div v-if="bhv._enable_counter" style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="bhv.counter"><button class="btn secondary mini" title="预览动画" @click="previewAnimation(bhv.counter)">▶</button></div></div>
+                                    <div class="form-group" v-if="bhv._enable_counter"><label>Counter Chance (防反机率 0-1)</label><input type="number" step="0.1" v-model.number="bhv.counter_chance"></div>
+                                    <div class="form-group" v-if="bhv._enable_counter"><label>Counter Cost (防反耐力消耗)</label><input type="number" v-model.number="bhv.counter_cost"></div>
+                                    <div class="form-group" v-if="bhv._enable_counter"><label>Counter Speed (防反速度)</label><input type="number" step="0.1" v-model.number="bhv.counter_speed"></div>
+                                    <div class="form-group" v-if="bhv._enable_counter"><label class="checkline" style="margin-top:18px;"><input type="checkbox" v-model="bhv.cancel_after_counter"> Cancel After Counter</label></div>
+                                    <div class="form-group" style="display:flex;align-items:center;"><label class="checkline"><input type="checkbox" v-model="bhv.parry"> parry (招架)</label></div>
+                                    <div class="form-group" v-if="bhv.parry"><label>Parry Time (最大招架次数，0为无限)</label><input type="number" v-model.number="bhv.parry_time"></div>
+                                    <div class="form-group"><label class="checkline"><input type="checkbox" v-model="bhv._enable_stun_immunity_time"> Stun Immunity Time (眩晕免疫时间/tick)</label><input v-if="bhv._enable_stun_immunity_time" type="number" v-model.number="bhv.stun_immunity_time"></div>
+                                    <div class="form-group"><label class="checkline"><input type="checkbox" v-model="bhv._enable_set_phase"> Set Phase (设定阶段)</label><input v-if="bhv._enable_set_phase" type="number" v-model.number="bhv.set_phase"></div>
+                                </div>
+                                <div v-if="bhv._type==='guard'" style="margin-top:10px;">
+                                    <label class="checkline" style="font-size:13px;font-weight:600;margin-bottom:8px;"><input type="checkbox" v-model="bhv._enable_specific_guard_motion"> Specific Guard Motion (独立防御动作配置)</label>
+                                    <div class="grid2" v-if="bhv._enable_specific_guard_motion">
+                                        <div class="form-group"><label>Guard (防御动画)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="bhv.specific_guard_motion.guard"><button class="btn secondary mini" title="预览动画" @click="previewAnimation(bhv.specific_guard_motion.guard)">▶</button></div></div>
+                                        <div class="form-group"><label>Stamina Cost Multiply</label><input type="number" step="0.1" v-model.number="bhv.specific_guard_motion.stamina_cost_multiply"></div>
+                                        <div class="form-group"><label>Parry Cost Multiply</label><input type="number" step="0.1" v-model.number="bhv.specific_guard_motion.parry_cost_multiply"></div>
+                                        <div class="form-group"><label class="checkline"><input type="checkbox" v-model="bhv.specific_guard_motion.can_block_projectile"> Can Block Projectile</label></div>
+                                        <div class="form-group" style="grid-column: span 2;">
+                                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                                                <label>Parry Animations (派生动画)</label>
+                                                <button class="btn mini" @click="addStringItem(bhv.specific_guard_motion.parry_animation)">新增</button>
+                                            </div>
+                                            <div class="row3" v-for="(anim, aIdx) in bhv.specific_guard_motion.parry_animation" :key="'sgm-parry-'+aIdx">
+                                                <div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" :value="anim" @input="bhv.specific_guard_motion.parry_animation[aIdx]=$event.target.value"><button class="btn secondary mini" title="预览动画" @click="previewAnimation(bhv.specific_guard_motion.parry_animation[aIdx])">▶</button></div>
+                                                <div></div>
+                                                <button class="btn danger mini" @click="bhv.specific_guard_motion.parry_animation.splice(aIdx,1)">删除</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Type: Wander -->
+                                <div v-if="bhv._type==='wander'" class="grid2" style="border-top:1px solid #e2e8f0;padding-top:10px;">
+                                    <div class="form-group"><label>Wander (游荡绝对时间/tick)</label><input type="number" v-model.number="bhv.wander"></div>
+                                    <div class="form-group"><label class="checkline"><input type="checkbox" v-model="bhv._enable_inaction_time"> Inaction Time (不作为时间)</label><input v-if="bhv._enable_inaction_time" type="number" v-model.number="bhv.inaction_time"></div>
+                                    <div class="form-group"><label class="checkline"><input type="checkbox" v-model="bhv._enable_x_axis"> X Axis (顺逆时针向量 -1到1)</label><input v-if="bhv._enable_x_axis" type="number" step="0.1" v-model.number="bhv.x_axis"></div>
+                                    <div class="form-group"><label class="checkline"><input type="checkbox" v-model="bhv._enable_z_axis"> Z Axis (前进后退向量 -1到1)</label><input v-if="bhv._enable_z_axis" type="number" step="0.1" v-model.number="bhv.z_axis"></div>
+                                    <div class="form-group"><label class="checkline"><input type="checkbox" v-model="bhv._enable_set_phase"> Set Phase (设定阶段)</label><input v-if="bhv._enable_set_phase" type="number" v-model.number="bhv.set_phase"></div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <input id="jsonImportInput" type="file" accept=".json" @change="importJSON" style="display:none">
+        <input id="assetFolderInput" type="file" webkitdirectory directory multiple @change="importAnimationResources" style="display:none">
+    </div>
+
+    <div class="resizer" id="mainResizer" @mousedown="startDrag" @touchstart="startDrag"></div>
+
+    <div class="panel preview">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <h3>导出预览</h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn mini" @click="copyJSON">复制</button>
+                <button class="btn secondary mini" @click="exportJSON">下载</button>
+            </div>
+        </div>
+        <div class="hint">右侧展示最终导出的纯 JSON；若 `combat_behavior` 不合法，这里会显示错误信息。</div>
+        <div class="code" style="height: calc(100vh - 120px); overflow-y: auto;">{{ generatedJSON }}</div>
+    </div>
+    
+    <!-- 悬浮窗: 3D 动画预览 -->
+    <div id="floating-3d-window" class="floating-window" style="display: none;">
+        <div id="floating-3d-header" class="floating-header">
+            <span>3D 动画预览</span>
+            <button class="btn secondary mini" style="margin-left: auto; cursor: pointer;" onclick="document.getElementById('floating-3d-window').style.display='none'">关闭</button>
+        </div>
+        <div style="padding:10px; background:#fff; display:flex; flex-direction:column; flex:1; height: calc(100% - 40px);">
+            <div style="margin-bottom:10px; display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                <label style="font-size:13px; font-weight:bold; white-space:nowrap;">武器模型:</label>
+                <input type="text" id="weapon-model-input" class="animation-path-input" autocomplete="off" spellcheck="false" placeholder="epicfight:item/dagger" style="flex:1;">
+            </div>
+            <div id="preview-container" style="flex:1; background:#1e1e1e; border-radius:8px; margin-bottom:0; position:relative; overflow:hidden;">
+                <div id="preview-overlay" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#aaa; font-size:13px; text-align:center; pointer-events:none;">
+                    <div id="preview-msg">点击动画输入框旁的“预览”按钮加载</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const floatWin = document.getElementById('floating-3d-window');
+    const floatHeader = document.getElementById('floating-3d-header');
+    let isDragging = false;
+    let initialX, initialY;
+
+    const dragStart = (e) => {
+        if (e.target.tagName.toLowerCase() === 'button') return;
+        isDragging = true;
+        initialX = e.touches ? e.touches[0].clientX : e.clientX;
+        initialY = e.touches ? e.touches[0].clientY : e.clientY;
+    };
+
+    const dragMove = (e) => {
+        if (!isDragging) return;
+        if (e.type === 'touchmove') e.preventDefault();
+        const currentX = e.touches ? e.touches[0].clientX : e.clientX;
+        const currentY = e.touches ? e.touches[0].clientY : e.clientY;
+        const dx = currentX - initialX;
+        const dy = currentY - initialY;
+        initialX = currentX;
+        initialY = currentY;
+        
+        const rect = floatWin.getBoundingClientRect();
+        floatWin.style.left = rect.left + dx + 'px';
+        floatWin.style.top = rect.top + dy + 'px';
+        floatWin.style.right = 'auto';
+        floatWin.style.bottom = 'auto';
+    };
+
+    const dragEnd = () => {
+        isDragging = false;
+    };
+
+    floatHeader.addEventListener('mousedown', dragStart);
+    floatHeader.addEventListener('touchstart', dragStart, {passive: false});
+    document.addEventListener('mousemove', dragMove);
+    document.addEventListener('touchmove', dragMove, {passive: false});
+    document.addEventListener('mouseup', dragEnd);
+    document.addEventListener('touchend', dragEnd);
+});
+
+const { createApp } = Vue;
+
+function stripJsonComments(source){let r='',s=false,q='',e=false,l=false,b=false;for(let i=0;i<source.length;i+=1){const c=source[i],n=source[i+1];if(l){if(c==='\n'){l=false;r+=c}continue}if(b){if(c==='*'&&n=== '/'){b=false;i+=1}continue}if(s){r+=c;if(e)e=false;else if(c==='\\')e=true;else if(c===q){s=false;q=''}continue}if(c==='"'||c==="'"){s=true;q=c;r+=c;continue}if(c==='/'&&n==='/'){l=true;i+=1;continue}if(c==='/'&&n==='*'){b=true;i+=1;continue}r+=c}return r}
+function parseJsonLoose(text){return JSON.parse(stripJsonComments(text))}
+function clone(v){return JSON.parse(JSON.stringify(v))}
+function uniqueKey(obj,base){const root=String(base||'field').trim()||'field';let key=root,i=1;while(Object.prototype.hasOwnProperty.call(obj,key)){key=`${root}_${i++}`}return key}
+function cleanup(v){if(Array.isArray(v)){const arr=v.map(cleanup).filter(x=>x!==undefined);return arr.length?arr:undefined}if(v&&typeof v==='object'){const out={};Object.keys(v).forEach(k=>{if(k.startsWith('_'))return;const x=cleanup(v[k]);if(x!==undefined)out[k]=x});return Object.keys(out).length?out:undefined}if(typeof v==='string'){const t=v.trim();return t===''?undefined:t}if(v===undefined||v===null)return undefined;return v}
+function normalizeAnimationResourcePath(path){return String(path||'').replace(/\\/g,'/').replace(/^\/+/,'')}
+const fileResourceMap = new Map(); // Global map for File objects
+function extractAnimationDescriptor(path, fileObj) {
+        const p = normalizeAnimationResourcePath(path);
+        const lowerP = p ? p.toLowerCase() : '';
+        if (!p || (!lowerP.endsWith('.json') && !lowerP.endsWith('.obj') && !lowerP.endsWith('.png') && !lowerP.endsWith('.geo'))) return null;
+
+        const parts = p.split('/').filter(Boolean);
+        
+        let isModel = false;
+        let idx = parts.findIndex((part, i) => part === 'animmodels' && parts[i+1] === 'animations');
+        let off = 2;
+        
+        if (idx === -1) {
+            // 如果不是 animations，我们只要找到 animmodels，那么它下面的所有文件夹（如 entity, weapon, item, obj 等）都算作模型
+            idx = parts.indexOf('animmodels');
+            if (idx !== -1 && idx + 1 < parts.length) {
+                isModel = true;
+                off = 1; // 保留第二级的子文件夹名（例如 entity/biped, weapon/sword）作为前缀
+            } else {
+                // 有些原版或自定义模型可能直接放在 models/item 等目录下，并不在 animmodels 里
+                idx = parts.indexOf('models');
+                if (idx !== -1 && idx + 1 < parts.length) {
+                    isModel = true;
+                    off = 1; 
+                } else {
+                    idx = parts.indexOf('textures');
+                    if (idx !== -1 && idx + 1 < parts.length) {
+                        isModel = true;
+                        off = 1;
+                    } else {
+                        idx = parts.indexOf('geo'); // 支持放在 geo 目录下的文件
+                        if (idx !== -1 && idx + 1 < parts.length) {
+                            isModel = true;
+                            off = 1;
+                        } else {
+                            idx = parts.indexOf('animations');
+                            off = 1;
+                            if (idx === -1) return null;
+                        }
+                    }
+                }
+            }
+        }
+
+        let modId = null;
+        const assetsIndex = parts.indexOf('assets');
+        const dataIndex = parts.indexOf('data');
+        if (assetsIndex !== -1 && assetsIndex + 1 < parts.length) modId = parts[assetsIndex + 1];
+        else if (dataIndex !== -1 && dataIndex + 1 < parts.length) modId = parts[dataIndex + 1];
+        else if (idx > 0) modId = parts[idx - 1];
+
+        // 保留 .obj 后缀以便后续区分解析，去掉 .json 后缀
+        let rel = parts.slice(idx + off).join('/');
+        if (lowerP.endsWith('.json')) {
+            rel = rel.replace(/\.json$/i, '');
+        } else if (lowerP.endsWith('.obj')) {
+            // 保留 obj 后缀，但不做修改，确保 id 生成时包含 .obj
+        } else if (lowerP.endsWith('.png')) {
+            // 对 png 图片，前缀设为 texture 方便区分，但在保存时按 minecraft ID 风格记录
+            rel = rel.replace(/\.png$/i, '');
+        } else if (lowerP.endsWith('.geo')) {
+            // 保留 geo 后缀
+        }
+        
+        if (!modId || !rel) return null;
+        
+        let id = `${modId}:${rel}`;
+        
+        // 修正：强制确保 obj/png/geo 文件生成的 ID 带有后缀
+        if (lowerP.endsWith('.obj') && !id.toLowerCase().endsWith('.obj')) {
+            id += '.obj';
+        } else if (lowerP.endsWith('.png') && !id.toLowerCase().endsWith('.png')) {
+            id += '.png';
+        } else if (lowerP.endsWith('.geo') && !id.toLowerCase().endsWith('.geo')) {
+            id += '.geo';
+        }
+        
+        if (fileObj) fileResourceMap.set(id, fileObj);
+        
+        return { type: isModel ? 'model' : (lowerP.endsWith('.png') ? 'texture' : 'animation'), modId, id };
+    }
+
+function defaultConfig(){return{model:'epicfight:entity/skeleton',armature:'epicfight:entity/skeleton',renderer:'skeleton',isHumanoid:true,faction:'undead',hit_sound:'epicfight:entity.hit.blade',hit_particle:'epicfight:hit_blade',swing_sound:'epicfight:entity.hit.blade',boss_bar:true,custom_texture:'indestructible:textures/gui/boss_bar.png',custom_name:'xxx.xxx.x',advanced:true,attributes:{impact:2.5,armor_negation:5,max_strikes:3,chasing_speed:.9,scale:1.3,max_stamina:15,stamina_regan_multiply:1,stamina_regan_delay:30,has_stun_reduction:true,max_stun_shield:0,stun_shield_regan_multiply:1,stun_shield_regan_delay:30,stamina_lose_multiply:0,guard_radius:3,attack_radius:1.5},default_livingmotions:{idle:'epicfight:biped/living/idle',walk:'epicfight:biped/living/walk',chase:'epicfight:biped/living/walk',mount:'epicfight:biped/living/mount',float:'epicfight:biped/living/float',fall:'epicfight:biped/living/fall',death:'epicfight:biped/living/death'},humanoid_weapon_motions:[{weapon_categories:['longsword'],style:'common',livingmotions:{chase:'epicfight:biped/living/hold_longsword',walk:'epicfight:biped/living/hold_longsword'}}],custom_guard_motion:[{weapon_categories:['longsword','tachi','sword'],style:'common',guard:'indestructible:guard/guard_shield',stamina_cost_multiply:1,can_block_projectile:false,parry_cost_multiply:.5,parry_animation:['indestructible:guard/shield_hit_left']}],stun_animations:{short:'epicfight:biped/combat/hit_short',long:'epicfight:biped/combat/hit_long',knockdown:'epicfight:biped/combat/knockdown',float:'epicfight:biped/living/float',fall:'epicfight:biped/living/landing',neutralize:'epicfight:biped/skill/guard_break1'},stun_command_list:[{command:'effect give @s epicfight:stun_immunity 6000 5',stun_type:'short',execute_at_target:false}],combat_behavior:[]}}
+function defaultCombatBehaviorText(){return JSON.stringify([{weapon_categories:['sword','longsword'],style:'common',behavior_series:[{weight:1.5,canBeInterrupted:true,looping:false,cooldown:60,behaviors:[{conditions:[{predicate:'epicfight:within_eye_height'},{predicate:'epicfight:within_distance',min:0,max:5}],animation:'epicfight:wither_skeleton/sword_attack1',play_speed:1.1,stamina:0,convert_time:0,set_phase:1,end_by_hurt_level:2}]}]}],null,2)}
+function getBehaviorType(b){if(b.guard!==undefined)return'guard';if(b.wander!==undefined)return'wander';return'animation'}
+function processCombatBehavior(cbArray){if(!Array.isArray(cbArray))return[];return cbArray.map(cb=>({weapon_categories:Array.isArray(cb.weapon_categories)?cb.weapon_categories:[],style:cb.style||'common',behavior_series:Array.isArray(cb.behavior_series)?cb.behavior_series.map(s=>({weight:s.weight??1.5,canBeInterrupted:!!s.canBeInterrupted,looping:!!s.looping,cooldown:s.cooldown??60,behaviors:Array.isArray(s.behaviors)?s.behaviors.map(b=>({...b,_type:getBehaviorType(b),conditions:Array.isArray(b.conditions)?b.conditions:[],_enable_set_phase:b.set_phase!==undefined,_enable_damage_modifier:b.damage_modifier!==undefined,_enable_counter:b.counter!==undefined,_enable_stun_immunity_time:b.stun_immunity_time!==undefined,_enable_specific_guard_motion:b.specific_guard_motion!==undefined,_enable_inaction_time:b.inaction_time!==undefined,_enable_x_axis:b.x_axis!==undefined,_enable_z_axis:b.z_axis!==undefined,damage_modifier:b.damage_modifier||{damage:1,impact:1,armor_negation:1,stun_type:'short'},command_list:Array.isArray(b.command_list)?b.command_list:[],hit_command_list:Array.isArray(b.hit_command_list)?b.hit_command_list:[],blocked_command_list:Array.isArray(b.blocked_command_list)?b.blocked_command_list:[],specific_guard_motion:b.specific_guard_motion||{guard:'',stamina_cost_multiply:1,can_block_projectile:false,parry_cost_multiply:0.5,parry_animation:[]}})):[]})):[]}))}
+function finalizeBehavior(b){const out={...b};delete out._type;delete out._enable_set_phase;delete out._enable_damage_modifier;delete out._enable_counter;delete out._enable_stun_immunity_time;delete out._enable_specific_guard_motion;delete out._enable_inaction_time;delete out._enable_x_axis;delete out._enable_z_axis;if(!b._enable_set_phase)delete out.set_phase;if(!b._enable_damage_modifier)delete out.damage_modifier;if(!b._enable_counter){delete out.counter;delete out.counter_chance;delete out.counter_cost;delete out.counter_speed;delete out.cancel_after_counter}if(!b._enable_stun_immunity_time)delete out.stun_immunity_time;if(!b._enable_specific_guard_motion)delete out.specific_guard_motion;if(!b._enable_inaction_time)delete out.inaction_time;if(!b._enable_x_axis)delete out.x_axis;if(!b._enable_z_axis)delete out.z_axis;if(!out.parry)delete out.parry_time;if(!out.command_list||out.command_list.length===0)delete out.command_list;if(!out.hit_command_list||out.hit_command_list.length===0)delete out.hit_command_list;if(!out.blocked_command_list||out.blocked_command_list.length===0)delete out.blocked_command_list;return out}
+function createAnimationAutocomplete(getAnimOptions, getModelOptions) {
+            const panel = document.createElement('div');
+            panel.className = 'animation-autocomplete-panel';
+            document.body.appendChild(panel);
+
+            const state = {
+                activeInput: null,
+                items: [],
+                selectedIndex: -1
+            };
+
+            function isAnimationInput(target) {
+                return target && (target.classList && target.classList.contains('animation-path-input') || target.id === 'weapon-model-input');
+            }
+
+            function isModelInput(target) {
+                return target && target.id === 'weapon-model-input';
+            }
+
+            function escapeHtml(value) {
+                return String(value)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            function escapeRegExp(value) {
+                return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            }
+
+            function highlightMatch(text, keyword) {
+                const safeText = escapeHtml(text);
+                if (!keyword) return safeText;
+
+                const matcher = new RegExp(`(${escapeRegExp(keyword)})`, 'ig');
+                return safeText.replace(matcher, '<span class="animation-autocomplete-highlight">$1</span>');
+            }
+
+            function getMatches(query, isModel) {
+                const source = Array.isArray(isModel ? getModelOptions() : getAnimOptions()) ? (isModel ? getModelOptions() : getAnimOptions()) : [];
+                const keyword = String(query || '').trim().toLowerCase();
+                const options = keyword
+                    ? source.filter(item => item.toLowerCase().includes(keyword))
+                    : source.slice();
+
+                return options
+                    .sort((a, b) => {
+                        const aLower = a.toLowerCase();
+                        const bLower = b.toLowerCase();
+                        const aStarts = keyword && aLower.startsWith(keyword) ? 0 : 1;
+                        const bStarts = keyword && bLower.startsWith(keyword) ? 0 : 1;
+                        if (aStarts !== bStarts) return aStarts - bStarts;
+                        return aLower.localeCompare(bLower);
+                    })
+                    .slice(0, 50);
+            }
+
+            function groupMatches(items) {
+                const groups = new Map();
+
+                items.forEach(item => {
+                    const groupKey = item.includes(':') ? item.split(':')[0] : 'other';
+                    if (!groups.has(groupKey)) {
+                        groups.set(groupKey, []);
+                    }
+                    groups.get(groupKey).push(item);
+                });
+
+                return Array.from(groups.entries())
+                    .sort((a, b) => a[0].localeCompare(b[0]))
+                    .map(([groupName, entries]) => ({ groupName, entries }));
+            }
+
+            function updatePosition() {
+                if (!state.activeInput || panel.style.display === 'none') return;
+
+                const rect = state.activeInput.getBoundingClientRect();
+                panel.style.left = rect.left + 'px';
+                panel.style.top = Math.min(window.innerHeight - 20, rect.bottom + 4) + 'px';
+                panel.style.width = Math.max(rect.width, 320) + 'px';
+            }
+
+            function hide() {
+                panel.style.display = 'none';
+                panel.innerHTML = '';
+                state.items = [];
+                state.selectedIndex = -1;
+            }
+
+            function applySelection(value) {
+                if (!state.activeInput) return;
+                state.activeInput.value = value;
+                state.activeInput.dispatchEvent(new Event('input', { bubbles: true }));
+                hide();
+            }
+
+            function ensureVisible() {
+                const active = panel.querySelector('.animation-autocomplete-item.active');
+                if (active) {
+                    active.scrollIntoView({ block: 'nearest' });
+                }
+            }
+
+            function render() {
+                if (!state.activeInput) {
+                    hide();
+                    return;
+                }
+
+                const isModel = isModelInput(state.activeInput);
+                const source = Array.isArray(isModel ? getModelOptions() : getAnimOptions()) ? (isModel ? getModelOptions() : getAnimOptions()) : [];
+                if (source.length === 0) {
+                    hide();
+                    return;
+                }
+
+                if (state.items.length === 0) {
+                    panel.innerHTML = `<div class="animation-autocomplete-empty">没有匹配的${isModel ? '模型' : '动画'}路径</div>`;
+                    panel.style.display = 'block';
+                    updatePosition();
+                    return;
+                }
+
+                const keyword = String(state.activeInput.value || '').trim();
+                let globalIndex = 0;
+                panel.innerHTML = groupMatches(state.items).map(group => {
+                    const groupItems = group.entries.map(item => {
+                        const activeClass = globalIndex === state.selectedIndex ? ' active' : '';
+                        const html = `
+                            <div class="animation-autocomplete-item${activeClass}" data-index="${globalIndex}" data-value="${escapeHtml(item)}">
+                                <span class="animation-autocomplete-path">${highlightMatch(item, keyword)}</span>
+                            </div>
+                        `;
+                        globalIndex += 1;
+                        return html;
+                    }).join('');
+
+                    return `
+                        <div class="animation-autocomplete-group">
+                            <div class="animation-autocomplete-group-title">${escapeHtml(group.groupName)}</div>
+                            ${groupItems}
+                        </div>
+                    `;
+                }).join('');
+
+                panel.style.display = 'block';
+                updatePosition();
+                ensureVisible();
+            }
+
+            function openForInput(input) {
+                state.activeInput = input;
+                state.items = getMatches(input.value, isModelInput(input));
+                state.selectedIndex = state.items.length > 0 ? 0 : -1;
+                render();
+            }
+
+            function refresh() {
+                if (!state.activeInput || document.activeElement !== state.activeInput) return;
+                state.items = getMatches(state.activeInput.value, isModelInput(state.activeInput));
+                state.selectedIndex = state.items.length > 0 ? Math.min(state.selectedIndex >= 0 ? state.selectedIndex : 0, state.items.length - 1) : -1;
+                render();
+            }
+
+            document.addEventListener('focusin', (event) => {
+                if (!isAnimationInput(event.target)) return;
+                openForInput(event.target);
+            });
+
+            document.addEventListener('input', (event) => {
+                if (!isAnimationInput(event.target)) return;
+                openForInput(event.target);
+            });
+
+            document.addEventListener('keydown', (event) => {
+                if (!isAnimationInput(event.target)) return;
+
+                const input = event.target;
+                const panelVisible = panel.style.display !== 'none';
+
+                if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && !panelVisible) {
+                    openForInput(input);
+                }
+
+                if (event.key === 'ArrowDown') {
+                    if (state.items.length === 0) return;
+                    event.preventDefault();
+                    state.selectedIndex = (state.selectedIndex + 1 + state.items.length) % state.items.length;
+                    render();
+                    return;
+                }
+
+                if (event.key === 'ArrowUp') {
+                    if (state.items.length === 0) return;
+                    event.preventDefault();
+                    state.selectedIndex = (state.selectedIndex - 1 + state.items.length) % state.items.length;
+                    render();
+                    return;
+                }
+
+                if (event.key === 'Enter' || event.key === 'Tab') {
+                    if (panelVisible && state.selectedIndex >= 0 && state.items[state.selectedIndex]) {
+                        event.preventDefault();
+                        applySelection(state.items[state.selectedIndex]);
+                    }
+                    return;
+                }
+
+                if (event.key === 'Escape') {
+                    hide();
+                }
+            });
+
+            panel.addEventListener('mousedown', (event) => {
+                const option = event.target.closest('.animation-autocomplete-item');
+                if (!option) return;
+                event.preventDefault();
+                applySelection(option.dataset.value || '');
+            });
+
+            document.addEventListener('click', (event) => {
+                if (panel.contains(event.target)) return;
+                if (isAnimationInput(event.target)) return;
+                hide();
+            });
+
+            window.addEventListener('resize', updatePosition);
+            window.addEventListener('scroll', updatePosition, true);
+
+            return {
+                refresh,
+                hide
+            };
+        }
+
+let animationAutocompleteController=null;
+
+createApp({
+    data(){
+        let savedConfig = null;
+        try {
+            const savedStr = localStorage.getItem('inde_autosave_config');
+            if (savedStr) savedConfig = JSON.parse(savedStr);
+        } catch (e) { console.warn("Failed to load autosave config", e); }
+        
+        return {
+            isDarkMode: localStorage.getItem('ce_theme') === 'dark',
+            leftWidth: 50,
+            isDragging: false,
+            collapsedSections: {},
+            config: savedConfig || defaultConfig(),
+            availableAnimations:[],
+            availableModels:[],
+            loadedAnimationMods:[],
+            animationImportBatches:0,
+            animationSourceFileCount:0,
+            matchedAnimationFileCount:0
+        }
+    },
+    watch: {
+        config: {
+            handler(val) {
+                try {
+                    localStorage.setItem('inde_autosave_config', JSON.stringify(val));
+                } catch(e) { console.warn("Failed to autosave", e); }
+            },
+            deep: true
+        }
+    },
+    computed:{
+        animationLibrarySummary(){if(this.availableAnimations.length===0)return'尚未导入动画资源索引。';return`已索引 ${this.availableAnimations.length} 个动画，来自 ${this.loadedAnimationMods.length} 个命名空间，累计导入 ${this.animationImportBatches} 次，扫描 ${this.animationSourceFileCount} 个文件并命中 ${this.matchedAnimationFileCount} 个动画 JSON。`},
+        generatedJSON(){try{return JSON.stringify(this.buildExportObject(),null,2)}catch(err){return`// combat_behavior 解析失败\n// ${err.message}`}}
+    },
+    methods:{
+        toggleSection(sectionName) {
+            this.collapsedSections[sectionName] = !this.collapsedSections[sectionName];
+        },
+        toggleTheme() {
+            this.isDarkMode = !this.isDarkMode;
+            if (this.isDarkMode) {
+                document.body.classList.add('dark-mode');
+                localStorage.setItem('ce_theme', 'dark');
+            } else {
+                document.body.classList.remove('dark-mode');
+                localStorage.setItem('ce_theme', 'light');
+            }
+        },
+        startDrag(e) {
+            e.preventDefault();
+            this.isDragging = true;
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            
+            this.boundOnDrag = this.onDrag.bind(this);
+            this.boundStopDrag = this.stopDrag.bind(this);
+            
+            document.addEventListener('mousemove', this.boundOnDrag);
+            document.addEventListener('mouseup', this.boundStopDrag);
+        },
+        onDrag(e) {
+            if (!this.isDragging) return;
+            const container = document.getElementById('app');
+            const rect = container.getBoundingClientRect();
+            let newPct = ((e.clientX - rect.left) / rect.width) * 100;
+            if (newPct < 20) newPct = 20;
+            if (newPct > 80) newPct = 80;
+            this.leftWidth = newPct;
+        },
+        stopDrag() {
+            this.isDragging = false;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            document.removeEventListener('mousemove', this.boundOnDrag);
+            document.removeEventListener('mouseup', this.boundStopDrag);
+        },
+        handleKeydown(e) {
+            if (e.ctrlKey && e.key.toLowerCase() === 's') {
+                e.preventDefault();
+                this.exportJSON();
+            }
+        },
+        previewAnimation(animPath){if(!window.playAnimationPreview)return;let modelId=this.config.armature;if(modelId.includes(':entity/'))modelId=modelId.replace(':entity/',':');const wpn = document.getElementById("weapon-model-input").value.trim(); window.playAnimationPreview(modelId,animPath,wpn);},
+        buildExportObject(){const out=clone(this.config);if(!Array.isArray(out.combat_behavior))throw new Error('combat_behavior 必须是数组');out.combat_behavior=out.combat_behavior.map(cb=>({...cb,behavior_series:cb.behavior_series.map(s=>({...s,behaviors:s.behaviors.map(b=>finalizeBehavior(b))}))}));if(!out.boss_bar){delete out.custom_texture;delete out.custom_name}return cleanup(out)||{}},
+        triggerImport(){document.getElementById('jsonImportInput').click()},
+        openAssetFolderPicker(){document.getElementById('assetFolderInput').click()},
+        joinList(list){return Array.isArray(list)?list.join(', '):''},
+        parseCommaList(value){return String(value||'').split(',').map(s=>s.trim()).filter(Boolean)},
+        addObjectField(obj,base,value){obj[uniqueKey(obj,base)]=value},
+        renameObjectKey(obj,oldKey,newKey){const key=String(newKey||'').trim();if(!key||key===oldKey)return;if(Object.prototype.hasOwnProperty.call(obj,key)){alert('键名已存在');return}const val=obj[oldKey];delete obj[oldKey];obj[key]=val},
+        removeObjectField(obj,key){delete obj[key]},
+        addStringItem(list){if(Array.isArray(list))list.push('')},
+        addWeaponMotion(){this.config.humanoid_weapon_motions.push({weapon_categories:['longsword'],style:'common',livingmotions:{chase:'epicfight:biped/living/hold_longsword'}})},
+        addGuardMotion(){this.config.custom_guard_motion.push({weapon_categories:['longsword'],style:'common',guard:'indestructible:guard/guard_shield',stamina_cost_multiply:1,can_block_projectile:false,parry_cost_multiply:.5,parry_animation:['indestructible:guard/shield_hit_left']})},
+        addStunCommand(){this.config.stun_command_list.push({command:'',stun_type:'short',execute_at_target:false})},
+        addCombatBehavior(){this.config.combat_behavior.push({weapon_categories:['sword'],style:'common',behavior_series:[]})},
+        addBehaviorSeries(cb){cb.behavior_series.push({weight:1.5,canBeInterrupted:true,looping:false,cooldown:60,behaviors:[]})},
+        addBehavior(series){series.behaviors.push({_type:'animation',conditions:[],animation:'',play_speed:1,stamina:0,convert_time:0,end_by_hurt_level:2,_enable_set_phase:false,set_phase:0,_enable_damage_modifier:false,damage_modifier:{damage:1,impact:1,armor_negation:1,stun_type:'short'},command_list:[],hit_command_list:[],blocked_command_list:[]})},
+        addCommandListItem(bhv,listName){if(listName==='blocked_command_list')bhv[listName].push({command:'',is_parry:false,execute_at_target:true});else if(listName==='command_list')bhv[listName].push({time:0,command:'',execute_at_target:true});else bhv[listName].push({command:'',execute_at_target:true})},
+        syncBehaviorType(bhv){if(bhv._type==='animation'){delete bhv.guard;delete bhv.counter;delete bhv.counter_chance;delete bhv.counter_cost;delete bhv.counter_speed;delete bhv.parry;delete bhv.wander;delete bhv.inaction_time;delete bhv.x_axis;delete bhv.z_axis;delete bhv.stun_immunity_time;delete bhv.specific_guard_motion;delete bhv.cancel_after_counter;delete bhv.parry_time;bhv._enable_damage_modifier=false;bhv.damage_modifier={damage:1,impact:1,armor_negation:1,stun_type:'short'};bhv.command_list=[];bhv.hit_command_list=[];bhv.blocked_command_list=[]}else if(bhv._type==='guard'){delete bhv.animation;delete bhv.play_speed;delete bhv.stamina;delete bhv.convert_time;delete bhv.damage_modifier;delete bhv.wander;delete bhv.inaction_time;delete bhv.x_axis;delete bhv.z_axis;delete bhv.command_list;delete bhv.hit_command_list;delete bhv.blocked_command_list;bhv.guard=60;bhv._enable_counter=false;bhv.counter='';bhv.counter_chance=0.3;bhv.counter_cost=3;bhv.counter_speed=1;bhv.cancel_after_counter=true;bhv.parry=false;bhv.parry_time=0;bhv._enable_stun_immunity_time=false;bhv.stun_immunity_time=30;bhv._enable_specific_guard_motion=false;bhv.specific_guard_motion={guard:'',stamina_cost_multiply:1,can_block_projectile:false,parry_cost_multiply:0.5,parry_animation:[]}}else if(bhv._type==='wander'){delete bhv.animation;delete bhv.play_speed;delete bhv.stamina;delete bhv.convert_time;delete bhv.damage_modifier;delete bhv.guard;delete bhv.counter;delete bhv.counter_chance;delete bhv.counter_cost;delete bhv.counter_speed;delete bhv.parry;delete bhv.stun_immunity_time;delete bhv.specific_guard_motion;delete bhv.cancel_after_counter;delete bhv.parry_time;delete bhv.command_list;delete bhv.hit_command_list;delete bhv.blocked_command_list;bhv.wander=300;bhv._enable_inaction_time=false;bhv.inaction_time=300;bhv._enable_x_axis=false;bhv.x_axis=1;bhv._enable_z_axis=false;bhv.z_axis=-1}},
+        addCondition(bhv){bhv.conditions.push({predicate:'epicfight:within_distance'})},
+        updateCondition(cond,valStr){try{const parsed=JSON.parse(valStr);Object.keys(cond).forEach(k=>delete cond[k]);Object.assign(cond,parsed)}catch(e){/* ignore empty or partial inputs */}},
+        generateTemplate(){try{this.config.combat_behavior=processCombatBehavior(JSON.parse(defaultCombatBehaviorText()))}catch(e){alert('模板生成失败')}},
+        copyJSON(){try{navigator.clipboard.writeText(JSON.stringify(this.buildExportObject(),null,2)).then(()=>alert('已复制到剪贴板！'))}catch(err){alert('复制失败: '+err.message)}},
+        exportJSON(){try{
+            let filename = prompt("请输入导出的文件名称:", "indestructible_mobpatch.json");
+            if (filename === null) return;
+            if (!filename.trim().toLowerCase().endsWith('.json')) {
+                filename = filename.trim() + '.json';
+            }
+            const blob=new Blob([JSON.stringify(this.buildExportObject(),null,2)],{type:'application/json'});
+            const url=URL.createObjectURL(blob);
+            const a=document.createElement('a');
+            a.href=url;
+            a.download=filename;
+            a.click();
+            URL.revokeObjectURL(url)
+        }catch(err){alert('导出失败: '+err.message)}},
+        importJSON(event){const file=event.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>{try{const raw=parseJsonLoose(e.target.result);const base=defaultConfig();this.config={...base,...raw,attributes:raw.attributes&&typeof raw.attributes==='object'&&!Array.isArray(raw.attributes)?{...base.attributes,...raw.attributes}:{...base.attributes},default_livingmotions:raw.default_livingmotions&&typeof raw.default_livingmotions==='object'&&!Array.isArray(raw.default_livingmotions)?{...base.default_livingmotions,...raw.default_livingmotions}:{...base.default_livingmotions},stun_animations:raw.stun_animations&&typeof raw.stun_animations==='object'&&!Array.isArray(raw.stun_animations)?{...base.stun_animations,...raw.stun_animations}:{...base.stun_animations},humanoid_weapon_motions:Array.isArray(raw.humanoid_weapon_motions)?raw.humanoid_weapon_motions.map(item=>({weapon_categories:Array.isArray(item.weapon_categories)?item.weapon_categories:[],style:item.style||'common',livingmotions:item.livingmotions&&typeof item.livingmotions==='object'&&!Array.isArray(item.livingmotions)?item.livingmotions:{}})):base.humanoid_weapon_motions,custom_guard_motion:Array.isArray(raw.custom_guard_motion)?raw.custom_guard_motion.map(item=>({weapon_categories:Array.isArray(item.weapon_categories)?item.weapon_categories:[],style:item.style||'common',guard:item.guard||'',stamina_cost_multiply:item.stamina_cost_multiply??1,can_block_projectile:!!item.can_block_projectile,parry_cost_multiply:item.parry_cost_multiply??.5,parry_animation:Array.isArray(item.parry_animation)?item.parry_animation:[]})):base.custom_guard_motion,stun_command_list:Array.isArray(raw.stun_command_list)?raw.stun_command_list.map(item=>({command:item.command||'',stun_type:item.stun_type||'short',execute_at_target:!!item.execute_at_target})):base.stun_command_list,combat_behavior:processCombatBehavior(Array.isArray(raw.combat_behavior)?raw.combat_behavior:[])}}catch(err){alert('JSON 解析失败: '+err.message)}};reader.readAsText(file);event.target.value=''},
+        clearAnimationLibrary(){this.availableAnimations=[];this.availableModels=[];this.loadedAnimationMods=[];this.animationImportBatches=0;this.animationSourceFileCount=0;this.matchedAnimationFileCount=0;fileResourceMap.clear();if(animationAutocompleteController)animationAutocompleteController.refresh()},
+        collectAnimationResources(files){const anims=new Set(),models=new Set(),modCounts=new Map();let matched=0;files.forEach(file=>{const d=extractAnimationDescriptor(file.webkitRelativePath||file.name, file);if(!d)return;if(d.type==='animation'){matched+=1;anims.add(d.id);modCounts.set(d.modId,(modCounts.get(d.modId)||0)+1)}else if(d.type==='model'||d.type==='texture'){models.add(d.id)}});return{animations:Array.from(anims).sort(),models:Array.from(models).sort(),modCounts:Array.from(modCounts.entries()).map(([modId,count])=>({modId,count})).sort((a,b)=>a.modId.localeCompare(b.modId)),matchedFileCount:matched}},
+        mergeLoadedAnimationMods(nextMods){const merged=new Map(this.loadedAnimationMods.map(item=>[item.modId,item.count]));nextMods.forEach(item=>merged.set(item.modId,(merged.get(item.modId)||0)+item.count));this.loadedAnimationMods=Array.from(merged.entries()).map(([modId,count])=>({modId,count})).sort((a,b)=>a.modId.localeCompare(b.modId))},
+        importAnimationResources(event){const files=Array.from(event.target.files||[]);if(!files.length)return;const result=this.collectAnimationResources(files);if(result.animations.length===0&&result.models.length===0){alert('未在所选目录中找到可识别的动画或模型资源。');event.target.value='';return}const merged=new Set(this.availableAnimations);result.animations.forEach(id=>merged.add(id));this.availableAnimations=Array.from(merged).sort();const mergedModels=new Set(this.availableModels);result.models.forEach(id=>mergedModels.add(id));this.availableModels=Array.from(mergedModels).sort();this.mergeLoadedAnimationMods(result.modCounts);this.animationImportBatches+=1;this.animationSourceFileCount+=files.length;this.matchedAnimationFileCount+=result.matchedFileCount;if(animationAutocompleteController)animationAutocompleteController.refresh();event.target.value=''}
+    },
+    mounted(){
+        if (this.isDarkMode) document.body.classList.add('dark-mode');
+        window.addEventListener('keydown', this.handleKeydown);
+        if(!animationAutocompleteController){animationAutocompleteController=createAnimationAutocomplete(()=>this.availableAnimations,()=>this.availableModels)}
+    }
+}).mount('#app');
+</script>
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+
+    const container = document.getElementById('preview-container');
+    const msgEl = document.getElementById('preview-msg');
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1e1e1e);
+
+    const gridHelper = new THREE.GridHelper(10, 10, 0x444444, 0x222222);
+    scene.add(gridHelper);
+    const axesHelper = new THREE.AxesHelper(2);
+    scene.add(axesHelper);
+
+    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+    camera.position.set(2, 2, 4);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1, 0);
+    controls.enableDamping = true;
+    controls.update();
+
+    let currentRootGroup = null;
+    let currentRootBone = null;
+    let currentSkeletonHelper = null;
+    let currentMesh = null;
+    let currentBindToOrigin = [];
+    
+    let currentWeaponGroup = null;
+    let currentWeaponMesh = null;
+    let currentWeaponBindToOrigin = [];
+    
+    let bonesMap = {};
+    let mixer = null;
+    let currentWeaponMixer = null;
+    let clock = new THREE.Clock();
+
+    function disposeThreeObject(obj) {
+        if (!obj) return;
+        obj.traverse((child) => {
+            if (child.isMesh) {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(m => {
+                            if (m.map) m.map.dispose();
+                            m.dispose();
+                        });
+                    } else {
+                        if (child.material.map) child.material.map.dispose();
+                        child.material.dispose();
+                    }
+                }
+            }
+        });
+    }
+
+    const _matA = new THREE.Matrix4();
+    const _matB = new THREE.Matrix4();
+    const _vec4A = new THREE.Vector4();
+    const _vec4B = new THREE.Vector4();
+
+    function applyCpuSkinning(mesh, rootGroup, bindToOriginArr) {
+        if (!mesh || !mesh.userData.cpuSkinning || !rootGroup) return;
+
+        const cpu = mesh.userData.cpuSkinning;
+        const posAttr = mesh.geometry.getAttribute('position');
+        const normAttr = mesh.geometry.getAttribute('normal');
+        const posArray = posAttr.array;
+        const normArray = normAttr ? normAttr.array : null;
+
+        rootGroup.updateMatrixWorld(true);
+
+        for (let i = 0; i < cpu.vertexCount; i++) {
+            const basePosIdx = i * 3;
+            const skinIdxBase = i * 4;
+
+            let px = 0, py = 0, pz = 0;
+            let nx = 0, ny = 0, nz = 0;
+
+            for (let j = 0; j < 4; j++) {
+                const weight = cpu.skinWeights[skinIdxBase + j];
+                if (weight <= 0) continue;
+
+                const jointIndex = cpu.skinIndices[skinIdxBase + j];
+                const bone = cpu.boneList[jointIndex];
+                const toOrigin = bindToOriginArr[jointIndex];
+                if (!bone || !toOrigin) continue;
+
+                const poseMat = getBoneMatrixRelativeToGroup(bone, rootGroup);
+                const finalMat = _matB.copy(poseMat).multiply(toOrigin);
+
+                _vec4A.set(
+                    cpu.basePositions[basePosIdx],
+                    cpu.basePositions[basePosIdx + 1],
+                    cpu.basePositions[basePosIdx + 2],
+                    1.0
+                ).applyMatrix4(finalMat);
+
+                px += _vec4A.x * weight;
+                py += _vec4A.y * weight;
+                pz += _vec4A.z * weight;
+
+                if (normArray && cpu.baseNormals.length >= basePosIdx + 3) {
+                    finalMat.setPosition(0, 0, 0);
+                    _vec4B.set(
+                        cpu.baseNormals[basePosIdx],
+                        cpu.baseNormals[basePosIdx + 1],
+                        cpu.baseNormals[basePosIdx + 2],
+                        1.0
+                    ).applyMatrix4(finalMat);
+
+                    nx += _vec4B.x * weight;
+                    ny += _vec4B.y * weight;
+                    nz += _vec4B.z * weight;
+                }
+            }
+
+            posArray[basePosIdx] = px;
+            posArray[basePosIdx + 1] = py;
+            posArray[basePosIdx + 2] = pz;
+
+            if (normArray) {
+                const len = Math.hypot(nx, ny, nz) || 1;
+                normArray[basePosIdx] = nx / len;
+                normArray[basePosIdx + 1] = ny / len;
+                normArray[basePosIdx + 2] = nz / len;
+            }
+        }
+
+        posAttr.needsUpdate = true;
+        if (normAttr) normAttr.needsUpdate = true;
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        const dt = clock.getDelta();
+        if (mixer) {
+            mixer.update(dt);
+        }
+        if (currentWeaponMixer) {
+            currentWeaponMixer.update(dt);
+        }
+        applyCpuSkinning(currentMesh, currentRootGroup, currentBindToOrigin);
+        applyCpuSkinning(currentWeaponMesh, currentWeaponGroup, currentWeaponBindToOrigin);
+        controls.update();
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    const resizeObserver = new ResizeObserver(() => {
+        if (!container.clientWidth) return;
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+    });
+    resizeObserver.observe(container);
+
+    function buildBoneHierarchy(nodeData) {
+        const bone = new THREE.Bone();
+        bone.name = nodeData.name;
+        bonesMap[bone.name] = bone;
+        const arr = nodeData.transform;
+        if (arr && arr.length === 16) {
+            const mat = new THREE.Matrix4().fromArray(arr).transpose();
+            mat.decompose(bone.position, bone.quaternion, bone.scale);
+        }
+        if (nodeData.children) {
+            for (let childData of nodeData.children) {
+                bone.add(buildBoneHierarchy(childData));
+            }
+        }
+        return bone;
+    }
+
+    function buildGeometry(verticesData) {
+        const geometry = new THREE.BufferGeometry();
+        
+        const posArray = verticesData.positions.array;
+        const uvArray = verticesData.uvs ? verticesData.uvs.array : null;
+        const normArray = verticesData.normals ? verticesData.normals.array : null;
+        
+        const vcounts = verticesData.vcounts ? verticesData.vcounts.array : null;
+        const vindices = verticesData.vindices ? verticesData.vindices.array : null;
+        const weights = verticesData.weights ? verticesData.weights.array : null;
+        
+        const posSkinIndices = [];
+        const posSkinWeights = [];
+        if (vcounts && vindices && weights) {
+            let vIndexOffset = 0;
+            for (let i = 0; i < vcounts.length; i++) {
+                const count = vcounts[i];
+                const jData = [];
+                for (let j = 0; j < count; j++) {
+                    const jointIdx = vindices[vIndexOffset++];
+                    const weightIdx = vindices[vIndexOffset++];
+                    jData.push({ j: jointIdx, w: weights[weightIdx] });
+                }
+                jData.sort((a, b) => b.w - a.w);
+                let wSum = 0;
+                const sIdx = [0,0,0,0];
+                const sWt = [0,0,0,0];
+                for (let j = 0; j < 4; j++) {
+                    if (j < jData.length) {
+                        sIdx[j] = jData[j].j;
+                        sWt[j] = jData[j].w;
+                        wSum += jData[j].w;
+                    }
+                }
+                if (wSum > 0) {
+                    for (let j = 0; j < 4; j++) { sWt[j] /= wSum; }
+                }
+                posSkinIndices.push(sIdx);
+                posSkinWeights.push(sWt);
+            }
+        }
+        
+        const outPositions = [];
+        const outUvs = [];
+        const outNormals = [];
+        const outSkinIndices = [];
+        const outSkinWeights = [];
+        const outPositionIndices = [];
+        const outNormalIndices = [];
+        
+        function processVertex(posIdx, uvIdx, normIdx) {
+            outPositions.push(posArray[posIdx * 3], posArray[posIdx * 3 + 1], posArray[posIdx * 3 + 2]);
+            outPositionIndices.push(posIdx);
+            outNormalIndices.push(normIdx);
+            if (uvArray) {
+                outUvs.push(uvArray[uvIdx * 2], uvArray[uvIdx * 2 + 1]);
+            }
+            if (normArray) {
+                outNormals.push(normArray[normIdx * 3], normArray[normIdx * 3 + 1], normArray[normIdx * 3 + 2]);
+            }
+            if (posSkinIndices.length > 0) {
+                const sIdx = posSkinIndices[posIdx];
+                const sWt = posSkinWeights[posIdx];
+                outSkinIndices.push(sIdx[0], sIdx[1], sIdx[2], sIdx[3]);
+                outSkinWeights.push(sWt[0], sWt[1], sWt[2], sWt[3]);
+            }
+        }
+        
+        if (verticesData.parts) {
+            for (const partName in verticesData.parts) {
+                const part = verticesData.parts[partName];
+                if (part && part.array) {
+                    for (let i = 0; i < part.array.length; i += 3) {
+                        const posIdx = part.array[i];
+                        const uvIdx = part.array[i + 1];
+                        const normIdx = part.array[i + 2];
+                        processVertex(posIdx, uvIdx, normIdx);
+                    }
+                }
+            }
+        } else if (verticesData.indices) {
+            const arr = verticesData.indices.array;
+            for (let i = 0; i < arr.length; i += 3) {
+                processVertex(arr[i], arr[i+1], arr[i+2]);
+            }
+        }
+        
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(outPositions, 3));
+        if (outUvs.length > 0) geometry.setAttribute('uv', new THREE.Float32BufferAttribute(outUvs, 2));
+        if (outNormals.length > 0) geometry.setAttribute('normal', new THREE.Float32BufferAttribute(outNormals, 3));
+
+        return {
+            geometry,
+            cpuSkinning: outSkinIndices.length > 0 ? {
+                basePositions: new Float32Array(outPositions),
+                baseNormals: new Float32Array(outNormals),
+                skinIndices: new Float32Array(outSkinIndices),
+                skinWeights: new Float32Array(outSkinWeights),
+                positionIndices: outPositionIndices,
+                normalIndices: outNormalIndices
+            } : null
+        };
+    }
+
+    function getBoneMatrixRelativeToGroup(bone, group) {
+        group.updateMatrixWorld(true);
+        return _matA.copy(group.matrixWorld).invert().multiply(bone.matrixWorld);
+    }
+
+    async function createExtrudedMeshFromImage(imageFile, materialConfig) {
+        return new Promise((resolve, reject) => {
+            const url = URL.createObjectURL(imageFile);
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                
+                const imgData = ctx.getImageData(0, 0, img.width, img.height);
+                const data = imgData.data;
+                const w = img.width;
+                const h = img.height;
+                
+                const group = new THREE.Group();
+                const depth = 1 / 16;
+                const pixelW = 1 / w;
+                const pixelH = 1 / h;
+                
+                // 为了降低 DrawCall，我们理论上应该 MergeGeometry，但对于单个预览，简单使用 InstancedMesh 或 Group 也行。
+                // 采用 BoxGeometry，每像素一个
+                const boxGeo = new THREE.BoxGeometry(pixelW, pixelH, depth);
+                
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        const idx = (y * w + x) * 4;
+                        const alpha = data[idx + 3];
+                        if (alpha > 10) { // 非透明像素
+                            const r = data[idx] / 255;
+                            const g = data[idx + 1] / 255;
+                            const b = data[idx + 2] / 255;
+                            
+                            const mat = new THREE.MeshStandardMaterial({
+                                color: new THREE.Color(r, g, b),
+                                roughness: 0.5,
+                                metalness: 0.1,
+                                side: THREE.DoubleSide
+                            });
+                            
+                            const mesh = new THREE.Mesh(boxGeo, mat);
+                            // 坐标计算：
+                            // 图片原点在左上角 (0,0)，模型坐标系通常需要将其对应到 X(0->1), Y(1->0)
+                            // Minecraft 默认 2D item 挤压后，X从左向右为 0->1，Y从下向上为 0->1
+                            // 将图片中心化的话，再在外部包一层 Group 进行修正即可。
+                            mesh.position.set(
+                                x * pixelW + pixelW/2,
+                                (h - 1 - y) * pixelH + pixelH/2,
+                                0
+                            );
+                            group.add(mesh);
+                        }
+                    }
+                }
+                
+                URL.revokeObjectURL(url);
+                resolve(group);
+            };
+            img.onerror = (err) => {
+                URL.revokeObjectURL(url);
+                reject(err);
+            };
+            img.src = url;
+        });
+    }
+
+    async function resolveMinecraftModel(data, depth = 0) {
+        if (depth > 10) return data; // 防止死循环
+        let mergedData = { ...data };
+        
+        if (data.parent) {
+            let parentPath = data.parent;
+            // 如果不包含 namespace，默认当做 minecraft
+            if (!parentPath.includes(':')) {
+                parentPath = 'minecraft:' + parentPath;
+            }
+            
+            let parentFile = fileResourceMap.get(parentPath);
+            if (!parentFile) {
+                // 有时候路径可能是没有前缀的
+                const parts = parentPath.split(':');
+                const noNs = parts[parts.length - 1];
+                parentFile = fileResourceMap.get(noNs) || fileResourceMap.get('minecraft:item/' + noNs);
+            }
+
+            if (parentFile) {
+                try {
+                    const parentText = await new Promise((res, rej) => {
+                        const r = new FileReader();
+                        r.onload = e => res(e.target.result);
+                        r.onerror = e => rej(e);
+                        r.readAsText(parentFile);
+                    });
+                    const parentData = JSON.parse(parentText);
+                    const resolvedParent = await resolveMinecraftModel(parentData, depth + 1);
+                    
+                    // 合并 display (当前 data 优先级高)
+                    mergedData.display = { ...(resolvedParent.display || {}), ...(mergedData.display || {}) };
+                    
+                    // 合并 elements (如果当前 data 没有，用 parent 的)
+                    if (!mergedData.elements && resolvedParent.elements) {
+                        mergedData.elements = resolvedParent.elements;
+                    }
+                    
+                    // 合并 textures (当前 data 优先级高)
+                    mergedData.textures = { ...(resolvedParent.textures || {}), ...(mergedData.textures || {}) };
+                } catch(e) {
+                    console.warn("解析父模型失败:", data.parent, e);
+                }
+            } else {
+                console.warn("未找到父模型文件 (可能是原生资源未上传):", data.parent);
+            }
+        }
+        return mergedData;
+    }
+
+    async function parseAndBuildModel(fileObj, isWeapon) {
+        return new Promise((resolve, reject) => {
+            const fileName = fileObj.name.toLowerCase();
+            
+            if (fileName.endsWith('.obj')) {
+                // 如果是 .obj 文件，使用 Three.js 的 OBJLoader
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    try {
+                        const objContent = evt.target.result;
+                        const loader = new OBJLoader();
+                        const objGroup = loader.parse(objContent);
+                        
+                        const rootGroup = new THREE.Group();
+                        
+                        // 为 OBJ 分配材质
+                        const material = new THREE.MeshStandardMaterial({
+                            color: isWeapon ? 0x88aaff : 0xcccccc,
+                            roughness: 0.5,
+                            metalness: 0.5,
+                            side: THREE.DoubleSide
+                        });
+                        
+                        let firstMesh = null;
+                        objGroup.traverse((child) => {
+                            if (child.isMesh) {
+                                child.material = material;
+                                if (!firstMesh) firstMesh = child;
+                            }
+                        });
+                        
+                        rootGroup.add(objGroup);
+                        
+                        // obj 文件没有骨架，返回一个假数据保证接口兼容
+                        resolve({ 
+                            rootGroup, 
+                            rootBone: null, 
+                            mesh: firstMesh, 
+                            bindToOrigin: [], 
+                            localBonesMap: {},
+                            isObj: true
+                        });
+                    } catch(err) {
+                        reject(err);
+                    }
+                };
+                reader.readAsText(fileObj);
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async (evt) => {
+                try {
+                    let data = JSON.parse(evt.target.result);
+                    
+                    const rootGroup = new THREE.Group();
+                    let rootBone = null;
+                    let mesh = null;
+                    let bindToOrigin = [];
+                    const localBonesMap = {};
+
+                    const material = new THREE.MeshStandardMaterial({
+                        color: isWeapon ? 0x88aaff : 0xcccccc,
+                        roughness: 0.5,
+                        metalness: 0.5,
+                        side: THREE.DoubleSide
+                    });
+
+                    // 判断是否为 geo 模型 (Blockbench 导出的 Bedrock geometry)
+                    if (data['minecraft:geometry'] || fileName.endsWith('.geo') || (data.format_version && data.geometry)) {
+                        let geoArray = data['minecraft:geometry'] || data.geometry;
+                        if (!Array.isArray(geoArray)) {
+                            // 可能是单个对象
+                            geoArray = [geoArray];
+                        }
+                        
+                        if (geoArray && geoArray.length > 0) {
+                            const geoData = geoArray[0];
+                            const bones = geoData.bones || [];
+                            
+                            // 建立骨架节点并挂载 cubes
+                            const boneGroupMap = {};
+                            
+                            // 创建虚拟根节点
+                            rootBone = new THREE.Bone();
+                            rootBone.name = "Root";
+                            localBonesMap["Root"] = rootBone;
+                            rootGroup.add(rootBone);
+                            
+                            // 第一次遍历：创建所有的 Bone 和 Group
+                            bones.forEach(b => {
+                                const bGroup = new THREE.Bone();
+                                bGroup.name = b.name;
+                                localBonesMap[b.name] = bGroup;
+                                boneGroupMap[b.name] = bGroup;
+                                
+                                // 设置默认的 pivot 和 rotation
+                                // Bedrock 坐标系 (x,y,z) 转 ThreeJS: Y 轴一致，由于是 blockbench，单位可能需除以 16
+                                if (b.pivot) {
+                                    bGroup.position.set(b.pivot[0]/16, b.pivot[1]/16, b.pivot[2]/16);
+                                }
+                                if (b.rotation) {
+                                    // Blockbench rotation in degrees: [x, y, z]
+                                    bGroup.rotation.set(
+                                        THREE.MathUtils.degToRad(-b.rotation[0]), 
+                                        THREE.MathUtils.degToRad(-b.rotation[1]), 
+                                        THREE.MathUtils.degToRad(b.rotation[2])
+                                    );
+                                }
+                                
+                                // 生成对应的网格 (cubes)
+                                if (b.cubes) {
+                                    b.cubes.forEach(cube => {
+                                        if (cube.size && cube.origin) {
+                                            const w = cube.size[0] / 16;
+                                            const h = cube.size[1] / 16;
+                                            const d = cube.size[2] / 16;
+                                            const boxGeo = new THREE.BoxGeometry(w, h, d);
+                                            const boxMesh = new THREE.Mesh(boxGeo, material);
+                                            
+                                            // cube.origin 是最小角点，cube.size 是尺寸
+                                            const cx = cube.origin[0]/16 + w/2;
+                                            const cy = cube.origin[1]/16 + h/2;
+                                            const cz = cube.origin[2]/16 + d/2;
+                                            
+                                            // Mesh 位置系相对于它所属的 Bone
+                                            boxMesh.position.set(cx, cy, cz);
+                                            
+                                            // Cube 也有自身的 pivot 和 rotation
+                                            if (cube.rotation && cube.pivot) {
+                                                const pivotGroup = new THREE.Group();
+                                                pivotGroup.position.set(cube.pivot[0]/16, cube.pivot[1]/16, cube.pivot[2]/16);
+                                                pivotGroup.rotation.set(
+                                                    THREE.MathUtils.degToRad(-cube.rotation[0]), 
+                                                    THREE.MathUtils.degToRad(-cube.rotation[1]), 
+                                                    THREE.MathUtils.degToRad(cube.rotation[2])
+                                                );
+                                                
+                                                boxMesh.position.sub(pivotGroup.position);
+                                                pivotGroup.add(boxMesh);
+                                                bGroup.add(pivotGroup);
+                                            } else {
+                                                // 如果没有独立旋转，但我们要让它的绝对坐标生效，由于被添加进了 bGroup，需要减去 bGroup.position
+                                                boxMesh.position.sub(bGroup.position);
+                                                bGroup.add(boxMesh);
+                                            }
+                                            
+                                            if (!mesh) mesh = boxMesh; // 取第一个作为标志
+                                        }
+                                    });
+                                }
+                            });
+                            
+                            // 第二次遍历：建立父子层级关系
+                            bones.forEach(b => {
+                                const bGroup = boneGroupMap[b.name];
+                                if (b.parent && boneGroupMap[b.parent]) {
+                                    const parentGroup = boneGroupMap[b.parent];
+                                    // 子骨骼的 position 是基于全局的 pivot 减去 父骨骼的全局 pivot
+                                    if (b.pivot && parentGroup.position) {
+                                        // 实际上前面赋予 bGroup 的 position 已经是绝对的 pivot
+                                        // 我们需要把它变成相对于 parent 的局部坐标
+                                        const globalPivot = bGroup.position.clone();
+                                        // TODO: 完整的正向动力学换算较复杂，这里简化处理，假设 parentGroup.position 即其 pivot
+                                        bGroup.position.sub(parentGroup.position);
+                                    }
+                                    parentGroup.add(bGroup);
+                                } else {
+                                    // 没有 parent 的，挂载到 root
+                                    rootBone.add(bGroup);
+                                }
+                            });
+                            
+                            resolve({ 
+                                rootGroup, 
+                                rootBone, 
+                                mesh, 
+                                bindToOrigin: [], 
+                                localBonesMap,
+                                isGeo: true
+                            });
+                            return;
+                        }
+                    }
+
+                    // 解析并合并父模型的 display/elements
+                    data = await resolveMinecraftModel(data);
+                    
+                    function buildHierarchy(nodeData) {
+                        const bone = new THREE.Bone();
+                        bone.name = nodeData.name;
+                        localBonesMap[bone.name] = bone;
+                        const arr = nodeData.transform;
+                        if (arr && arr.length === 16) {
+                            const mat = new THREE.Matrix4().fromArray(arr).transpose();
+                            mat.decompose(bone.position, bone.quaternion, bone.scale);
+                        }
+                        if (nodeData.children) {
+                            for (let childData of nodeData.children) {
+                                bone.add(buildHierarchy(childData));
+                            }
+                        }
+                        return bone;
+                    }
+
+                    let armatureData = data.armature;
+
+                    // 如果当前模型没有骨架，且没有 vertices，判断是否是 Minecraft 原生模型
+                    if (!armatureData && !data.vertices) {
+                        rootBone = new THREE.Bone();
+                        rootBone.name = "Root";
+                        localBonesMap["Root"] = rootBone;
+                        rootGroup.add(rootBone);
+
+                        const material = new THREE.MeshStandardMaterial({
+                            color: isWeapon ? 0x88aaff : 0xcccccc,
+                            roughness: 0.5,
+                            metalness: 0.5,
+                            side: THREE.DoubleSide
+                        });
+
+                        const mcGroup = new THREE.Group();
+
+                        if (data.elements && Array.isArray(data.elements)) {
+                            // 解析 Minecraft 像素方块模型
+                            for (let el of data.elements) {
+                                if (!el.from || !el.to) continue;
+                                const w = (el.to[0] - el.from[0]) / 16;
+                                const h = (el.to[1] - el.from[1]) / 16;
+                                const d = (el.to[2] - el.from[2]) / 16;
+                                
+                                const box = new THREE.BoxGeometry(w, h, d);
+                                const boxMesh = new THREE.Mesh(box, material);
+                                
+                                const cx = (el.from[0] + el.to[0]) / 2 / 16;
+                                const cy = (el.from[1] + el.to[1]) / 2 / 16;
+                                const cz = (el.from[2] + el.to[2]) / 2 / 16;
+                                
+                                // Minecraft 坐标系以方块为单位
+                                boxMesh.position.set(cx - 0.5, cy, cz - 0.5);
+                                
+                                // 处理方块级旋转 (如果有)
+                                if (el.rotation) {
+                                    const axis = el.rotation.axis;
+                                    const angle = THREE.MathUtils.degToRad(el.rotation.angle || 0);
+                                    const origin = el.rotation.origin ? [el.rotation.origin[0]/16 - 0.5, el.rotation.origin[1]/16, el.rotation.origin[2]/16 - 0.5] : [0,0,0];
+                                    
+                                    const pivot = new THREE.Group();
+                                    pivot.position.set(origin[0], origin[1], origin[2]);
+                                    if (axis === 'x') pivot.rotation.x = angle;
+                                    else if (axis === 'y') pivot.rotation.y = angle;
+                                    else if (axis === 'z') pivot.rotation.z = angle;
+                                    
+                                    boxMesh.position.sub(pivot.position);
+                                    pivot.add(boxMesh);
+                                    mcGroup.add(pivot);
+                                } else {
+                                    mcGroup.add(boxMesh);
+                                }
+                            }
+                            
+                            // Minecraft 默认手持武器时，模型在右手是竖直朝上的，而我们直接从 JSON 生成的是平躺的。
+                            // 且默认是以坐标原点 (0,0,0) 为手握位置。
+                            // 做一个基础的默认朝向修正，然后再应用 display 旋转：
+                            mcGroup.position.set(0, 0, 0);
+                            
+                        } else if (data.textures && data.textures.layer0) {
+                            // 处理 2D 物品 (如铁斧、钻石剑等没有 elements 只有 textures 的情况)
+                            let texPath = data.textures.layer0;
+                            if (!texPath.includes(':')) {
+                                texPath = 'minecraft:' + texPath;
+                            }
+                            
+                            // 尝试去 fileResourceMap 找对应的 png 文件
+                            const parts = texPath.split(':');
+                            const ns = parts[0];
+                            let relPath = parts[1];
+                            
+                            // 由于我们前面将 png 文件提取 ID 时去掉了后缀
+                            let texFile = fileResourceMap.get(ns + ':' + relPath + '.png') 
+                                       || fileResourceMap.get(ns + ':texture/' + relPath + '.png')
+                                       || fileResourceMap.get(ns + ':textures/' + relPath + '.png');
+                            
+                            // 兼容性：如果找不到，也有可能是用户上传的路径包含完整目录名
+                            if (!texFile) {
+                                // 暴力遍历匹配
+                                const searchStr = relPath.toLowerCase() + '.png';
+                                for (const [k, v] of fileResourceMap.entries()) {
+                                    if (k.toLowerCase().endsWith(searchStr)) {
+                                        texFile = v;
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            if (texFile) {
+                                try {
+                                    const extrudedGroup = await createExtrudedMeshFromImage(texFile);
+                                    
+                                    // 挤压出来的模型，默认原点在 (0,0,0)，宽高大约在 0~1 范围
+                                    // 把它居中对齐，类似于 Minecraft 的原点习惯 (-0.5, 0, 0)
+                                    extrudedGroup.position.set(-0.5, 0, 0);
+                                    mcGroup.add(extrudedGroup);
+                                } catch(e) {
+                                    console.warn("生成 2D 挤压模型失败:", e);
+                                    createPlaceholderSword();
+                                }
+                            } else {
+                                createPlaceholderSword();
+                            }
+                        } else {
+                            createPlaceholderSword();
+                        }
+                        
+                        function createPlaceholderSword() {
+                            // 如果只是 2D 物品模型但找不到材质，生成一个简单的占位剑形几何体
+                            const box = new THREE.BoxGeometry(0.1, 1.0, 0.1);
+                            const boxMesh = new THREE.Mesh(box, material);
+                            boxMesh.position.set(0, 0.5, 0); // 握把在底部
+                            mcGroup.add(boxMesh);
+                        }
+
+                        rootGroup.add(mcGroup);
+                        
+                        resolve({ 
+                            rootGroup, 
+                            rootBone, 
+                            mesh: mcGroup, 
+                            bindToOrigin: [], 
+                            localBonesMap: {},
+                            isMinecraft: true,
+                            display: data.display
+                        });
+                        return;
+                    }
+
+                    // 如果当前模型没有骨架，尝试加载 epicfight:biped 作为默认骨架
+                    if (!armatureData || !armatureData.hierarchy || armatureData.hierarchy.length === 0) {
+                        const bipedFile = fileResourceMap.get('epicfight:entity/biped') || fileResourceMap.get('epicfight:biped');
+                        if (!bipedFile) {
+                            throw new Error("缺少 armature.hierarchy 结构，且未导入 epicfight:biped 骨骼文件，无法生成模型！请确保资源包中包含该文件。");
+                        }
+                        
+                        // 异步读取 biped.json 获取它的 armature
+                        const bipedText = await new Promise((res, rej) => {
+                            const r = new FileReader();
+                            r.onload = e => res(e.target.result);
+                            r.onerror = e => rej(e);
+                            r.readAsText(bipedFile);
+                        });
+                        const bipedData = JSON.parse(bipedText);
+                        if (bipedData.armature && bipedData.armature.hierarchy) {
+                            armatureData = bipedData.armature;
+                        } else {
+                            throw new Error("epicfight:biped 文件中未找到有效的 armature 结构！");
+                        }
+                        
+                        // 很多静态武器 JSON 里其实没有定义 vcounts/vindices/weights 蒙皮权重。
+                        // 对于这种没有权重的纯静态模型，需要给所有的顶点分配一个指向 Tool_R 的假权重。
+                        if (data.vertices && (!data.vertices.vcounts || !data.vertices.weights)) {
+                            const posCount = data.vertices.positions.array.length / 3;
+                            
+                            // 找出 Tool_R 在 joints 数组里的索引
+                            let toolRIndex = armatureData.joints ? armatureData.joints.indexOf("Tool_R") : -1;
+                            if (toolRIndex === -1) toolRIndex = 0; // fallback to root
+                            
+                            // 每个顶点绑定到 Tool_R 骨骼，权重 1.0
+                            const fakeVcounts = new Array(posCount).fill(1);
+                            const fakeVindices = [];
+                            const fakeWeights = [1.0]; // 权重表只需要一个 1.0
+
+                            for (let i = 0; i < posCount; i++) {
+                                fakeVindices.push(toolRIndex); // 关节索引指向 Tool_R
+                                fakeVindices.push(0); // 权重索引 0 (指向 1.0)
+                            }
+                            
+                            data.vertices.vcounts = { array: fakeVcounts };
+                            data.vertices.vindices = { array: fakeVindices };
+                            data.vertices.weights = { array: fakeWeights };
+                        }
+                    }
+
+                    // 构建正常骨架树
+                    rootBone = buildHierarchy(armatureData.hierarchy[0]);
+                    rootGroup.add(rootBone);
+                    
+                    if (data.vertices) {
+                        const { geometry, cpuSkinning } = buildGeometry(data.vertices);
+                        const boneList = [];
+                        
+                        // 优先使用模型自己的 joints 定义，如果没有则用骨架的 joints
+                        const jointsToUse = data.armature && data.armature.joints ? data.armature.joints : armatureData.joints;
+                        
+                        if (jointsToUse) {
+                            for (let jName of jointsToUse) {
+                                boneList.push(localBonesMap[jName] || rootBone);
+                            }
+                        } else {
+                            rootBone.traverse(b => { if (b.isBone) boneList.push(b); });
+                        }
+                        
+                        const material = new THREE.MeshStandardMaterial({
+                            color: isWeapon ? 0x88aaff : 0xcccccc, // 武器用偏蓝色区分
+                            roughness: 0.5,
+                            metalness: 0.5,
+                            side: THREE.DoubleSide
+                        });
+
+                        mesh = new THREE.Mesh(geometry, material);
+                        rootGroup.add(mesh);
+
+                        rootGroup.updateMatrixWorld(true);
+                        bindToOrigin = boneList.map(bone => {
+                            rootGroup.updateMatrixWorld(true);
+                            return new THREE.Matrix4().copy(rootGroup.matrixWorld).invert().multiply(bone.matrixWorld).invert();
+                        });
+                        
+                        mesh.userData.cpuSkinning = cpuSkinning ? {
+                            ...cpuSkinning,
+                            boneList,
+                            vertexCount: cpuSkinning.basePositions.length / 3
+                        } : null;
+                    }
+                    
+                    resolve({ rootGroup, rootBone, mesh, bindToOrigin, localBonesMap });
+                } catch(err) {
+                    reject(err);
+                }
+            };
+            reader.readAsText(fileObj);
+        });
+    }
+
+    async function loadAnimation(fileObj) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                try {
+                    const data = JSON.parse(evt.target.result);
+                    if (!data.animation) throw new Error("缺少 animation 数组");
+                    
+                    if (mixer) { mixer.stopAllAction(); }
+                    if (currentWeaponMixer) { currentWeaponMixer.stopAllAction(); }
+                    
+                    mixer = new THREE.AnimationMixer(currentRootBone);
+                    if (currentWeaponGroup && currentWeaponGroup.children.length > 0) {
+                        // 查找真正的 rootBone，可能不是 children[0] (mesh 也可能是 children)
+                        let weaponRootBone = null;
+                        for (let child of currentWeaponGroup.children) {
+                            if (child.isBone) {
+                                weaponRootBone = child;
+                                break;
+                            }
+                        }
+                        if (weaponRootBone) {
+                            currentWeaponMixer = new THREE.AnimationMixer(weaponRootBone);
+                        }
+                    }
+
+                    const tracks = [];
+                    for (let trackData of data.animation) {
+                        const boneName = trackData.name;
+
+                        const times = trackData.time;
+                        const positions = [];
+                        const quaternions = [];
+                        const scales = [];
+
+                        for (let arr of trackData.transform) {
+                            const mat = new THREE.Matrix4().fromArray(arr).transpose();
+                            const p = new THREE.Vector3();
+                            const q = new THREE.Quaternion();
+                            const s = new THREE.Vector3();
+                            mat.decompose(p, q, s);
+
+                            positions.push(p.x, p.y, p.z);
+                            quaternions.push(q.x, q.y, q.z, q.w);
+                            scales.push(s.x, s.y, s.z);
+                        }
+
+                        tracks.push(new THREE.VectorKeyframeTrack(`${boneName}.position`, times, positions));
+                        tracks.push(new THREE.QuaternionKeyframeTrack(`${boneName}.quaternion`, times, quaternions));
+                        tracks.push(new THREE.VectorKeyframeTrack(`${boneName}.scale`, times, scales));
+                    }
+
+                    const clip = new THREE.AnimationClip('EpicFightAnim', -1, tracks);
+                    mixer.clipAction(clip).play();
+                    if (currentWeaponMixer) {
+                        currentWeaponMixer.clipAction(clip).play();
+                    }
+                    resolve();
+                } catch(err) {
+                    reject(err);
+                }
+            };
+            reader.readAsText(fileObj);
+        });
+    }
+
+    window.playAnimationPreview = async function(modelId, animationId, weaponId) {
+        document.getElementById('floating-3d-window').style.display = 'flex';
+        msgEl.innerText = "加载中...";
+        msgEl.style.color = "#aaa";
+        try {
+            console.log(`[Preview] Starting: model=${modelId}, anim=${animationId}, weapon=${weaponId}`);
+            // 清理旧资源
+            if (currentRootGroup) {
+                scene.remove(currentRootGroup);
+                disposeThreeObject(currentRootGroup);
+            }
+            if (currentWeaponGroup) {
+                if (currentWeaponGroup.parent) currentWeaponGroup.parent.remove(currentWeaponGroup);
+                scene.remove(currentWeaponGroup); // 确保从场景中移除
+                disposeThreeObject(currentWeaponGroup);
+            }
+            if (mixer) { mixer.stopAllAction(); mixer = null; }
+            if (currentWeaponMixer) { currentWeaponMixer.stopAllAction(); currentWeaponMixer = null; }
+            
+            currentRootGroup = null;
+            currentMesh = null;
+            currentWeaponGroup = null;
+            currentWeaponMesh = null;
+            bonesMap = {};
+
+            // 1. 加载主模型
+            let lookupModelId = modelId;
+            if (modelId && !modelId.includes(':entity/') && !modelId.includes('/')) {
+                // 如果只写了 epicfight:biped，尝试去匹配 epicfight:entity/biped
+                lookupModelId = modelId.replace(':', ':entity/');
+            }
+            const modelFile = fileResourceMap.get(lookupModelId) || fileResourceMap.get(modelId);
+            if (!modelFile) throw new Error(`未找到模型文件: ${modelId}`);
+            
+            console.log(`[Preview] Parsing main model...`);
+            const mainModel = await parseAndBuildModel(modelFile, false);
+            currentRootGroup = mainModel.rootGroup;
+            currentRootBone = mainModel.rootBone;
+            currentMesh = mainModel.mesh;
+            currentBindToOrigin = mainModel.bindToOrigin;
+            bonesMap = mainModel.localBonesMap;
+            
+            currentRootGroup.rotation.set(-Math.PI / 2, 0, 0);
+            scene.add(currentRootGroup);
+
+            // 添加灯光
+            if (!scene.lightsAdded) {
+                const amb = new THREE.AmbientLight(0xffffff, 0.5);
+                scene.add(amb);
+                const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+                dir.position.set(5, 10, 7);
+                scene.add(dir);
+                scene.lightsAdded = true;
+            }
+
+            // 2. 加载武器模型 (如果有)
+            if (weaponId) {
+                let weaponFile = fileResourceMap.get(weaponId);
+                
+                if (!weaponFile && !weaponId.includes('/')) {
+                    weaponFile = fileResourceMap.get(weaponId.replace(':', ':weapon/')) || fileResourceMap.get(weaponId.replace(':', ':item/'));
+                }
+
+                if (weaponFile) {
+                    console.log(`[Preview] Parsing weapon model...`);
+                    const weaponModel = await parseAndBuildModel(weaponFile, true);
+                    currentWeaponGroup = weaponModel.rootGroup;
+                    currentWeaponMesh = weaponModel.mesh;
+                    currentWeaponBindToOrigin = weaponModel.bindToOrigin;
+                    
+                    if (weaponModel.isObj || weaponModel.isMinecraft || weaponModel.isGeo) {
+                        // 对于 OBJ/Minecraft/Geo 模型，检查自身的 display 或是同级目录下的 .json 提供的 display
+                        let tData = null;
+                        if (weaponModel.isMinecraft && weaponModel.display) {
+                            tData = { display: weaponModel.display };
+                        } else if (weaponModel.isObj || weaponModel.isGeo) {
+                            let jsonId = weaponId.replace(/\.(obj|geo)$/i, '.json');
+                            let transformJsonFile = fileResourceMap.get(jsonId);
+                            if (!transformJsonFile) {
+                                transformJsonFile = fileResourceMap.get(weaponId.replace(/\.(obj|geo)$/i, ''));
+                            }
+                            if (transformJsonFile && transformJsonFile.name.toLowerCase().endsWith('.json')) {
+                                try {
+                                    const tText = await new Promise((res, rej) => {
+                                        const r = new FileReader();
+                                        r.onload = e => res(e.target.result);
+                                        r.readAsText(transformJsonFile);
+                                    });
+                                    tData = JSON.parse(tText);
+                                } catch(e) {
+                                    console.warn("解析 OBJ 伴随的 JSON transform 失败", e);
+                                }
+                            }
+                        }
+
+                        if (tData && tData.display && tData.display.thirdperson_righthand) {
+                            const tr = tData.display.thirdperson_righthand;
+                            if (tr.translation) {
+                                // Minecraft translation is roughly in units of 1/16th of a block
+                                currentWeaponGroup.position.set(tr.translation[0] / 16, tr.translation[1] / 16, tr.translation[2] / 16);
+                            }
+                            if (tr.rotation) {
+                                // Minecraft rotation is in degrees
+                                currentWeaponGroup.rotation.set(
+                                    THREE.MathUtils.degToRad(tr.rotation[0]), 
+                                    THREE.MathUtils.degToRad(tr.rotation[1]), 
+                                    THREE.MathUtils.degToRad(tr.rotation[2])
+                                );
+                            }
+                            if (tr.scale) {
+                                currentWeaponGroup.scale.set(tr.scale[0], tr.scale[1], tr.scale[2]);
+                            }
+                        }
+
+                        // 所以把它作为子节点塞给人物的 Tool_R 骨头，并应用 EpicFight 的 Correction 变换
+                        const toolR = bonesMap['Tool_R'] || currentRootBone;
+                        if (currentWeaponGroup.position.length() === 0 && currentWeaponGroup.rotation.x === 0 && currentWeaponGroup.scale.x === 1) {
+                            currentWeaponGroup.position.set(0, 0, 0);
+                            currentWeaponGroup.rotation.set(0, 0, 0);
+                            currentWeaponGroup.scale.set(1, 1, 1);
+                        }
+                        
+                        const correctionGroup = new THREE.Group();
+                        correctionGroup.position.set(0, 0, -0.13);
+                        correctionGroup.rotation.x = THREE.MathUtils.degToRad(-90);
+                        
+                        // 对于 OBJ 和 JSON 静态模型，Minecraft 原生渲染通常还有一个 (-0.5, -0.5, -0.5) 的中心偏移
+                        // 由于我们在解析 Minecraft json 时只做了部分中心化，为了准确还原游戏中持握位置，需要包裹一个 offsetGroup
+                        const offsetGroup = new THREE.Group();
+                        
+                        if (weaponModel.isMinecraft) {
+                            // JSON 模型已经在生成时处理了一部分坐标，但可能缺少 Y 轴或整体的中心修正
+                            // 在这里如果发现位置不对，可以继续调整。之前我们让 mcGroup.position.set(0,0,0)
+                            // 实际上标准是 translate(-0.5, -0.5, -0.5)
+                            offsetGroup.position.set(0, -0.5, 0); // X和Z已经在解析时减去0.5了，补上Y
+                        } else if (weaponModel.isObj) {
+                            // OBJ 多数以 0,0,0 为中心，不需要额外的 90 度修复（之前这个旋转抵消了 EpicFight 默认的 -90 修正导致武器倒垂）
+                        }
+                        
+                        offsetGroup.name = "OffsetGroup";
+                        
+                        // 移动原有的 children 到 offsetGroup 中
+                        const childrenToMove = [...currentWeaponGroup.children];
+                        for (let child of childrenToMove) {
+                            offsetGroup.add(child);
+                        }
+                        currentWeaponGroup.add(offsetGroup);
+
+                        correctionGroup.add(currentWeaponGroup);
+                        toolR.add(correctionGroup);
+                    } else {
+                        // 必须让武器骨架的根节点旋转也和人物保持一致，因为我们在加载动画时是各自播放的
+                        currentWeaponGroup.rotation.set(-Math.PI / 2, 0, 0);
+                        scene.add(currentWeaponGroup);
+                    }
+                } else {
+                    console.warn(`未找到武器模型文件: ${weaponId}`);
+                    msgEl.innerText = `未找到武器模型: ${weaponId}`;
+                    msgEl.style.color = "#f59e0b";
+                }
+            }
+            
+            // 3. 加载动画
+            if (animationId) {
+                const animFile = fileResourceMap.get(animationId);
+                if (!animFile) throw new Error(`未找到动画文件: ${animationId}`);
+                console.log(`[Preview] Parsing animation...`);
+                await loadAnimation(animFile);
+            }
+            
+            if (msgEl.style.color !== "rgb(245, 158, 11)") {
+                msgEl.innerText = "";
+            }
+            console.log(`[Preview] Success!`);
+        } catch(err) {
+            console.error("[Preview Error]", err);
+            msgEl.innerText = err.message;
+            msgEl.style.color = "#ef4444";
+        }
+    };
+</script>
+</body>
+</html>

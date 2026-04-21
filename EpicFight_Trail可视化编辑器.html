@@ -1,0 +1,2595 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EpicFight Trail (武器轨迹) 可视化调节器</title>
+    
+    <!-- 引入 Vue 3 和 Three.js 依赖 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --border: #e2e8f0;
+            --text: #1e293b;
+            --input-bg: #ffffff;
+            --hover-btn: #2563eb;
+            --panel-bg: #f1f5f9;
+        }
+        body.dark-mode {
+            --primary: #3b82f6;
+            --bg: #0f172a;
+            --card: #1e293b;
+            --border: #334155;
+            --text: #f8fafc;
+            --input-bg: #0f172a;
+            --hover-btn: #60a5fa;
+            --panel-bg: #334155;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.5;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: minmax(400px, 400px) 10px minmax(0, 1fr);
+            gap: 15px;
+            min-height: calc(100vh - 40px);
+            align-items: start;
+        }
+        @media (max-width: 900px) {
+            .container { grid-template-columns: 1fr; height: auto; }
+            .resizer { display: none; }
+        }
+        .panel {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+        }
+        .panel-scrollable {
+            overflow-y: auto;
+        }
+        .resizer { width: 10px; cursor: col-resize; background: transparent; transition: background 0.2s; border-radius: 4px; }
+        .resizer:hover, .resizer.dragging { background: var(--primary); }
+        h2, h3 { margin-top: 0; color: var(--text); }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-weight: 500; margin-bottom: 5px; font-size: 0.9em; }
+        .form-group input[type="number"], .form-group input[type="text"] {
+            width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; box-sizing: border-box; background: var(--input-bg); color: var(--text);
+        }
+        .form-group input[type="range"] { width: 100%; margin-top: 5px; }
+        .slider-row { display: grid; grid-template-columns: 30px 1fr 60px; gap: 10px; align-items: center; margin-bottom: 5px; }
+        .slider-label { font-family: monospace; font-weight: bold; color: var(--primary); text-align: center; }
+        
+        .btn { background-color: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; transition: all 0.2s ease; font-size: 0.9em; }
+        .btn:hover { background-color: var(--hover-btn); transform: translateY(-1px); }
+        .btn.secondary { background-color: #64748b; }
+        .btn.secondary:hover { background-color: #475569; }
+        
+        .code-preview { background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 8px; font-family: monospace; white-space: pre; overflow-x: auto; margin-top: 20px; font-size: 13px;}
+        .code-preview .string { color: #ce9178; }
+        .code-preview .number { color: #b5cea8; }
+        .code-preview .boolean { color: #569cd6; }
+        .code-preview .null { color: #569cd6; }
+        .code-preview .key { color: #9cdcfe; }
+        
+        .xyz-group { background: var(--panel-bg); border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        
+        #preview-container { flex: 1; border-radius: 8px; overflow: hidden; background: #1e1e1e; position: relative; min-height: 400px; border: 1px solid var(--border); }
+        #preview-overlay { position: absolute; top: 10px; left: 10px; color: #fff; font-size: 12px; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 4px; pointer-events: none; }
+        
+        /* AutoComplete Styles */
+        .animation-autocomplete-panel {
+            position: absolute; /* Changed to absolute to position relative to input */
+            z-index: 9999;
+            min-width: 260px;
+            max-width: 320px;
+            max-height: 280px;
+            overflow-y: auto;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+            display: none;
+        }
+        body.dark-mode .animation-autocomplete-panel {
+            background: #1e293b;
+            border-color: #334155;
+        }
+        .animation-autocomplete-item {
+            padding: 8px 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #eef2f7;
+            font-size: 13px;
+            line-height: 1.4;
+            word-break: break-all;
+            color: #1e293b;
+        }
+        body.dark-mode .animation-autocomplete-item {
+            border-bottom-color: #334155;
+            color: #f8fafc;
+        }
+        .animation-autocomplete-item:last-child { border-bottom: none; }
+        .animation-autocomplete-item:hover,
+        .animation-autocomplete-item.active {
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
+        body.dark-mode .animation-autocomplete-item:hover,
+        body.dark-mode .animation-autocomplete-item.active {
+            background: #3b82f6;
+            color: #ffffff;
+        }
+        .animation-autocomplete-group { border-bottom: 1px solid #e2e8f0; }
+        body.dark-mode .animation-autocomplete-group { border-bottom-color: #334155; }
+        .animation-autocomplete-group:last-child { border-bottom: none; }
+        .animation-autocomplete-group-title {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            padding: 6px 10px;
+            background: #f8fafc;
+            color: #475569;
+            font-size: 12px;
+            font-weight: 600;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        body.dark-mode .animation-autocomplete-group-title {
+            background: #0f172a;
+            color: #94a3b8;
+            border-bottom-color: #334155;
+        }
+        .animation-autocomplete-path { color: inherit; }
+        .animation-autocomplete-highlight {
+            background: #fef3c7;
+            color: #92400e;
+            font-weight: 700;
+            border-radius: 2px;
+            padding: 0 1px;
+        }
+        body.dark-mode .animation-autocomplete-highlight {
+            background: #d97706;
+            color: #fffbeb;
+        }
+        .animation-autocomplete-empty {
+            padding: 8px 10px;
+            color: #64748b;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app" class="container" :style="{ gridTemplateColumns: leftWidth + 'px 10px minmax(0, 1fr)' }">
+    <!-- 左侧控制面板 -->
+    <div class="panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h2 style="margin:0; font-size:1.2em;">Trail (轨迹) 调节器</h2>
+            <div style="display:flex; gap:10px;">
+                <button class="btn secondary" @click="resetParams" style="padding:4px 8px; font-size:12px;">重置参数</button>
+                <button class="btn secondary" @click="toggleTheme" style="padding:4px 8px; font-size:12px;">{{ isDarkMode ? '☀️' : '🌙' }}</button>
+            </div>
+        </div>
+
+        <div class="form-group" style="border:1px solid var(--border); padding:10px; border-radius:8px; margin-bottom:15px; background:var(--panel-bg);">
+            <div style="font-weight:bold; margin-bottom:10px;">动画资源导入与预览</div>
+            <label class="btn" style="cursor:pointer; display:inline-block; margin-bottom:10px;">
+                导入资源文件夹 (包含 animmodels)
+                <input type="file" webkitdirectory directory multiple @change="importAnimationResources" style="display:none">
+            </label>
+            <div style="font-size:12px; color:#666; margin-bottom:10px;">已加载模型: {{availableModels.length}} 个 动画: {{availableAnimations.length}} 个</div>
+            
+            <div class="form-group">
+                <label>Armature (骨架，默认 epicfight:entity/biped)</label>
+                <input type="text" v-model="previewArmature" placeholder="epicfight:entity/biped" class="animation-path-input">
+            </div>
+            <div class="form-group">
+                <label>Model (人物模型，默认 epicfight:entity/biped)</label>
+                <input type="text" v-model="previewModel" placeholder="epicfight:entity/biped" class="animation-path-input">
+            </div>
+            <div class="form-group">
+                <label>Weapon (武器模型, 可选)</label>
+                <input type="text" v-model="previewWeapon" placeholder="epicfight:weapon/longsword" class="animation-path-input">
+            </div>
+            <div class="form-group">
+                <label>Animation (动画)</label>
+                <input type="text" v-model="previewAnimation" placeholder="epicfight:biped/combat/longsword_auto1" class="animation-path-input">
+            </div>
+            <button class="btn primary" style="width:100%; margin-top:10px;" @click="playAnim">播放预览</button>
+        </div>
+        <div class="xyz-group">
+            <h3 style="font-size:1em; border-bottom:1px solid var(--border); padding-bottom:5px;">全局滑块范围设置</h3>
+            <div class="slider-row">
+                <div class="slider-label">± Range</div>
+                <input type="number" min="1" step="1" v-model.number="sliderRange" @input="saveData">
+            </div>
+        </div>
+
+        <div class="xyz-group">
+            <h3 style="font-size:1em; border-bottom:1px solid var(--border); padding-bottom:5px;">Begin Pos (起始坐标点 / 刀格)</h3>
+            <div class="slider-row">
+                <div class="slider-label">X</div>
+                <input type="range" :min="-sliderRange" :max="sliderRange" step="0.05" v-model.number="begin.x" @input="updateTrail">
+                <input type="number" step="0.05" v-model.number="begin.x" @input="updateTrail">
+            </div>
+            <div class="slider-row">
+                <div class="slider-label">Y</div>
+                <input type="range" :min="-sliderRange" :max="sliderRange" step="0.05" v-model.number="begin.y" @input="updateTrail">
+                <input type="number" step="0.05" v-model.number="begin.y" @input="updateTrail">
+            </div>
+            <div class="slider-row">
+                <div class="slider-label">Z</div>
+                <input type="range" :min="-sliderRange" :max="sliderRange" step="0.05" v-model.number="begin.z" @input="updateTrail">
+                <input type="number" step="0.05" v-model.number="begin.z" @input="updateTrail">
+            </div>
+        </div>
+
+        <div class="xyz-group">
+            <h3 style="font-size:1em; border-bottom:1px solid var(--border); padding-bottom:5px;">End Pos (结束坐标点 / 刀尖)</h3>
+            <div class="slider-row">
+                <div class="slider-label">X</div>
+                <input type="range" :min="-sliderRange" :max="sliderRange" step="0.05" v-model.number="end.x" @input="updateTrail">
+                <input type="number" step="0.05" v-model.number="end.x" @input="updateTrail">
+            </div>
+            <div class="slider-row">
+                <div class="slider-label">Y</div>
+                <input type="range" :min="-sliderRange" :max="sliderRange" step="0.05" v-model.number="end.y" @input="updateTrail">
+                <input type="number" step="0.05" v-model.number="end.y" @input="updateTrail">
+            </div>
+            <div class="slider-row">
+                <div class="slider-label">Z</div>
+                <input type="range" :min="-sliderRange" :max="sliderRange" step="0.05" v-model.number="end.z" @input="updateTrail">
+                <input type="number" step="0.05" v-model.number="end.z" @input="updateTrail">
+            </div>
+        </div>
+
+        <div class="xyz-group">
+            <h3 style="font-size:1em; border-bottom:1px solid var(--border); padding-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
+                <span>可选设置</span>
+                <button class="btn secondary" @click="savePreset" style="padding:2px 6px; font-size:12px;">存为预设</button>
+            </h3>
+            <div class="form-group" v-if="presets.length > 0" style="margin-top: 10px;">
+                <label>快速预设</label>
+                <div style="display:flex; gap:5px;">
+                    <select v-model="selectedPreset" @change="loadPreset" style="flex:1; padding:4px;">
+                        <option value="-1">-- 选择预设 --</option>
+                        <option v-for="(p, i) in presets" :key="i" :value="i">{{ p.name }}</option>
+                    </select>
+                    <button v-if="selectedPreset !== -1" class="btn" style="padding:4px; color:red; cursor:pointer;" @click="deletePreset">删除</button>
+                </div>
+            </div>
+            <div class="form-group" style="margin-top: 10px;">
+                <label>绑定骨骼位置 (Joint) (如不填则默认绑定武器)</label>
+                <input type="text" v-model="joint" placeholder="例如: Hand_R" @input="saveData">
+            </div>
+            <div class="form-group" style="margin-top: 10px;">
+                <label>预览模式</label>
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    <label style="display:flex; gap:6px; align-items:center; font-size:12px;">
+                        <input type="checkbox" v-model="showStaticTrail" @change="updateTrail">
+                        静态两点一线
+                    </label>
+                    <label style="display:flex; gap:6px; align-items:center; font-size:12px;">
+                        <input type="checkbox" v-model="showDynamicTrail" @change="updateTrail">
+                        动态贴图 Trail
+                    </label>
+                </div>
+            </div>
+            <div class="form-group" style="margin-top: 10px;" v-if="showStaticTrail">
+                <label>静态轨迹透明度 (Opacity)</label>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <input type="range" min="0" max="1" step="0.05" v-model.number="staticTrailOpacity" style="flex:1;">
+                    <span style="font-size:12px; width:30px;">{{staticTrailOpacity.toFixed(2)}}</span>
+                </div>
+            </div>
+            <div class="form-group" style="margin-top: 10px;" v-if="showStaticTrail">
+                <label>静态轨迹粗细 (Thickness)</label>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <input type="range" min="0.01" max="0.5" step="0.01" v-model.number="staticTrailThickness" style="flex:1;">
+                    <span style="font-size:12px; width:30px;">{{staticTrailThickness.toFixed(2)}}</span>
+                </div>
+            </div>
+            <div class="form-group" style="margin-top: 10px;">
+                <label>lifetime (Tick)</label>
+                <input type="number" min="1" step="1" v-model.number="trailLifetime" @input="updateTrail">
+            </div>
+            <div class="form-group" style="margin-top: 10px;">
+                <label>interpolations</label>
+                <input type="number" min="1" step="1" v-model.number="trailInterpolations" @input="updateTrail">
+            </div>
+            <div class="form-group" style="margin-top: 10px;">
+                <label>texture_path</label>
+                <input type="text" v-model="trailTexturePath" placeholder="epicfight:textures/particle/swing_trail.png" class="animation-path-input" @input="updateTrail">
+            </div>
+            <div class="form-group" style="margin-top: 10px;">
+                <label>color (RGB)</label>
+                <div style="display:flex; gap:8px;">
+                    <input type="number" min="0" max="255" step="1" v-model.number="trailColor[0]" @input="updateTrail">
+                    <input type="number" min="0" max="255" step="1" v-model.number="trailColor[1]" @input="updateTrail">
+                    <input type="number" min="0" max="255" step="1" v-model.number="trailColor[2]" @input="updateTrail">
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: auto; padding-bottom:20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-weight:bold; font-size:13px;">生成的 JSON 数据:</label>
+                <button class="btn secondary" style="padding:4px 8px; font-size:12px;" @click="copyJSON">复制</button>
+            </div>
+            <div class="code-preview" v-html="highlightedJSON"></div>
+        </div>
+    </div>
+
+    <!-- 拖拽条 -->
+    <div class="resizer" id="mainResizer" @mousedown="startDrag" @touchstart="startDrag"></div>
+
+    <!-- 右侧 3D 预览区 -->
+    <div class="panel" style="padding: 0; position: sticky; top: 20px; height: calc(100vh - 40px);" id="preview-panel">
+        <div id="preview-container" style="height: 100%; border: none;">
+            <div id="preview-overlay">
+                <span>左键旋转 | 右键平移 | 滚轮缩放</span><br>
+                <span style="color:#9cdcfe; font-size:11px;">骨骼: {{ joint || '默认 (武器根节点)' }} | 武器: {{ previewWeapon || '未加载' }}</span>
+                <button class="btn secondary" @click="toggleFullscreen" style="margin-left:15px; padding:2px 8px; font-size:12px; background:rgba(255,255,255,0.2); border:1px solid rgba(255,255,255,0.4); color:#fff; cursor:pointer;">全屏/退出</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+
+    const { createApp } = Vue;
+
+    let animationAutocompleteController = null;
+    const fileResourceMap = new Map();
+    const textureUrlCache = new Map();
+    let trailPreviewState = null;
+
+    function extractAnimationDescriptor(path, fileObj) {
+        const p = path ? String(path).replace(/\\/g, '/').replace(/^\/+/, '') : '';
+        const lowerP = p ? p.toLowerCase() : '';
+        if (!p || (!lowerP.endsWith('.json') && !lowerP.endsWith('.obj') && !lowerP.endsWith('.png') && !lowerP.endsWith('.geo'))) return null;
+
+        const parts = p.split('/').filter(Boolean);
+        
+        let isModel = false;
+        let isTexture = false;
+        let idx = parts.findIndex((part, i) => part === 'animmodels' && parts[i+1] === 'animations');
+        let off = 2;
+        
+        if (idx === -1) {
+            idx = parts.indexOf('animmodels');
+            if (idx !== -1 && idx + 1 < parts.length) {
+                isModel = true;
+                off = 1;
+            } else {
+                idx = parts.indexOf('models');
+                if (idx !== -1 && idx + 1 < parts.length) {
+                    isModel = true;
+                    off = 1;
+                } else {
+                    idx = parts.indexOf('textures');
+                    if (idx !== -1 && idx + 1 < parts.length) {
+                        isTexture = true;
+                        off = 0; // include 'textures' in the relative path
+                    } else {
+                        idx = parts.indexOf('geo');
+                        if (idx !== -1 && idx + 1 < parts.length) {
+                            isModel = true;
+                            off = 1;
+                        } else {
+                            idx = parts.indexOf('animations');
+                            off = 1;
+                            if (idx === -1) {
+                                if (lowerP.endsWith('.png')) {
+                                    isTexture = true;
+                                    idx = parts.length - 1; // Just use the filename
+                                    off = 0;
+                                } else {
+                                    return null;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let modId = null;
+        const assetsIndex = parts.indexOf('assets');
+        const dataIndex = parts.indexOf('data');
+        if (assetsIndex !== -1 && assetsIndex + 1 < parts.length) modId = parts[assetsIndex + 1];
+        else if (dataIndex !== -1 && dataIndex + 1 < parts.length) modId = parts[dataIndex + 1];
+        else if (idx > 0) modId = parts[idx - 1];
+        else modId = 'epicfight'; // fallback modId if folder structure is too shallow
+
+        let rel = parts.slice(idx + off).join('/');
+        if (lowerP.endsWith('.json')) {
+            rel = rel.replace(/\.json$/i, '');
+        } else if (lowerP.endsWith('.obj')) {
+        } else if (lowerP.endsWith('.png')) {
+            rel = rel.replace(/\.png$/i, '');
+        } else if (lowerP.endsWith('.geo')) {
+        }
+        
+        if (!modId || !rel) return null;
+        
+        let id = `${modId}:${rel}`;
+        
+        if (lowerP.endsWith('.obj') && !id.toLowerCase().endsWith('.obj')) {
+            id += '.obj';
+        } else if (lowerP.endsWith('.png') && !id.toLowerCase().endsWith('.png')) {
+            id += '.png';
+        } else if (lowerP.endsWith('.geo') && !id.toLowerCase().endsWith('.geo')) {
+            id += '.geo';
+        }
+        
+        if (fileObj) fileResourceMap.set(id, fileObj);
+        
+        return { type: isTexture ? 'texture' : (isModel ? 'model' : 'animation'), modId, id };
+    }
+
+    function createAnimationAutocomplete(getAnimOptions, getModelOptions, getTextureOptions) {
+        const panel = document.createElement('div');
+        panel.className = 'animation-autocomplete-panel';
+        document.body.appendChild(panel);
+
+        const state = {
+            activeInput: null,
+            items: [],
+            selectedIndex: -1
+        };
+
+        function isAnimationInput(target) {
+            return target && target.classList && target.classList.contains('animation-path-input');
+        }
+
+        function isModelInput(target) {
+            return target && target.placeholder && (target.placeholder.includes('epicfight:weapon') || target.placeholder.includes('epicfight:entity') || target.placeholder.includes('player'));
+        }
+
+        function isTextureInput(target) {
+            return target && target.placeholder && target.placeholder.includes('epicfight:textures');
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function escapeRegExp(value) {
+            return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        function highlightMatch(text, keyword) {
+            const safeText = escapeHtml(text);
+            if (!keyword) return safeText;
+
+            const matcher = new RegExp(`(${escapeRegExp(keyword)})`, 'ig');
+            return safeText.replace(matcher, '<span class="animation-autocomplete-highlight">$1</span>');
+        }
+
+        function getMatches(query, target) {
+            let source = [];
+            if (isTextureInput(target)) {
+                source = getTextureOptions ? getTextureOptions() : [];
+            } else if (isModelInput(target)) {
+                source = getModelOptions ? getModelOptions() : [];
+            } else {
+                source = getAnimOptions ? getAnimOptions() : [];
+            }
+            if (!Array.isArray(source)) source = [];
+            
+            const keyword = String(query || '').trim().toLowerCase();
+            const options = keyword
+                ? source.filter(item => item.toLowerCase().includes(keyword))
+                : source.slice();
+
+            return options
+                .sort((a, b) => {
+                    const aLower = a.toLowerCase();
+                    const bLower = b.toLowerCase();
+                    const aStarts = keyword && aLower.startsWith(keyword) ? 0 : 1;
+                    const bStarts = keyword && bLower.startsWith(keyword) ? 0 : 1;
+                    if (aStarts !== bStarts) return aStarts - bStarts;
+                    return aLower.localeCompare(bLower);
+                })
+                .slice(0, 50);
+        }
+
+        function groupMatches(items) {
+            const groups = new Map();
+
+            items.forEach(item => {
+                const groupKey = item.includes(':') ? item.split(':')[0] : 'other';
+                if (!groups.has(groupKey)) {
+                    groups.set(groupKey, []);
+                }
+                groups.get(groupKey).push(item);
+            });
+
+            return Array.from(groups.entries())
+                .sort((a, b) => a[0].localeCompare(b[0]))
+                .map(([groupName, entries]) => ({ groupName, entries }));
+        }
+
+        function updatePosition() {
+            if (!state.activeInput || panel.style.display === 'none') return;
+
+            const rect = state.activeInput.getBoundingClientRect();
+            panel.style.left = rect.left + window.scrollX + 'px';
+            panel.style.top = rect.bottom + window.scrollY + 4 + 'px';
+            panel.style.width = Math.max(rect.width, 260) + 'px';
+        }
+
+        function hide() {
+            panel.style.display = 'none';
+            panel.innerHTML = '';
+            state.items = [];
+            state.selectedIndex = -1;
+        }
+
+        function applySelection(value) {
+            if (!state.activeInput) return;
+            state.activeInput.value = value;
+            state.activeInput.dispatchEvent(new Event('input', { bubbles: true }));
+            hide();
+        }
+
+        function ensureVisible() {
+            const active = panel.querySelector('.animation-autocomplete-item.active');
+            if (active) {
+                active.scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        function render() {
+            if (!state.activeInput) {
+                hide();
+                return;
+            }
+
+            const isModel = isModelInput(state.activeInput);
+            const isTexture = isTextureInput(state.activeInput);
+            
+            let source = [];
+            if (isTexture) {
+                source = getTextureOptions ? getTextureOptions() : [];
+            } else if (isModel) {
+                source = getModelOptions ? getModelOptions() : [];
+            } else {
+                source = getAnimOptions ? getAnimOptions() : [];
+            }
+            if (!Array.isArray(source)) source = [];
+            
+            if (source.length === 0) {
+                hide();
+                return;
+            }
+
+            if (state.items.length === 0) {
+                const typeName = isTexture ? '贴图' : (isModel ? '模型' : '动画');
+                panel.innerHTML = `<div class="animation-autocomplete-empty">没有匹配的${typeName}路径</div>`;
+                panel.style.display = 'block';
+                updatePosition();
+                return;
+            }
+
+            const keyword = String(state.activeInput.value || '').trim();
+            let globalIndex = 0;
+            panel.innerHTML = groupMatches(state.items).map(group => {
+                const groupItems = group.entries.map(item => {
+                    const activeClass = globalIndex === state.selectedIndex ? ' active' : '';
+                    const html = `
+                        <div class="animation-autocomplete-item${activeClass}" data-index="${globalIndex}" data-value="${escapeHtml(item)}">
+                            <span class="animation-autocomplete-path">${highlightMatch(item, keyword)}</span>
+                        </div>
+                    `;
+                    globalIndex += 1;
+                    return html;
+                }).join('');
+
+                return `
+                    <div class="animation-autocomplete-group">
+                        <div class="animation-autocomplete-group-title">${escapeHtml(group.groupName)}</div>
+                        ${groupItems}
+                    </div>
+                `;
+            }).join('');
+
+            panel.style.display = 'block';
+            updatePosition();
+            ensureVisible();
+        }
+
+        function openForInput(input) {
+            state.activeInput = input;
+            state.items = getMatches(input.value, input);
+            state.selectedIndex = state.items.length > 0 ? 0 : -1;
+            render();
+        }
+
+        function refresh() {
+            if (!state.activeInput || document.activeElement !== state.activeInput) return;
+            state.items = getMatches(state.activeInput.value, state.activeInput);
+            state.selectedIndex = state.items.length > 0 ? Math.min(state.selectedIndex >= 0 ? state.selectedIndex : 0, state.items.length - 1) : -1;
+            render();
+        }
+
+        document.addEventListener('focusin', (event) => {
+            if (!isAnimationInput(event.target)) return;
+            openForInput(event.target);
+        });
+
+        document.addEventListener('input', (event) => {
+            if (!isAnimationInput(event.target)) return;
+            openForInput(event.target);
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (!isAnimationInput(event.target)) return;
+
+            const input = event.target;
+            const panelVisible = panel.style.display !== 'none';
+
+            if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && !panelVisible) {
+                openForInput(input);
+            }
+
+            if (event.key === 'ArrowDown') {
+                if (state.items.length === 0) return;
+                event.preventDefault();
+                state.selectedIndex = (state.selectedIndex + 1 + state.items.length) % state.items.length;
+                render();
+                return;
+            }
+
+            if (event.key === 'ArrowUp') {
+                if (state.items.length === 0) return;
+                event.preventDefault();
+                state.selectedIndex = (state.selectedIndex - 1 + state.items.length) % state.items.length;
+                render();
+                return;
+            }
+
+            if (event.key === 'Enter' || event.key === 'Tab') {
+                if (panelVisible && state.selectedIndex >= 0 && state.items[state.selectedIndex]) {
+                    event.preventDefault();
+                    applySelection(state.items[state.selectedIndex]);
+                }
+                return;
+            }
+
+            if (event.key === 'Escape') {
+                hide();
+            }
+        });
+
+        panel.addEventListener('wheel', (event) => {
+            // let the panel scroll natively
+            event.stopPropagation();
+        });
+
+        panel.addEventListener('mousedown', (event) => {
+            const option = event.target.closest('.animation-autocomplete-item');
+            if (!option) return;
+            event.preventDefault();
+            applySelection(option.dataset.value || '');
+        });
+
+        document.addEventListener('click', (event) => {
+            if (panel.contains(event.target)) return;
+            if (isAnimationInput(event.target)) return;
+            hide();
+        });
+
+        window.addEventListener('resize', updatePosition);
+        window.addEventListener('scroll', updatePosition, true);
+
+        return {
+            refresh,
+            hide
+        };
+    }
+
+    // --- Three.js 核心 ---
+    let scene, camera, renderer, controls;
+    let weaponGroup = new THREE.Group();
+    let trailMesh = null;
+    let trailPoints = null; // 用于显示两端小球
+    let dynamicTrailRenderer = null;
+
+    function initThree() {
+        const container = document.getElementById('preview-container');
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1e1e1e);
+
+        // 网格与坐标轴
+        const gridHelper = new THREE.GridHelper(10, 20, 0x444444, 0x222222);
+        scene.add(gridHelper);
+        const axesHelper = new THREE.AxesHelper(2);
+        scene.add(axesHelper);
+
+        camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+        camera.position.set(2, 2, 2);
+
+        // 光照
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(5, 10, 5);
+        scene.add(dirLight);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        container.appendChild(renderer.domElement);
+
+        controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        scene.add(weaponGroup);
+
+        // 占位虚拟剑(如果没导入模型)
+        const swordGeo = new THREE.BoxGeometry(0.1, 1.5, 0.2);
+        swordGeo.translate(0, 0.75, 0); // 底部对齐原点
+        const swordMat = new THREE.MeshStandardMaterial({ color: 0x888888, transparent: true, opacity: 0.5 });
+        const dummySword = new THREE.Mesh(swordGeo, swordMat);
+        weaponGroup.add(dummySword);
+
+        window.addEventListener('resize', onWindowResize);
+        dynamicTrailRenderer = new DynamicTrailRenderer(scene);
+        animate();
+    }
+
+    function onWindowResize() {
+        const container = document.getElementById('preview-container');
+        if (!container || !camera || !renderer) return;
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        const dt = typeof clock !== 'undefined' ? clock.getDelta() : 0.016;
+        if (typeof mixer !== 'undefined' && mixer) mixer.update(dt);
+        if (typeof currentWeaponMixer !== 'undefined' && currentWeaponMixer) currentWeaponMixer.update(dt);
+        if (typeof applyCpuSkinning !== 'undefined' && typeof currentMesh !== 'undefined') {
+            applyCpuSkinning(currentMesh, currentRootGroup, currentBindToOrigin);
+            applyCpuSkinning(currentWeaponMesh, currentWeaponGroup, currentWeaponBindToOrigin);
+        }
+        if (scene) scene.updateMatrixWorld(true);
+        if (dynamicTrailRenderer && trailPreviewState) dynamicTrailRenderer.update(dt, trailPreviewState);
+        if (controls) controls.update();
+        if (renderer && scene && camera) renderer.render(scene, camera);
+    }
+
+    function clearStaticTrail() {
+        if (trailMesh && trailMesh.parent) trailMesh.parent.remove(trailMesh);
+        if (trailPoints && trailPoints.parent) trailPoints.parent.remove(trailPoints);
+        trailMesh = null;
+        trailPoints = null;
+    }
+
+    async function resolveTextureUrl(texturePath) {
+        const id = String(texturePath || '').trim();
+        if (!id) return null;
+        if (textureUrlCache.has(id)) return textureUrlCache.get(id);
+        
+        let file = fileResourceMap.get(id);
+        if (!file && !id.toLowerCase().endsWith('.png')) {
+            file = fileResourceMap.get(id + '.png');
+        }
+        
+        if (!file) {
+            const parts = id.split(':');
+            if (parts.length === 2 && parts[1].startsWith('textures/')) {
+                let altId = parts[0] + ':' + parts[1].substring('textures/'.length);
+                file = fileResourceMap.get(altId);
+                if (!file && !altId.toLowerCase().endsWith('.png')) {
+                    file = fileResourceMap.get(altId + '.png');
+                }
+            }
+        }
+        
+        if (!file) {
+            // Final fallback: try to find any file that ends with the requested filename
+            const searchName = id.split('/').pop().toLowerCase();
+            const searchNameWithExt = searchName.endsWith('.png') ? searchName : searchName + '.png';
+            for (const [key, val] of fileResourceMap.entries()) {
+                if (key.toLowerCase().endsWith('/' + searchNameWithExt) || key.toLowerCase().endsWith(':' + searchNameWithExt)) {
+                    file = val;
+                    break;
+                }
+            }
+        }
+        
+        if (!file) return null;
+        const url = URL.createObjectURL(file);
+        textureUrlCache.set(id, url);
+        return url;
+    }
+
+    // 更新挥刀轨迹平面 (由两点决定的一条长方形带)
+    function updateTrailMesh(begin, end, jointName, thickness = 0.05, opacity = 0.6) {
+        clearStaticTrail();
+
+        const vBegin = new THREE.Vector3(begin.x, begin.y, begin.z);
+        const vEnd = new THREE.Vector3(end.x, end.y, end.z);
+
+        // 绘制轨迹带（由于 EpicFight 的 trail 实际上是在挥舞过程中形成的面，我们在这里静态显示连接这两个点的线段面作为参考）
+        // 为了方便可视化，我们将 begin 和 end 连成一条粗线/面
+        const distance = vBegin.distanceTo(vEnd);
+        const center = new THREE.Vector3().addVectors(vBegin, vEnd).multiplyScalar(0.5);
+        
+        // 创建连接两点的面片 (代表刀身扫过的面截面)
+        const geometry = new THREE.PlaneGeometry(thickness, distance);
+        const material = new THREE.MeshBasicMaterial({ 
+            color: 0x00ffff, 
+            side: THREE.DoubleSide, 
+            transparent: true, 
+            opacity: opacity 
+        });
+        
+        trailMesh = new THREE.Mesh(geometry, material);
+        trailMesh.position.copy(center);
+        trailMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3().subVectors(vEnd, vBegin).normalize());
+        
+        // 创建端点指示器
+        trailPoints = new THREE.Group();
+        const sphereGeo = new THREE.SphereGeometry(0.04, 16, 16);
+        
+        const matBegin = new THREE.MeshBasicMaterial({ color: 0x00ff00 }); // 绿色起点
+        const meshBegin = new THREE.Mesh(sphereGeo, matBegin);
+        meshBegin.position.copy(vBegin);
+        
+        const matEnd = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // 红色终点
+        const meshEnd = new THREE.Mesh(sphereGeo, matEnd);
+        meshEnd.position.copy(vEnd);
+
+        trailPoints.add(meshBegin);
+        trailPoints.add(meshEnd);
+
+        let targetGroup = (typeof currentWeaponGroup !== 'undefined' && currentWeaponGroup) ? currentWeaponGroup : weaponGroup;
+        if (targetGroup.children.length > 0 && targetGroup.children[0].name === "OffsetGroup") {
+            targetGroup = targetGroup.children[0];
+        }
+
+        // 如果用户指定了骨骼名称，我们尝试去骨骼层级中查找它并挂载到那上面
+        if (jointName && typeof bonesMap !== 'undefined' && bonesMap[jointName]) {
+            targetGroup = bonesMap[jointName];
+        }
+        
+        targetGroup.add(trailMesh);
+        targetGroup.add(trailPoints);
+    }
+
+    class DynamicTrailRenderer {
+        constructor(sceneRef) {
+            this.sceneRef = sceneRef;
+            this.enabled = false;
+            this.edges = [];
+            this.lastBegin = null;
+            this.lastEnd = null;
+            this.texturePath = '';
+            this.texture = this.createFallbackTexture();
+            this.pendingTexturePath = null;
+            this.lifeTicks = 6;
+            this.interpolations = 4;
+            this.color = new THREE.Color(1, 1, 1);
+            this.geometry = new THREE.BufferGeometry();
+            this.material = this.createMaterial(this.texture);
+            this.mesh = new THREE.Mesh(this.geometry, this.material);
+            this.mesh.frustumCulled = false;
+            this.mesh.renderOrder = 1000;
+            this.mesh.visible = false;
+            this.sceneRef.add(this.mesh);
+        }
+
+        createFallbackTexture() {
+            const data = new Uint8Array([255, 255, 255, 255]);
+            const tex = new THREE.DataTexture(data, 1, 1, THREE.RGBAFormat);
+            tex.needsUpdate = true;
+            tex.wrapS = THREE.ClampToEdgeWrapping;
+            tex.wrapT = THREE.ClampToEdgeWrapping;
+            return tex;
+        }
+
+        createMaterial(tex) {
+            return new THREE.ShaderMaterial({
+                transparent: true,
+                depthWrite: false,
+                depthTest: true,
+                side: THREE.DoubleSide,
+                blending: THREE.AdditiveBlending,
+                uniforms: {
+                    uMap: { value: tex },
+                    uOpacity: { value: 1.0 }
+                },
+                vertexShader: `
+                    attribute vec3 aColor;
+                    attribute float aAlpha;
+                    varying vec2 vUv;
+                    varying vec3 vColor;
+                    varying float vAlpha;
+                    void main() {
+                        vUv = uv;
+                        vColor = aColor;
+                        vAlpha = aAlpha;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform sampler2D uMap;
+                    uniform float uOpacity;
+                    varying vec2 vUv;
+                    varying vec3 vColor;
+                    varying float vAlpha;
+                    void main() {
+                        vec4 tex = texture2D(uMap, vUv);
+                        float alpha = tex.a * vAlpha * uOpacity;
+                        gl_FragColor = vec4(vColor * tex.rgb, alpha);
+                    }
+                `
+            });
+        }
+
+        setEnabled(enabled) {
+            const next = !!enabled;
+            if (this.enabled === next) return;
+            this.enabled = next;
+            this.mesh.visible = next;
+            if (!next) {
+                this.edges = [];
+                this.lastBegin = null;
+                this.lastEnd = null;
+                this.rebuild();
+            }
+        }
+
+        setParams(params) {
+            const lifeTicks = Math.max(1, Number(params.trailLifetime || 6));
+            const interpolations = Math.max(1, Number(params.trailInterpolations || 4));
+            const colorArr = Array.isArray(params.trailColor) ? params.trailColor : [255, 255, 255];
+            const r = Math.min(255, Math.max(0, Number(colorArr[0] ?? 255))) / 255;
+            const g = Math.min(255, Math.max(0, Number(colorArr[1] ?? 255))) / 255;
+            const b = Math.min(255, Math.max(0, Number(colorArr[2] ?? 255))) / 255;
+            this.lifeTicks = lifeTicks;
+            this.interpolations = interpolations;
+            this.color.setRGB(r, g, b);
+            const texPath = String(params.trailTexturePath || '').trim();
+            if (texPath !== this.texturePath) {
+                this.texturePath = texPath;
+                this.pendingTexturePath = texPath || '';
+            }
+        }
+
+        async ensureTexture() {
+            if (!this.pendingTexturePath) return;
+            const wanted = this.pendingTexturePath;
+            this.pendingTexturePath = null;
+            if (!wanted) {
+                this.material.uniforms.uMap.value = this.texture;
+                return;
+            }
+            try {
+                const url = await resolveTextureUrl(wanted);
+                if (!url) {
+                    if (wanted === this.texturePath) this.material.uniforms.uMap.value = this.texture;
+                    return;
+                }
+                const loader = new THREE.TextureLoader();
+                const tex = await loader.loadAsync(url);
+                tex.wrapS = THREE.ClampToEdgeWrapping;
+                tex.wrapT = THREE.ClampToEdgeWrapping;
+                tex.needsUpdate = true;
+                if (wanted === this.texturePath) this.material.uniforms.uMap.value = tex;
+            } catch (e) {
+                if (wanted === this.texturePath) this.material.uniforms.uMap.value = this.texture;
+            }
+        }
+
+        sampleWorldPoints(state) {
+            const jointName = String(state.joint || '').trim();
+            let target = (typeof currentWeaponGroup !== 'undefined' && currentWeaponGroup) ? currentWeaponGroup : weaponGroup;
+            if (target && target.children && target.children.length > 0 && target.children[0].name === "OffsetGroup") {
+                target = target.children[0];
+            }
+            if (jointName && typeof bonesMap !== 'undefined' && bonesMap[jointName]) {
+                target = bonesMap[jointName];
+            }
+
+            const begin = new THREE.Vector3(Number(state.begin?.x || 0), Number(state.begin?.y || 0), Number(state.begin?.z || 0));
+            const end = new THREE.Vector3(Number(state.end?.x || 0), Number(state.end?.y || 0), Number(state.end?.z || 0));
+            if (!target) return { begin, end };
+            target.updateWorldMatrix(true, false);
+            return {
+                begin: begin.applyMatrix4(target.matrixWorld),
+                end: end.applyMatrix4(target.matrixWorld)
+            };
+        }
+
+        pushEdge(begin, end) {
+            this.edges.push({ begin, end, life: this.lifeTicks });
+            const maxEdges = Math.max(4, this.lifeTicks * this.interpolations * 4);
+            if (this.edges.length > maxEdges) {
+                this.edges.splice(0, this.edges.length - maxEdges);
+            }
+        }
+
+        decay(deltaTicks) {
+            if (deltaTicks <= 0) return;
+            for (let i = 0; i < this.edges.length; i++) {
+                this.edges[i].life -= deltaTicks;
+            }
+            this.edges = this.edges.filter(e => e.life > 0);
+        }
+
+        rebuild() {
+            const n = this.edges.length;
+            if (n < 2) {
+                this.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3));
+                this.geometry.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(0), 2));
+                this.geometry.setAttribute('aColor', new THREE.BufferAttribute(new Float32Array(0), 3));
+                this.geometry.setAttribute('aAlpha', new THREE.BufferAttribute(new Float32Array(0), 1));
+                this.geometry.setIndex(null);
+                this.geometry.computeBoundingSphere();
+                return;
+            }
+
+            const segs = n - 1;
+            const vertCount = segs * 6;
+            const pos = new Float32Array(vertCount * 3);
+            const uv = new Float32Array(vertCount * 2);
+            const col = new Float32Array(vertCount * 3);
+            const alpha = new Float32Array(vertCount);
+
+            for (let i = 0; i < segs; i++) {
+                const e0 = this.edges[i];
+                const e1 = this.edges[i + 1];
+                const u0 = i / segs;
+                const u1 = (i + 1) / segs;
+                const a0 = Math.max(0, Math.min(1, e0.life / this.lifeTicks));
+                const a1 = Math.max(0, Math.min(1, e1.life / this.lifeTicks));
+
+                const p1 = e0.begin;
+                const p2 = e0.end;
+                const p3 = e1.end;
+                const p4 = e1.begin;
+
+                const baseV = i * 6;
+                const verts = [p1, p2, p3, p1, p3, p4];
+                const uvs = [
+                    [u0, 0], [u0, 1], [u1, 1],
+                    [u0, 0], [u1, 1], [u1, 0]
+                ];
+                const alphas = [a0, a0, a1, a0, a1, a1];
+
+                for (let v = 0; v < 6; v++) {
+                    const idx = baseV + v;
+                    const pv = verts[v];
+                    pos[idx * 3 + 0] = pv.x;
+                    pos[idx * 3 + 1] = pv.y;
+                    pos[idx * 3 + 2] = pv.z;
+                    uv[idx * 2 + 0] = uvs[v][0];
+                    uv[idx * 2 + 1] = uvs[v][1];
+                    col[idx * 3 + 0] = this.color.r;
+                    col[idx * 3 + 1] = this.color.g;
+                    col[idx * 3 + 2] = this.color.b;
+                    alpha[idx] = alphas[v];
+                }
+            }
+
+            this.geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            this.geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+            this.geometry.setAttribute('aColor', new THREE.BufferAttribute(col, 3));
+            this.geometry.setAttribute('aAlpha', new THREE.BufferAttribute(alpha, 1));
+            this.geometry.setIndex(null);
+            this.geometry.computeBoundingSphere();
+        }
+
+        update(dt, state) {
+            this.setEnabled(!!state.showDynamicTrail);
+            this.setParams(state);
+            if (!this.enabled) return;
+
+            this.ensureTexture();
+
+            const deltaTicks = Math.max(0, Number(dt || 0) * 20);
+            this.decay(deltaTicks);
+
+            const sample = this.sampleWorldPoints(state);
+            const currBegin = sample.begin;
+            const currEnd = sample.end;
+
+            if (this.lastBegin && this.lastEnd) {
+                const steps = Math.max(1, Math.floor(this.interpolations));
+                for (let i = 1; i <= steps; i++) {
+                    const t = i / steps;
+                    const b = this.lastBegin.clone().lerp(currBegin, t);
+                    const e = this.lastEnd.clone().lerp(currEnd, t);
+                    this.pushEdge(b, e);
+                }
+            } else {
+                this.pushEdge(currBegin.clone(), currEnd.clone());
+            }
+
+            this.lastBegin = currBegin.clone();
+            this.lastEnd = currEnd.clone();
+
+            this.rebuild();
+        }
+    }
+
+
+
+    // --- Vue 实例 ---
+    
+    let currentRootGroup = null;
+    let currentRootBone = null;
+    let currentSkeletonHelper = null;
+    let currentMesh = null;
+    let currentBindToOrigin = [];
+    let currentWeaponGroup = null;
+    let currentWeaponMesh = null;
+    let currentWeaponBindToOrigin = [];
+    let bonesMap = {};
+    let mixer = null;
+    let currentWeaponMixer = null;
+    let clock = new THREE.Clock();
+    
+    function normalizeAnimationResourcePath(path) {
+            return String(path || '').replace(/\\/g, '/').replace(/^\/+/, '');
+        }
+
+
+
+        
+    
+    function disposeThreeObject(obj) {
+        if (!obj) return;
+        obj.traverse((child) => {
+            if (child.isMesh) {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(m => {
+                            if (m.map) m.map.dispose();
+                            m.dispose();
+                        });
+                    } else {
+                        if (child.material.map) child.material.map.dispose();
+                        child.material.dispose();
+                    }
+                }
+            }
+        });
+    }
+
+    const _matA = new THREE.Matrix4();
+    const _matB = new THREE.Matrix4();
+    const _vec4A = new THREE.Vector4();
+    const _vec4B = new THREE.Vector4();
+
+    function applyCpuSkinning(mesh, rootGroup, bindToOriginArr) {
+        if (!mesh || !mesh.userData.cpuSkinning || !rootGroup) return;
+
+        const cpu = mesh.userData.cpuSkinning;
+        const posAttr = mesh.geometry.getAttribute('position');
+        const normAttr = mesh.geometry.getAttribute('normal');
+        const posArray = posAttr.array;
+        const normArray = normAttr ? normAttr.array : null;
+
+        rootGroup.updateMatrixWorld(true);
+
+        for (let i = 0; i < cpu.vertexCount; i++) {
+            const basePosIdx = i * 3;
+            const skinIdxBase = i * 4;
+
+            let px = 0, py = 0, pz = 0;
+            let nx = 0, ny = 0, nz = 0;
+
+            for (let j = 0; j < 4; j++) {
+                const weight = cpu.skinWeights[skinIdxBase + j];
+                if (weight <= 0) continue;
+
+                const jointIndex = cpu.skinIndices[skinIdxBase + j];
+                const bone = cpu.boneList[jointIndex];
+                const toOrigin = bindToOriginArr[jointIndex];
+                if (!bone || !toOrigin) continue;
+
+                const poseMat = getBoneMatrixRelativeToGroup(bone, rootGroup);
+                const finalMat = _matB.copy(poseMat).multiply(toOrigin);
+
+                _vec4A.set(
+                    cpu.basePositions[basePosIdx],
+                    cpu.basePositions[basePosIdx + 1],
+                    cpu.basePositions[basePosIdx + 2],
+                    1.0
+                ).applyMatrix4(finalMat);
+
+                px += _vec4A.x * weight;
+                py += _vec4A.y * weight;
+                pz += _vec4A.z * weight;
+
+                if (normArray && cpu.baseNormals.length >= basePosIdx + 3) {
+                    finalMat.setPosition(0, 0, 0);
+                    _vec4B.set(
+                        cpu.baseNormals[basePosIdx],
+                        cpu.baseNormals[basePosIdx + 1],
+                        cpu.baseNormals[basePosIdx + 2],
+                        1.0
+                    ).applyMatrix4(finalMat);
+
+                    nx += _vec4B.x * weight;
+                    ny += _vec4B.y * weight;
+                    nz += _vec4B.z * weight;
+                }
+            }
+
+            posArray[basePosIdx] = px;
+            posArray[basePosIdx + 1] = py;
+            posArray[basePosIdx + 2] = pz;
+
+            if (normArray) {
+                const len = Math.hypot(nx, ny, nz) || 1;
+                normArray[basePosIdx] = nx / len;
+                normArray[basePosIdx + 1] = ny / len;
+                normArray[basePosIdx + 2] = nz / len;
+            }
+        }
+
+        posAttr.needsUpdate = true;
+        if (normAttr) normAttr.needsUpdate = true;
+    }
+
+    function buildBoneHierarchy(nodeData) {
+        const bone = new THREE.Bone();
+        bone.name = nodeData.name;
+        bonesMap[bone.name] = bone;
+        const arr = nodeData.transform;
+        if (arr && arr.length === 16) {
+            const mat = new THREE.Matrix4().fromArray(arr).transpose();
+            mat.decompose(bone.position, bone.quaternion, bone.scale);
+        }
+        if (nodeData.children) {
+            for (let childData of nodeData.children) {
+                bone.add(buildBoneHierarchy(childData));
+            }
+        }
+        return bone;
+    }
+
+    function buildGeometry(verticesData) {
+        const geometry = new THREE.BufferGeometry();
+        
+        const posArray = verticesData.positions.array;
+        const uvArray = verticesData.uvs ? verticesData.uvs.array : null;
+        const normArray = verticesData.normals ? verticesData.normals.array : null;
+        
+        const vcounts = verticesData.vcounts ? verticesData.vcounts.array : null;
+        const vindices = verticesData.vindices ? verticesData.vindices.array : null;
+        const weights = verticesData.weights ? verticesData.weights.array : null;
+        
+        const posSkinIndices = [];
+        const posSkinWeights = [];
+        if (vcounts && vindices && weights) {
+            let vIndexOffset = 0;
+            for (let i = 0; i < vcounts.length; i++) {
+                const count = vcounts[i];
+                const jData = [];
+                for (let j = 0; j < count; j++) {
+                    const jointIdx = vindices[vIndexOffset++];
+                    const weightIdx = vindices[vIndexOffset++];
+                    jData.push({ j: jointIdx, w: weights[weightIdx] });
+                }
+                jData.sort((a, b) => b.w - a.w);
+                let wSum = 0;
+                const sIdx = [0,0,0,0];
+                const sWt = [0,0,0,0];
+                for (let j = 0; j < 4; j++) {
+                    if (j < jData.length) {
+                        sIdx[j] = jData[j].j;
+                        sWt[j] = jData[j].w;
+                        wSum += jData[j].w;
+                    }
+                }
+                if (wSum > 0) {
+                    for (let j = 0; j < 4; j++) { sWt[j] /= wSum; }
+                }
+                posSkinIndices.push(sIdx);
+                posSkinWeights.push(sWt);
+            }
+        }
+        
+        const outPositions = [];
+        const outUvs = [];
+        const outNormals = [];
+        const outSkinIndices = [];
+        const outSkinWeights = [];
+        const outPositionIndices = [];
+        const outNormalIndices = [];
+        
+        function processVertex(posIdx, uvIdx, normIdx) {
+            outPositions.push(posArray[posIdx * 3], posArray[posIdx * 3 + 1], posArray[posIdx * 3 + 2]);
+            outPositionIndices.push(posIdx);
+            outNormalIndices.push(normIdx);
+            if (uvArray) {
+                outUvs.push(uvArray[uvIdx * 2], uvArray[uvIdx * 2 + 1]);
+            }
+            if (normArray) {
+                outNormals.push(normArray[normIdx * 3], normArray[normIdx * 3 + 1], normArray[normIdx * 3 + 2]);
+            }
+            if (posSkinIndices.length > 0) {
+                const sIdx = posSkinIndices[posIdx];
+                const sWt = posSkinWeights[posIdx];
+                outSkinIndices.push(sIdx[0], sIdx[1], sIdx[2], sIdx[3]);
+                outSkinWeights.push(sWt[0], sWt[1], sWt[2], sWt[3]);
+            }
+        }
+        
+        if (verticesData.parts) {
+            for (const partName in verticesData.parts) {
+                const part = verticesData.parts[partName];
+                if (part && part.array) {
+                    for (let i = 0; i < part.array.length; i += 3) {
+                        const posIdx = part.array[i];
+                        const uvIdx = part.array[i + 1];
+                        const normIdx = part.array[i + 2];
+                        processVertex(posIdx, uvIdx, normIdx);
+                    }
+                }
+            }
+        } else if (verticesData.indices) {
+            const arr = verticesData.indices.array;
+            for (let i = 0; i < arr.length; i += 3) {
+                processVertex(arr[i], arr[i+1], arr[i+2]);
+            }
+        }
+        
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(outPositions, 3));
+        if (outUvs.length > 0) geometry.setAttribute('uv', new THREE.Float32BufferAttribute(outUvs, 2));
+        if (outNormals.length > 0) geometry.setAttribute('normal', new THREE.Float32BufferAttribute(outNormals, 3));
+
+        return {
+            geometry,
+            cpuSkinning: outSkinIndices.length > 0 ? {
+                basePositions: new Float32Array(outPositions),
+                baseNormals: new Float32Array(outNormals),
+                skinIndices: new Float32Array(outSkinIndices),
+                skinWeights: new Float32Array(outSkinWeights),
+                positionIndices: outPositionIndices,
+                normalIndices: outNormalIndices
+            } : null
+        };
+    }
+
+    function getBoneMatrixRelativeToGroup(bone, group) {
+        group.updateMatrixWorld(true);
+        return _matA.copy(group.matrixWorld).invert().multiply(bone.matrixWorld);
+    }
+
+    async function createExtrudedMeshFromImage(imageFile, materialConfig) {
+        return new Promise((resolve, reject) => {
+            const url = URL.createObjectURL(imageFile);
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                
+                const imgData = ctx.getImageData(0, 0, img.width, img.height);
+                const data = imgData.data;
+                const w = img.width;
+                const h = img.height;
+                
+                const group = new THREE.Group();
+                const depth = 1 / 16;
+                const pixelW = 1 / w;
+                const pixelH = 1 / h;
+                
+                // 为了降低 DrawCall，我们理论上应该 MergeGeometry，但对于单个预览，简单使用 InstancedMesh 或 Group 也行。
+                // 采用 BoxGeometry，每像素一个
+                const boxGeo = new THREE.BoxGeometry(pixelW, pixelH, depth);
+                
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        const idx = (y * w + x) * 4;
+                        const alpha = data[idx + 3];
+                        if (alpha > 10) { // 非透明像素
+                            const r = data[idx] / 255;
+                            const g = data[idx + 1] / 255;
+                            const b = data[idx + 2] / 255;
+                            
+                            const mat = new THREE.MeshStandardMaterial({
+                                color: new THREE.Color(r, g, b),
+                                roughness: 0.5,
+                                metalness: 0.1,
+                                side: THREE.DoubleSide
+                            });
+                            
+                            const mesh = new THREE.Mesh(boxGeo, mat);
+                            // 坐标计算：
+                            // 图片原点在左上角 (0,0)，模型坐标系通常需要将其对应到 X(0->1), Y(1->0)
+                            // Minecraft 默认 2D item 挤压后，X从左向右为 0->1，Y从下向上为 0->1
+                            // 将图片中心化的话，再在外部包一层 Group 进行修正即可。
+                            mesh.position.set(
+                                x * pixelW + pixelW/2,
+                                (h - 1 - y) * pixelH + pixelH/2,
+                                0
+                            );
+                            group.add(mesh);
+                        }
+                    }
+                }
+                
+                URL.revokeObjectURL(url);
+                resolve(group);
+            };
+            img.onerror = (err) => {
+                URL.revokeObjectURL(url);
+                reject(err);
+            };
+            img.src = url;
+        });
+    }
+
+    async function resolveMinecraftModel(data, depth = 0) {
+        if (depth > 10) return data; // 防止死循环
+        let mergedData = { ...data };
+        
+        if (data.parent) {
+            let parentPath = data.parent;
+            // 如果不包含 namespace，默认当做 minecraft
+            if (!parentPath.includes(':')) {
+                parentPath = 'minecraft:' + parentPath;
+            }
+            
+            let parentFile = fileResourceMap.get(parentPath);
+            if (!parentFile) {
+                // 有时候路径可能是没有前缀的
+                const parts = parentPath.split(':');
+                const noNs = parts[parts.length - 1];
+                parentFile = fileResourceMap.get(noNs) || fileResourceMap.get('minecraft:item/' + noNs);
+            }
+
+            if (parentFile) {
+                try {
+                    const parentText = await new Promise((res, rej) => {
+                        const r = new FileReader();
+                        r.onload = e => res(e.target.result);
+                        r.onerror = e => rej(e);
+                        r.readAsText(parentFile);
+                    });
+                    const parentData = JSON.parse(parentText);
+                    const resolvedParent = await resolveMinecraftModel(parentData, depth + 1);
+                    
+                    // 合并 display (当前 data 优先级高)
+                    mergedData.display = { ...(resolvedParent.display || {}), ...(mergedData.display || {}) };
+                    
+                    // 合并 elements (如果当前 data 没有，用 parent 的)
+                    if (!mergedData.elements && resolvedParent.elements) {
+                        mergedData.elements = resolvedParent.elements;
+                    }
+                    
+                    // 合并 textures (当前 data 优先级高)
+                    mergedData.textures = { ...(resolvedParent.textures || {}), ...(mergedData.textures || {}) };
+                } catch(e) {
+                    console.warn("解析父模型失败:", data.parent, e);
+                }
+            } else {
+                console.warn("未找到父模型文件 (可能是原生资源未上传):", data.parent);
+            }
+        }
+        return mergedData;
+    }
+
+    async function parseAndBuildModel(fileObj, isWeapon) {
+        return new Promise((resolve, reject) => {
+            const fileName = fileObj.name.toLowerCase();
+            
+            if (fileName.endsWith('.obj')) {
+                // 如果是 .obj 文件，使用 Three.js 的 OBJLoader
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    try {
+                        const objContent = evt.target.result;
+                        const loader = new OBJLoader();
+                        const objGroup = loader.parse(objContent);
+                        
+                        const rootGroup = new THREE.Group();
+                        
+                        // 为 OBJ 分配材质
+                        const material = new THREE.MeshStandardMaterial({
+                            color: isWeapon ? 0x88aaff : 0xcccccc,
+                            roughness: 0.5,
+                            metalness: 0.5,
+                            side: THREE.DoubleSide
+                        });
+                        
+                        let firstMesh = null;
+                        objGroup.traverse((child) => {
+                            if (child.isMesh) {
+                                child.material = material;
+                                if (!firstMesh) firstMesh = child;
+                            }
+                        });
+                        
+                        rootGroup.add(objGroup);
+                        
+                        // obj 文件没有骨架，返回一个假数据保证接口兼容
+                        resolve({ 
+                            rootGroup, 
+                            rootBone: null, 
+                            mesh: firstMesh, 
+                            bindToOrigin: [], 
+                            localBonesMap: {},
+                            isObj: true
+                        });
+                    } catch(err) {
+                        reject(err);
+                    }
+                };
+                reader.readAsText(fileObj);
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async (evt) => {
+                try {
+                    let data = JSON.parse(evt.target.result);
+                    
+                    const rootGroup = new THREE.Group();
+                    let rootBone = null;
+                    let mesh = null;
+                    let bindToOrigin = [];
+                    const localBonesMap = {};
+
+                    const material = new THREE.MeshStandardMaterial({
+                        color: isWeapon ? 0x88aaff : 0xcccccc,
+                        roughness: 0.5,
+                        metalness: 0.5,
+                        side: THREE.DoubleSide
+                    });
+
+                    // 判断是否为 geo 模型 (Blockbench 导出的 Bedrock geometry)
+                    if (data['minecraft:geometry'] || fileName.endsWith('.geo') || (data.format_version && data.geometry)) {
+                        let geoArray = data['minecraft:geometry'] || data.geometry;
+                        if (!Array.isArray(geoArray)) {
+                            // 可能是单个对象
+                            geoArray = [geoArray];
+                        }
+                        
+                        if (geoArray && geoArray.length > 0) {
+                            const geoData = geoArray[0];
+                            const bones = geoData.bones || [];
+                            
+                            // 建立骨架节点并挂载 cubes
+                            const boneGroupMap = {};
+                            
+                            // 创建虚拟根节点
+                            rootBone = new THREE.Bone();
+                            rootBone.name = "Root";
+                            localBonesMap["Root"] = rootBone;
+                            rootGroup.add(rootBone);
+                            
+                            // 第一次遍历：创建所有的 Bone 和 Group
+                            bones.forEach(b => {
+                                const bGroup = new THREE.Bone();
+                                bGroup.name = b.name;
+                                localBonesMap[b.name] = bGroup;
+                                boneGroupMap[b.name] = bGroup;
+                                
+                                // 设置默认的 pivot 和 rotation
+                                // Bedrock 坐标系 (x,y,z) 转 ThreeJS: Y 轴一致，由于是 blockbench，单位可能需除以 16
+                                if (b.pivot) {
+                                    bGroup.position.set(b.pivot[0]/16, b.pivot[1]/16, b.pivot[2]/16);
+                                }
+                                if (b.rotation) {
+                                    // Blockbench rotation in degrees: [x, y, z]
+                                    bGroup.rotation.set(
+                                        THREE.MathUtils.degToRad(-b.rotation[0]), 
+                                        THREE.MathUtils.degToRad(-b.rotation[1]), 
+                                        THREE.MathUtils.degToRad(b.rotation[2])
+                                    );
+                                }
+                                
+                                // 生成对应的网格 (cubes)
+                                if (b.cubes) {
+                                    b.cubes.forEach(cube => {
+                                        if (cube.size && cube.origin) {
+                                            const w = cube.size[0] / 16;
+                                            const h = cube.size[1] / 16;
+                                            const d = cube.size[2] / 16;
+                                            const boxGeo = new THREE.BoxGeometry(w, h, d);
+                                            const boxMesh = new THREE.Mesh(boxGeo, material);
+                                            
+                                            // cube.origin 是最小角点，cube.size 是尺寸
+                                            const cx = cube.origin[0]/16 + w/2;
+                                            const cy = cube.origin[1]/16 + h/2;
+                                            const cz = cube.origin[2]/16 + d/2;
+                                            
+                                            // Mesh 位置系相对于它所属的 Bone
+                                            boxMesh.position.set(cx, cy, cz);
+                                            
+                                            // Cube 也有自身的 pivot 和 rotation
+                                            if (cube.rotation && cube.pivot) {
+                                                const pivotGroup = new THREE.Group();
+                                                pivotGroup.position.set(cube.pivot[0]/16, cube.pivot[1]/16, cube.pivot[2]/16);
+                                                pivotGroup.rotation.set(
+                                                    THREE.MathUtils.degToRad(-cube.rotation[0]), 
+                                                    THREE.MathUtils.degToRad(-cube.rotation[1]), 
+                                                    THREE.MathUtils.degToRad(cube.rotation[2])
+                                                );
+                                                
+                                                boxMesh.position.sub(pivotGroup.position);
+                                                pivotGroup.add(boxMesh);
+                                                bGroup.add(pivotGroup);
+                                            } else {
+                                                // 如果没有独立旋转，但我们要让它的绝对坐标生效，由于被添加进了 bGroup，需要减去 bGroup.position
+                                                boxMesh.position.sub(bGroup.position);
+                                                bGroup.add(boxMesh);
+                                            }
+                                            
+                                            if (!mesh) mesh = boxMesh; // 取第一个作为标志
+                                        }
+                                    });
+                                }
+                            });
+                            
+                            // 第二次遍历：建立父子层级关系
+                            bones.forEach(b => {
+                                const bGroup = boneGroupMap[b.name];
+                                if (b.parent && boneGroupMap[b.parent]) {
+                                    const parentGroup = boneGroupMap[b.parent];
+                                    // 子骨骼的 position 是基于全局的 pivot 减去 父骨骼的全局 pivot
+                                    if (b.pivot && parentGroup.position) {
+                                        // 实际上前面赋予 bGroup 的 position 已经是绝对的 pivot
+                                        // 我们需要把它变成相对于 parent 的局部坐标
+                                        const globalPivot = bGroup.position.clone();
+                                        // TODO: 完整的正向动力学换算较复杂，这里简化处理，假设 parentGroup.position 即其 pivot
+                                        bGroup.position.sub(parentGroup.position);
+                                    }
+                                    parentGroup.add(bGroup);
+                                } else {
+                                    // 没有 parent 的，挂载到 root
+                                    rootBone.add(bGroup);
+                                }
+                            });
+                            
+                            resolve({ 
+                                rootGroup, 
+                                rootBone, 
+                                mesh, 
+                                bindToOrigin: [], 
+                                localBonesMap,
+                                isGeo: true
+                            });
+                            return;
+                        }
+                    }
+
+                    // 解析并合并父模型的 display/elements
+                    data = await resolveMinecraftModel(data);
+                    
+                    function buildHierarchy(nodeData) {
+                        const bone = new THREE.Bone();
+                        bone.name = nodeData.name;
+                        localBonesMap[bone.name] = bone;
+                        const arr = nodeData.transform;
+                        if (arr && arr.length === 16) {
+                            const mat = new THREE.Matrix4().fromArray(arr).transpose();
+                            mat.decompose(bone.position, bone.quaternion, bone.scale);
+                        }
+                        if (nodeData.children) {
+                            for (let childData of nodeData.children) {
+                                bone.add(buildHierarchy(childData));
+                            }
+                        }
+                        return bone;
+                    }
+
+                    let armatureData = data.armature;
+
+                    // 如果当前模型没有骨架，且没有 vertices，判断是否是 Minecraft 原生模型
+                    if (!armatureData && !data.vertices) {
+                        rootBone = new THREE.Bone();
+                        rootBone.name = "Root";
+                        localBonesMap["Root"] = rootBone;
+                        rootGroup.add(rootBone);
+
+                        const material = new THREE.MeshStandardMaterial({
+                            color: isWeapon ? 0x88aaff : 0xcccccc,
+                            roughness: 0.5,
+                            metalness: 0.5,
+                            side: THREE.DoubleSide
+                        });
+
+                        const mcGroup = new THREE.Group();
+
+                        if (data.elements && Array.isArray(data.elements)) {
+                            // 解析 Minecraft 像素方块模型
+                            for (let el of data.elements) {
+                                if (!el.from || !el.to) continue;
+                                const w = (el.to[0] - el.from[0]) / 16;
+                                const h = (el.to[1] - el.from[1]) / 16;
+                                const d = (el.to[2] - el.from[2]) / 16;
+                                
+                                const box = new THREE.BoxGeometry(w, h, d);
+                                const boxMesh = new THREE.Mesh(box, material);
+                                
+                                const cx = (el.from[0] + el.to[0]) / 2 / 16;
+                                const cy = (el.from[1] + el.to[1]) / 2 / 16;
+                                const cz = (el.from[2] + el.to[2]) / 2 / 16;
+                                
+                                // Minecraft 坐标系以方块为单位
+                                boxMesh.position.set(cx - 0.5, cy, cz - 0.5);
+                                
+                                // 处理方块级旋转 (如果有)
+                                if (el.rotation) {
+                                    const axis = el.rotation.axis;
+                                    const angle = THREE.MathUtils.degToRad(el.rotation.angle || 0);
+                                    const origin = el.rotation.origin ? [el.rotation.origin[0]/16 - 0.5, el.rotation.origin[1]/16, el.rotation.origin[2]/16 - 0.5] : [0,0,0];
+                                    
+                                    const pivot = new THREE.Group();
+                                    pivot.position.set(origin[0], origin[1], origin[2]);
+                                    if (axis === 'x') pivot.rotation.x = angle;
+                                    else if (axis === 'y') pivot.rotation.y = angle;
+                                    else if (axis === 'z') pivot.rotation.z = angle;
+                                    
+                                    boxMesh.position.sub(pivot.position);
+                                    pivot.add(boxMesh);
+                                    mcGroup.add(pivot);
+                                } else {
+                                    mcGroup.add(boxMesh);
+                                }
+                            }
+                            
+                            // Minecraft 默认手持武器时，模型在右手是竖直朝上的，而我们直接从 JSON 生成的是平躺的。
+                            // 且默认是以坐标原点 (0,0,0) 为手握位置。
+                            // 做一个基础的默认朝向修正，然后再应用 display 旋转：
+                            mcGroup.position.set(0, 0, 0);
+                            
+                        } else if (data.textures && data.textures.layer0) {
+                            // 处理 2D 物品 (如铁斧、钻石剑等没有 elements 只有 textures 的情况)
+                            let texPath = data.textures.layer0;
+                            if (!texPath.includes(':')) {
+                                texPath = 'minecraft:' + texPath;
+                            }
+                            
+                            // 尝试去 fileResourceMap 找对应的 png 文件
+                            const parts = texPath.split(':');
+                            const ns = parts[0];
+                            let relPath = parts[1];
+                            
+                            // 由于我们前面将 png 文件提取 ID 时去掉了后缀
+                            let texFile = fileResourceMap.get(ns + ':' + relPath + '.png') 
+                                       || fileResourceMap.get(ns + ':texture/' + relPath + '.png')
+                                       || fileResourceMap.get(ns + ':textures/' + relPath + '.png');
+                            
+                            // 兼容性：如果找不到，也有可能是用户上传的路径包含完整目录名
+                            if (!texFile) {
+                                // 暴力遍历匹配
+                                const searchStr = relPath.toLowerCase() + '.png';
+                                for (const [k, v] of fileResourceMap.entries()) {
+                                    if (k.toLowerCase().endsWith(searchStr)) {
+                                        texFile = v;
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            if (texFile) {
+                                try {
+                                    const extrudedGroup = await createExtrudedMeshFromImage(texFile);
+                                    
+                                    // 挤压出来的模型，默认原点在 (0,0,0)，宽高大约在 0~1 范围
+                                    // 把它居中对齐，类似于 Minecraft 的原点习惯 (-0.5, 0, 0)
+                                    extrudedGroup.position.set(-0.5, 0, 0);
+                                    mcGroup.add(extrudedGroup);
+                                } catch(e) {
+                                    console.warn("生成 2D 挤压模型失败:", e);
+                                    createPlaceholderSword();
+                                }
+                            } else {
+                                createPlaceholderSword();
+                            }
+                        } else {
+                            createPlaceholderSword();
+                        }
+                        
+                        function createPlaceholderSword() {
+                            // 如果只是 2D 物品模型但找不到材质，生成一个简单的占位剑形几何体
+                            const box = new THREE.BoxGeometry(0.1, 1.0, 0.1);
+                            const boxMesh = new THREE.Mesh(box, material);
+                            boxMesh.position.set(0, 0.5, 0); // 握把在底部
+                            mcGroup.add(boxMesh);
+                        }
+
+                        rootGroup.add(mcGroup);
+                        
+                        resolve({ 
+                            rootGroup, 
+                            rootBone, 
+                            mesh: mcGroup, 
+                            bindToOrigin: [], 
+                            localBonesMap: {},
+                            isMinecraft: true,
+                            display: data.display
+                        });
+                        return;
+                    }
+
+                    // 如果当前模型没有骨架，尝试加载 epicfight:biped 作为默认骨架
+                    if (!armatureData || !armatureData.hierarchy || armatureData.hierarchy.length === 0) {
+                        const bipedFile = fileResourceMap.get('epicfight:entity/biped') || fileResourceMap.get('epicfight:biped');
+                        if (!bipedFile) {
+                            throw new Error("缺少 armature.hierarchy 结构，且未导入 epicfight:biped 骨骼文件，无法生成模型！请确保资源包中包含该文件。");
+                        }
+                        
+                        // 异步读取 biped.json 获取它的 armature
+                        const bipedText = await new Promise((res, rej) => {
+                            const r = new FileReader();
+                            r.onload = e => res(e.target.result);
+                            r.onerror = e => rej(e);
+                            r.readAsText(bipedFile);
+                        });
+                        const bipedData = JSON.parse(bipedText);
+                        if (bipedData.armature && bipedData.armature.hierarchy) {
+                            armatureData = bipedData.armature;
+                        } else {
+                            throw new Error("epicfight:biped 文件中未找到有效的 armature 结构！");
+                        }
+                        
+                        // 很多静态武器 JSON 里其实没有定义 vcounts/vindices/weights 蒙皮权重。
+                        // 对于这种没有权重的纯静态模型，需要给所有的顶点分配一个指向 Tool_R 的假权重。
+                        if (data.vertices && (!data.vertices.vcounts || !data.vertices.weights)) {
+                            const posCount = data.vertices.positions.array.length / 3;
+                            
+                            // 找出 Tool_R 在 joints 数组里的索引
+                            let toolRIndex = armatureData.joints ? armatureData.joints.indexOf("Tool_R") : -1;
+                            if (toolRIndex === -1) toolRIndex = 0; // fallback to root
+                            
+                            // 每个顶点绑定到 Tool_R 骨骼，权重 1.0
+                            const fakeVcounts = new Array(posCount).fill(1);
+                            const fakeVindices = [];
+                            const fakeWeights = [1.0]; // 权重表只需要一个 1.0
+
+                            for (let i = 0; i < posCount; i++) {
+                                fakeVindices.push(toolRIndex); // 关节索引指向 Tool_R
+                                fakeVindices.push(0); // 权重索引 0 (指向 1.0)
+                            }
+                            
+                            data.vertices.vcounts = { array: fakeVcounts };
+                            data.vertices.vindices = { array: fakeVindices };
+                            data.vertices.weights = { array: fakeWeights };
+                        }
+                    }
+
+                    // 构建正常骨架树
+                    rootBone = buildHierarchy(armatureData.hierarchy[0]);
+                    rootGroup.add(rootBone);
+                    
+                    if (data.vertices) {
+                        const { geometry, cpuSkinning } = buildGeometry(data.vertices);
+                        const boneList = [];
+                        
+                        // 优先使用模型自己的 joints 定义，如果没有则用骨架的 joints
+                        const jointsToUse = data.armature && data.armature.joints ? data.armature.joints : armatureData.joints;
+                        
+                        if (jointsToUse) {
+                            for (let jName of jointsToUse) {
+                                boneList.push(localBonesMap[jName] || rootBone);
+                            }
+                        } else {
+                            rootBone.traverse(b => { if (b.isBone) boneList.push(b); });
+                        }
+                        
+                        const material = new THREE.MeshStandardMaterial({
+                            color: isWeapon ? 0x88aaff : 0xcccccc, // 武器用偏蓝色区分
+                            roughness: 0.5,
+                            metalness: 0.5,
+                            side: THREE.DoubleSide
+                        });
+
+                        mesh = new THREE.Mesh(geometry, material);
+                        rootGroup.add(mesh);
+
+                        rootGroup.updateMatrixWorld(true);
+                        bindToOrigin = boneList.map(bone => {
+                            rootGroup.updateMatrixWorld(true);
+                            return new THREE.Matrix4().copy(rootGroup.matrixWorld).invert().multiply(bone.matrixWorld).invert();
+                        });
+                        
+                        mesh.userData.cpuSkinning = cpuSkinning ? {
+                            ...cpuSkinning,
+                            boneList,
+                            vertexCount: cpuSkinning.basePositions.length / 3
+                        } : null;
+                    }
+                    
+                    resolve({ rootGroup, rootBone, mesh, bindToOrigin, localBonesMap });
+                } catch(err) {
+                    reject(err);
+                }
+            };
+            reader.readAsText(fileObj);
+        });
+    }
+
+    async function loadAnimation(fileObj) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                try {
+                    const data = JSON.parse(evt.target.result);
+                    if (!data.animation) throw new Error("缺少 animation 数组");
+                    
+                    if (mixer) { mixer.stopAllAction(); }
+                    if (currentWeaponMixer) { currentWeaponMixer.stopAllAction(); }
+                    
+                    mixer = new THREE.AnimationMixer(currentRootBone);
+                    if (currentWeaponGroup && currentWeaponGroup.children.length > 0) {
+                        // 查找真正的 rootBone，可能不是 children[0] (mesh 也可能是 children)
+                        let weaponRootBone = null;
+                        for (let child of currentWeaponGroup.children) {
+                            if (child.isBone) {
+                                weaponRootBone = child;
+                                break;
+                            }
+                        }
+                        if (weaponRootBone) {
+                            currentWeaponMixer = new THREE.AnimationMixer(weaponRootBone);
+                        }
+                    }
+
+                    const tracks = [];
+                    for (let trackData of data.animation) {
+                        const boneName = trackData.name;
+
+                        const times = trackData.time;
+                        const positions = [];
+                        const quaternions = [];
+                        const scales = [];
+
+                        for (let arr of trackData.transform) {
+                            const mat = new THREE.Matrix4().fromArray(arr).transpose();
+                            const p = new THREE.Vector3();
+                            const q = new THREE.Quaternion();
+                            const s = new THREE.Vector3();
+                            mat.decompose(p, q, s);
+
+                            positions.push(p.x, p.y, p.z);
+                            quaternions.push(q.x, q.y, q.z, q.w);
+                            scales.push(s.x, s.y, s.z);
+                        }
+
+                        tracks.push(new THREE.VectorKeyframeTrack(`${boneName}.position`, times, positions));
+                        tracks.push(new THREE.QuaternionKeyframeTrack(`${boneName}.quaternion`, times, quaternions));
+                        tracks.push(new THREE.VectorKeyframeTrack(`${boneName}.scale`, times, scales));
+                    }
+
+                    const clip = new THREE.AnimationClip('EpicFightAnim', -1, tracks);
+                    mixer.clipAction(clip).play();
+                    if (currentWeaponMixer) {
+                        currentWeaponMixer.clipAction(clip).play();
+                    }
+                    resolve();
+                } catch(err) {
+                    reject(err);
+                }
+            };
+            reader.readAsText(fileObj);
+        });
+    }
+
+    window.playAnimationPreview = async function(modelId, animationId, weaponId) {
+        
+        
+        
+        try {
+            console.log(`[Preview] Starting: model=${modelId}, anim=${animationId}, weapon=${weaponId}`);
+            // 清理旧资源
+            if (currentRootGroup) {
+                scene.remove(currentRootGroup);
+                disposeThreeObject(currentRootGroup);
+            }
+            if (currentWeaponGroup) {
+                if (currentWeaponGroup.parent) currentWeaponGroup.parent.remove(currentWeaponGroup);
+                scene.remove(currentWeaponGroup); // 确保从场景中移除
+                disposeThreeObject(currentWeaponGroup);
+            }
+            if (mixer) { mixer.stopAllAction(); mixer = null; }
+            if (currentWeaponMixer) { currentWeaponMixer.stopAllAction(); currentWeaponMixer = null; }
+            
+            currentRootGroup = null;
+            currentMesh = null;
+            currentWeaponGroup = null;
+            currentWeaponMesh = null;
+            bonesMap = {};
+
+            // 1. 加载主模型
+            let lookupModelId = modelId;
+            if (modelId && !modelId.includes(':entity/') && !modelId.includes('/')) {
+                // 如果只写了 epicfight:biped，尝试去匹配 epicfight:entity/biped
+                lookupModelId = modelId.replace(':', ':entity/');
+            }
+            const modelFile = fileResourceMap.get(lookupModelId) || fileResourceMap.get(modelId);
+            if (!modelFile) throw new Error(`未找到模型文件: ${modelId}`);
+            
+            console.log(`[Preview] Parsing main model...`);
+            const mainModel = await parseAndBuildModel(modelFile, false);
+            currentRootGroup = mainModel.rootGroup;
+            currentRootBone = mainModel.rootBone;
+            currentMesh = mainModel.mesh;
+            currentBindToOrigin = mainModel.bindToOrigin;
+            bonesMap = mainModel.localBonesMap;
+            
+            currentRootGroup.rotation.set(-Math.PI / 2, 0, 0);
+            scene.add(currentRootGroup);
+
+            // 添加灯光
+            if (!scene.lightsAdded) {
+                const amb = new THREE.AmbientLight(0xffffff, 0.5);
+                scene.add(amb);
+                const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+                dir.position.set(5, 10, 7);
+                scene.add(dir);
+                scene.lightsAdded = true;
+            }
+
+            // 2. 加载武器模型 (如果有)
+            if (weaponId) {
+                let weaponFile = fileResourceMap.get(weaponId);
+                
+                if (!weaponFile && !weaponId.includes('/')) {
+                    weaponFile = fileResourceMap.get(weaponId.replace(':', ':weapon/')) || fileResourceMap.get(weaponId.replace(':', ':item/'));
+                }
+
+                if (weaponFile) {
+                    console.log(`[Preview] Parsing weapon model...`);
+                    const weaponModel = await parseAndBuildModel(weaponFile, true);
+                    currentWeaponGroup = weaponModel.rootGroup;
+                    currentWeaponMesh = weaponModel.mesh;
+                    currentWeaponBindToOrigin = weaponModel.bindToOrigin;
+                    
+                    if (weaponModel.isObj || weaponModel.isMinecraft || weaponModel.isGeo) {
+                        // 对于 OBJ/Minecraft/Geo 模型，检查自身的 display 或是同级目录下的 .json 提供的 display
+                        let tData = null;
+                        if (weaponModel.isMinecraft && weaponModel.display) {
+                            tData = { display: weaponModel.display };
+                        } else if (weaponModel.isObj || weaponModel.isGeo) {
+                            let jsonId = weaponId.replace(/\.(obj|geo)$/i, '.json');
+                            let transformJsonFile = fileResourceMap.get(jsonId);
+                            if (!transformJsonFile) {
+                                transformJsonFile = fileResourceMap.get(weaponId.replace(/\.(obj|geo)$/i, ''));
+                            }
+                            if (transformJsonFile && transformJsonFile.name.toLowerCase().endsWith('.json')) {
+                                try {
+                                    const tText = await new Promise((res, rej) => {
+                                        const r = new FileReader();
+                                        r.onload = e => res(e.target.result);
+                                        r.readAsText(transformJsonFile);
+                                    });
+                                    tData = JSON.parse(tText);
+                                } catch(e) {
+                                    console.warn("解析 OBJ 伴随的 JSON transform 失败", e);
+                                }
+                            }
+                        }
+
+                        if (tData && tData.display && tData.display.thirdperson_righthand) {
+                            const tr = tData.display.thirdperson_righthand;
+                            if (tr.translation) {
+                                // Minecraft translation is roughly in units of 1/16th of a block
+                                currentWeaponGroup.position.set(tr.translation[0] / 16, tr.translation[1] / 16, tr.translation[2] / 16);
+                            }
+                            if (tr.rotation) {
+                                // Minecraft rotation is in degrees
+                                currentWeaponGroup.rotation.set(
+                                    THREE.MathUtils.degToRad(tr.rotation[0]), 
+                                    THREE.MathUtils.degToRad(tr.rotation[1]), 
+                                    THREE.MathUtils.degToRad(tr.rotation[2])
+                                );
+                            }
+                            if (tr.scale) {
+                                currentWeaponGroup.scale.set(tr.scale[0], tr.scale[1], tr.scale[2]);
+                            }
+                        }
+
+                        // 所以把它作为子节点塞给人物的 Tool_R 骨头，并应用 EpicFight 的 Correction 变换
+                        const toolR = bonesMap['Tool_R'] || currentRootBone;
+                        if (currentWeaponGroup.position.length() === 0 && currentWeaponGroup.rotation.x === 0 && currentWeaponGroup.scale.x === 1) {
+                            currentWeaponGroup.position.set(0, 0, 0);
+                            currentWeaponGroup.rotation.set(0, 0, 0);
+                            currentWeaponGroup.scale.set(1, 1, 1);
+                        }
+                        
+                        const correctionGroup = new THREE.Group();
+                        correctionGroup.position.set(0, 0, -0.13);
+                        correctionGroup.rotation.x = THREE.MathUtils.degToRad(-90);
+                        
+                        // 对于 OBJ 和 JSON 静态模型，Minecraft 原生渲染通常还有一个 (-0.5, -0.5, -0.5) 的中心偏移
+                        // 由于我们在解析 Minecraft json 时只做了部分中心化，为了准确还原游戏中持握位置，需要包裹一个 offsetGroup
+                        const offsetGroup = new THREE.Group();
+                        
+                        if (weaponModel.isMinecraft) {
+                            // JSON 模型已经在生成时处理了一部分坐标，但可能缺少 Y 轴或整体的中心修正
+                            // 在这里如果发现位置不对，可以继续调整。之前我们让 mcGroup.position.set(0,0,0)
+                            // 实际上标准是 translate(-0.5, -0.5, -0.5)
+                            offsetGroup.position.set(0, -0.5, 0); // X和Z已经在解析时减去0.5了，补上Y
+                        } else if (weaponModel.isObj) {
+                            // OBJ 多数以 0,0,0 为中心，不需要额外的 90 度修复（之前这个旋转抵消了 EpicFight 默认的 -90 修正导致武器倒垂）
+                        }
+                        
+                        offsetGroup.name = "OffsetGroup";
+                        
+                        // 移动原有的 children 到 offsetGroup 中
+                        const childrenToMove = [...currentWeaponGroup.children];
+                        for (let child of childrenToMove) {
+                            offsetGroup.add(child);
+                        }
+                        currentWeaponGroup.add(offsetGroup);
+
+                        correctionGroup.add(currentWeaponGroup);
+                        toolR.add(correctionGroup);
+                    } else {
+                        // 必须让武器骨架的根节点旋转也和人物保持一致，因为我们在加载动画时是各自播放的
+                        currentWeaponGroup.rotation.set(-Math.PI / 2, 0, 0);
+                        scene.add(currentWeaponGroup);
+                    }
+                } else {
+                    console.warn(`未找到武器模型文件: ${weaponId}`);
+                    
+                    
+                }
+            }
+            
+            // 3. 加载动画
+            if (animationId) {
+                const animFile = fileResourceMap.get(animationId);
+                if (!animFile) throw new Error(`未找到动画文件: ${animationId}`);
+                console.log(`[Preview] Parsing animation...`);
+                await loadAnimation(animFile);
+            }
+            
+            console.log(`[Preview] Success!`);
+        } catch(err) {
+            console.error("[Preview Error]", err);
+            throw err;
+        }
+    };
+
+
+    createApp({
+        data() {
+            let saved = null;
+            try {
+                const s = localStorage.getItem('epicfight_trail_config');
+                if (s) saved = JSON.parse(s);
+            } catch(e) {}
+
+            return {
+                isDarkMode: localStorage.getItem('ce_theme') === 'dark',
+                leftWidth: 400,
+                isDragging: false,
+                                availableModels: [],
+                availableAnimations: [],
+                availableTextures: [],
+                loadedAnimationMods: [],
+                matchedAnimationFileCount: 0,
+                previewArmature: 'epicfight:entity/biped',
+                previewModel: 'epicfight:entity/biped',
+                previewWeapon: 'epicfight:weapon/longsword',
+                previewAnimation: '',
+                begin: saved?.begin || { x: 0, y: 0, z: 0 },
+                end: saved?.end || { x: 0, y: 1.5, z: 0 },
+                joint: saved?.joint || '',
+                showStaticTrail: saved?.showStaticTrail ?? true,
+                staticTrailOpacity: saved?.staticTrailOpacity ?? 0.6,
+                staticTrailThickness: saved?.staticTrailThickness ?? 0.05,
+                showDynamicTrail: saved?.showDynamicTrail ?? false,
+                trailLifetime: saved?.trailLifetime ?? 6,
+                trailInterpolations: saved?.trailInterpolations ?? 4,
+                trailTexturePath: saved?.trailTexturePath ?? 'epicfight:textures/particle/swing_trail.png',
+                trailColor: saved?.trailColor ?? [255, 255, 255],
+                sliderRange: saved?.sliderRange ?? 3,
+                presets: saved?.presets || [],
+                selectedPreset: -1
+            }
+        },
+        computed: {
+            generatedJSON() {
+                const out = {
+                    "trail": {
+                        "color": [
+                            Math.min(255, Math.max(0, Number(this.trailColor?.[0] ?? 255))),
+                            Math.min(255, Math.max(0, Number(this.trailColor?.[1] ?? 255))),
+                            Math.min(255, Math.max(0, Number(this.trailColor?.[2] ?? 255)))
+                        ],
+                        "begin_pos": [
+                            Number(this.begin.x.toFixed(3)),
+                            Number(this.begin.y.toFixed(3)),
+                            Number(this.begin.z.toFixed(3))
+                        ],
+                        "end_pos": [
+                            Number(this.end.x.toFixed(3)),
+                            Number(this.end.y.toFixed(3)),
+                            Number(this.end.z.toFixed(3))
+                        ],
+                        "lifetime": Math.max(1, Number(this.trailLifetime || 6)),
+                        "interpolations": Math.max(1, Number(this.trailInterpolations || 4)),
+                        "texture_path": String(this.trailTexturePath || 'epicfight:textures/particle/swing_trail.png'),
+                        "particle_type": "epicfight:swing_trail"
+                    }
+                };
+                // JSON文本中不需要有骨骼信息
+                let jsonStr = JSON.stringify(out, null, 4);
+                // 将数组格式化为单行，以节省空间并优化排版
+                jsonStr = jsonStr.replace(/\[\s+([-\d.]+),\s+([-\d.]+),\s+([-\d.]+)\s+\]/g, '[$1, $2, $3]');
+                return jsonStr;
+            },
+            highlightedJSON() {
+                let json = this.generatedJSON;
+                json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                    let cls = 'number';
+                    if (/^"/.test(match)) {
+                        if (/:$/.test(match)) {
+                            cls = 'key';
+                        } else {
+                            cls = 'string';
+                        }
+                    } else if (/true|false/.test(match)) {
+                        cls = 'boolean';
+                    } else if (/null/.test(match)) {
+                        cls = 'null';
+                    }
+                    return '<span class="' + cls + '">' + match + '</span>';
+                });
+            }
+        },
+        watch: {
+            begin: { deep: true, handler() { this.saveData(); this.updateTrail(); } },
+            end: { deep: true, handler() { this.saveData(); this.updateTrail(); } },
+            joint: { handler() { this.saveData(); this.updateTrail(); } },
+            showStaticTrail: { handler() { this.saveData(); this.updateTrail(); } },
+            staticTrailOpacity: { handler() { this.saveData(); this.updateTrail(); } },
+            staticTrailThickness: { handler() { this.saveData(); this.updateTrail(); } },
+            showDynamicTrail: { handler() { this.saveData(); this.updateTrail(); } },
+            trailLifetime: { handler() { this.saveData(); this.updateTrail(); } },
+            trailInterpolations: { handler() { this.saveData(); this.updateTrail(); } },
+            trailTexturePath: { handler() { this.saveData(); this.updateTrail(); } },
+            trailColor: { deep: true, handler() { this.saveData(); this.updateTrail(); } },
+            sliderRange: { handler() { this.saveData(); this.updateTrail(); } }
+        },
+        mounted() {
+            if (this.isDarkMode) document.body.classList.add('dark-mode');
+            setTimeout(() => {
+                initThree();
+                this.updateTrail();
+                
+                // 初始化自动补全组件
+                if (typeof createAnimationAutocomplete === 'function') {
+                    animationAutocompleteController = createAnimationAutocomplete(
+                        () => this.availableAnimations,
+                        () => this.availableModels,
+                        () => this.availableTextures
+                    );
+                }
+            }, 100);
+            trailPreviewState = this;
+            
+            // 监听全局输入事件，同步 vue 数据
+            document.addEventListener('input', (e) => {
+                if (e.target && e.target.classList.contains('animation-path-input')) {
+                    const modelAttr = e.target.getAttribute('v-model');
+                    if (modelAttr) {
+                        this[modelAttr] = e.target.value;
+                    } else if (e.target.placeholder.includes('player')) {
+                        this.previewModel = e.target.value;
+                    } else if (e.target.placeholder.includes('epicfight:entity/biped')) {
+                        this.previewArmature = e.target.value;
+                    } else if (e.target.placeholder.includes('epicfight:weapon')) {
+                        this.previewWeapon = e.target.value;
+                    } else if (e.target.placeholder.includes('epicfight:biped/combat')) {
+                        this.previewAnimation = e.target.value;
+                    }
+                }
+            });
+        },
+        methods: {
+            toggleTheme() {
+                this.isDarkMode = !this.isDarkMode;
+                if (this.isDarkMode) {
+                    document.body.classList.add('dark-mode');
+                    localStorage.setItem('ce_theme', 'dark');
+                } else {
+                    document.body.classList.remove('dark-mode');
+                    localStorage.setItem('ce_theme', 'light');
+                }
+            },
+            saveData() {
+                localStorage.setItem('epicfight_trail_config', JSON.stringify({
+                    begin: this.begin,
+                    end: this.end,
+                    joint: this.joint,
+                    showStaticTrail: this.showStaticTrail,
+                    staticTrailOpacity: this.staticTrailOpacity,
+                    staticTrailThickness: this.staticTrailThickness,
+                    showDynamicTrail: this.showDynamicTrail,
+                    trailLifetime: this.trailLifetime,
+                    trailInterpolations: this.trailInterpolations,
+                    trailTexturePath: this.trailTexturePath,
+                    trailColor: this.trailColor,
+                    sliderRange: this.sliderRange,
+                    presets: this.presets,
+                    leftWidth: this.leftWidth
+                }));
+            },
+            updateTrail() {
+                if (this.showStaticTrail) {
+                    updateTrailMesh(this.begin, this.end, this.joint, this.staticTrailThickness, this.staticTrailOpacity);
+                } else {
+                    clearStaticTrail();
+                }
+            },
+            resetParams() {
+                if (!confirm('确定要重置所有参数到默认值吗？')) return;
+                this.begin = { x: 0, y: 0, z: 0 };
+                this.end = { x: 0, y: 1.5, z: 0 };
+                this.joint = '';
+                this.trailLifetime = 6;
+                this.trailInterpolations = 4;
+                this.trailTexturePath = 'epicfight:textures/particle/swing_trail.png';
+                this.trailColor = [255, 255, 255];
+                this.sliderRange = 3;
+                this.saveData();
+                this.updateTrail();
+            },
+            savePreset() {
+                const name = prompt('请输入预设名称：', `预设 ${this.presets.length + 1}`);
+                if (!name) return;
+                
+                const preset = {
+                    name,
+                    begin: JSON.parse(JSON.stringify(this.begin)),
+                    end: JSON.parse(JSON.stringify(this.end)),
+                    joint: this.joint,
+                    trailLifetime: this.trailLifetime,
+                    trailInterpolations: this.trailInterpolations,
+                    trailTexturePath: this.trailTexturePath,
+                    trailColor: JSON.parse(JSON.stringify(this.trailColor))
+                };
+                
+                this.presets.push(preset);
+                this.selectedPreset = this.presets.length - 1;
+                this.saveData();
+                alert(`已保存预设: ${name}`);
+            },
+            loadPreset() {
+                if (this.selectedPreset === -1 || !this.presets[this.selectedPreset]) return;
+                const p = this.presets[this.selectedPreset];
+                this.begin = JSON.parse(JSON.stringify(p.begin));
+                this.end = JSON.parse(JSON.stringify(p.end));
+                this.joint = p.joint || '';
+                this.trailLifetime = p.trailLifetime || 6;
+                this.trailInterpolations = p.trailInterpolations || 4;
+                this.trailTexturePath = p.trailTexturePath || 'epicfight:textures/particle/swing_trail.png';
+                this.trailColor = p.trailColor ? JSON.parse(JSON.stringify(p.trailColor)) : [255, 255, 255];
+                this.saveData();
+                this.updateTrail();
+            },
+            deletePreset() {
+                if (this.selectedPreset === -1) return;
+                if (!confirm('确定要删除选中的预设吗？')) return;
+                this.presets.splice(this.selectedPreset, 1);
+                this.selectedPreset = -1;
+                this.saveData();
+            },
+            toggleFullscreen() {
+                const panel = document.getElementById('preview-panel');
+                if (!panel) return;
+                
+                if (!document.fullscreenElement) {
+                    panel.requestFullscreen().catch(err => {
+                        alert(`全屏请求失败: ${err.message}`);
+                    });
+                } else {
+                    document.exitFullscreen();
+                }
+            },
+                        playAnim() {
+                if (!this.previewAnimation) {
+                    alert('请填写动画 ID');
+                    return;
+                }
+                const modelId = this.previewModel || 'epicfight:entity/biped';
+                const weaponId = this.previewWeapon || null;
+                const animId = this.previewAnimation;
+                
+                if (typeof window.playAnimationPreview === 'function') {
+                    window.playAnimationPreview(modelId, animId, weaponId).then(() => {
+                        this.updateTrail(); // Reattach the trail to the new weapon group
+                    }).catch(err => {
+                        console.error(err);
+                        alert('播放失败: ' + err.message);
+                    });
+                } else {
+                    alert('播放函数未加载');
+                }
+            },
+            async importAnimationResources(event) {
+                try {
+                const files = Array.from(event.target.files || []);
+                if (files.length === 0) return;
+                
+                const animationSet = new Set(this.availableAnimations);
+                const modelSet = new Set(this.availableModels);
+                const textureSet = new Set(this.availableTextures);
+                let matchedFileCount = this.matchedAnimationFileCount;
+                
+                const batchSize = 1000;
+                let processed = 0;
+                
+                const processBatch = () => {
+                    return new Promise(resolve => {
+                        setTimeout(() => {
+                            const end = Math.min(processed + batchSize, files.length);
+                            for (let i = processed; i < end; i++) {
+                                const file = files[i];
+                                const descriptor = extractAnimationDescriptor(file.webkitRelativePath || file.name, file);
+                                if (!descriptor) continue;
+                                if (descriptor.type === 'animation') {
+                                    matchedFileCount += 1;
+                                    animationSet.add(descriptor.id);
+                                } else if (descriptor.type === 'model') {
+                                    matchedFileCount += 1;
+                                    modelSet.add(descriptor.id);
+                                } else if (descriptor.type === 'texture') {
+                                    matchedFileCount += 1;
+                                    textureSet.add(descriptor.id);
+                                }
+                            }
+                            processed = end;
+                            resolve(processed < files.length);
+                        }, 0);
+                    });
+                };
+                
+                while (await processBatch()) {}
+                
+                if (animationSet.size === 0 && modelSet.size === 0 && textureSet.size === 0) {
+                    alert('未在所选目录中找到可识别的动画或模型资源。');
+                    event.target.value = '';
+                    return;
+                }
+                
+                this.availableAnimations = Array.from(animationSet).sort();
+                this.availableModels = Array.from(modelSet).sort();
+                this.availableTextures = Array.from(textureSet).sort();
+                this.matchedAnimationFileCount = matchedFileCount;
+                if (typeof animationAutocompleteController !== 'undefined' && animationAutocompleteController) {
+                    animationAutocompleteController.refresh();
+                }
+                this.showToast('成功加载 ' + this.availableModels.length + ' 个模型, ' + this.availableAnimations.length + ' 个动画。');
+                event.target.value = '';
+            } catch(err) {
+                console.error(err);
+                alert("导入过程中发生错误: " + err.message);
+                event.target.value = '';
+            }
+            },
+            copyJSON() {
+                navigator.clipboard.writeText(this.generatedJSON).then(() => {
+                    this.showToast('已成功复制 JSON 配置！');
+                }).catch(() => {
+                    alert("复制失败，请手动复制。");
+                });
+            },
+            showToast(message) {
+                const toast = document.createElement('div');
+                toast.textContent = message;
+                toast.style.cssText = `
+                    position: fixed;
+                    bottom: 20px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: var(--primary);
+                    color: white;
+                    padding: 10px 20px;
+                    border-radius: 4px;
+                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                    z-index: 10000;
+                    font-size: 14px;
+                    opacity: 0;
+                    transition: opacity 0.3s ease;
+                `;
+                document.body.appendChild(toast);
+                
+                // Trigger reflow to start animation
+                toast.offsetHeight;
+                toast.style.opacity = '1';
+                
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    setTimeout(() => {
+                        document.body.removeChild(toast);
+                    }, 300);
+                }, 2000);
+            },
+            startDrag(e) {
+                e.preventDefault();
+                this.isDragging = true;
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+                
+                this.boundOnDrag = this.onDrag.bind(this);
+                this.boundStopDrag = this.stopDrag.bind(this);
+                
+                document.addEventListener('mousemove', this.boundOnDrag);
+                document.addEventListener('touchmove', this.boundOnDrag, {passive: false});
+                document.addEventListener('mouseup', this.boundStopDrag);
+                document.addEventListener('touchend', this.boundStopDrag);
+            },
+            onDrag(e) {
+                if (!this.isDragging) return;
+                if (e.type === 'touchmove') e.preventDefault();
+                const container = document.getElementById('app');
+                const rect = container.getBoundingClientRect();
+                const currentX = e.touches ? e.touches[0].clientX : e.clientX;
+                
+                let newWidth = currentX - rect.left;
+                if (newWidth < 300) newWidth = 300;
+                if (newWidth > rect.width - 400) newWidth = rect.width - 400;
+                this.leftWidth = newWidth;
+                
+                setTimeout(onWindowResize, 0); // Trigger Three.js resize
+            },
+            stopDrag() {
+                this.isDragging = false;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+                document.removeEventListener('mousemove', this.boundOnDrag);
+                document.removeEventListener('touchmove', this.boundOnDrag);
+                document.removeEventListener('mouseup', this.boundStopDrag);
+                document.removeEventListener('touchend', this.boundStopDrag);
+                this.saveData(); // Save the leftWidth
+            }
+        }
+    }).mount('#app');
+</script>
+
+</body>
+</html>
+

@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Indestructible 转 CombatEvolution 格式工具</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #1e1e1e; color: #d4d4d4; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background-color: #252526; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        h1 { text-align: center; color: #4fc1ff; }
+        .btn { background-color: #0e639c; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 4px; cursor: pointer; display: inline-block; margin-top: 10px; }
+        .btn:hover { background-color: #1177bb; }
+        .btn:disabled { background-color: #444; color: #888; cursor: not-allowed; }
+        input[type="file"] { margin-bottom: 20px; display: block; width: 100%; padding: 10px; background: #333; border-radius: 4px; border: 1px solid #555; color: #fff;}
+        #log { margin-top: 20px; padding: 15px; background: #111; border-radius: 4px; min-height: 150px; overflow-y: auto; font-family: Consolas, monospace; white-space: pre-wrap; font-size: 14px;}
+        .success { color: #4ec9b0; display: block;}
+        .error { color: #f48771; display: block;}
+        .info { color: #dcdcaa; display: block;}
+        p { line-height: 1.6; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Indestructible -> CombatEvolution</h1>
+        <p>
+            1. 点击下方按钮选择需要转换的 <b>Indestructible</b> 数据包 (.json)。<br>
+            2. 点击“批量转换并下载”，浏览器会自动将它们转换为 <b>CombatEvolution</b> 格式并下载。<br>
+            <i>(该工具完全在本地浏览器运行，不依赖 Java/Python/Node 环境，安全且即开即用)</i>
+        </p>
+        
+        <input type="file" id="fileInput" accept=".json" multiple>
+        <button class="btn" id="convertBtn" onclick="processFiles()">批量转换并下载</button>
+        
+        <div id="log"><span class="info">准备就绪... 等待选择文件。</span></div>
+    </div>
+
+    <script>
+        function log(msg, type='info') {
+            const logDiv = document.getElementById('log');
+            const span = document.createElement('span');
+            span.className = type;
+            span.textContent = `[${new Date().toLocaleTimeString()}] ` + msg;
+            logDiv.appendChild(span);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        // --- Web Worker Code ---
+        const workerCode = `
+            const CONDITION_MAP = {
+                "epicfight:within_distance": (cond) => ({ type: "combat_evolution:target_in_distance", min: cond.min || 0, max: cond.max || 0 }),
+                "epicfight:health": (cond) => {
+                    let comp = cond.comparator || "less_ratio";
+                    if (!["less_ratio", "greater_ratio", "less_absolute", "greater_absolute"].includes(comp)) comp = "less_ratio";
+                    return { type: "combat_evolution:health_check", health: cond.health || 0, comparator: comp };
+                },
+                "indestructible:stamina": (cond) => {
+                    let comp = cond.comparator || "less_ratio";
+                    if (!["less_ratio", "greater_ratio", "less_absolute", "greater_absolute"].includes(comp)) comp = "less_ratio";
+                    return { type: "combat_evolution:stamina_check", stamina: cond.stamina || 0, comparator: comp };
+                },
+                "indestructible:attack_level": (cond) => ({ type: "combat_evolution:attack_level", min: cond.min || 1, max: cond.max || 1 }),
+                "indestructible:phase": (cond) => ({ type: "combat_evolution:phase_between", min: cond.min || 0, max: cond.max || 0 }),
+                "indestructible:guard_break": (cond) => ({ type: "combat_evolution:target_guard_break" }),
+                "epicfight:within_angle": (cond) => ({ type: "combat_evolution:current_angle", side: "all", first: 0, second: cond.max || 180 }),
+                "epicfight:within_angle_horizontal": (cond) => ({ type: "combat_evolution:current_angle", side: "all", first: 0, second: cond.max || 180 }),
+                "epicfight:within_eye_height": (cond) => null // CE无直接等价，丢弃
+            };
+
+            function validateSchema(data) {
+                const isIndestructible = data.combat_behavior !== undefined || 
+                                         data.attributes !== undefined || 
+                                         data.humanoid_weapon_motions !== undefined || 
+                                         data.custom_guard_motion !== undefined ||
+                                         data.stun_animations !== undefined ||
+                                         data.default_livingmotions !== undefined;
+                if (!isIndestructible) {
+                    throw new Error("文件格式不匹配，未检测到 Indestructible 特有字段");
+                }
+            }
+
+            function convertConditions(conditions) {
+                if (!conditions) return [];
+                let newConds = [];
+                for (let cond of conditions) {
+                    let pred = cond.predicate;
+                    // 处理可能缺失命名空间前缀的情况
+                    if (pred && !pred.includes(':')) {
+                        // 尝试为其添加 epicfight: 或 indestructible: 前缀进行匹配
+                        if (CONDITION_MAP["epicfight:" + pred]) {
+                            pred = "epicfight:" + pred;
+                        } else if (CONDITION_MAP["indestructible:" + pred]) {
+                            pred = "indestructible:" + pred;
+                        }
+                    }
+                    
+                    if (CONDITION_MAP[pred]) {
+                        let mapped = CONDITION_MAP[pred](cond);
+                        if (mapped !== null) newConds.push(mapped);
+                    } else {
+                        // 未知条件保留，修改 key 从 predicate 为 type
+                        let unmapped = { type: pred, ...cond };
+                        delete unmapped.predicate;
+                        newConds.push(unmapped);
+                    }
+                }
+                return newConds;
+            }
+
+            function convertCommandList(cmdList) {
+                if (!cmdList) return [];
+                return cmdList.map(cmd => {
+                    let time = cmd.time || 0;
+                    let onTarget = cmd.execute_at_target || false;
+                    let command = cmd.command || "";
+                    if (!command.startsWith("/")) command = "/" + command;
+                    if (time > 0) return { type: "in_time", timeStart: time, onTarget: onTarget, command: command };
+                    else return { type: "tick", onTarget: onTarget, command: command };
+                });
+            }
+
+            function convertHitCommandList(cmdList) {
+                if (!cmdList) return [];
+                return cmdList.map(cmd => {
+                    let onTarget = cmd.execute_at_target || false;
+                    let command = cmd.command || "";
+                    if (!command.startsWith("/")) command = "/" + command;
+                    return { type: "success", phase: -1, onTarget: onTarget, command: command };
+                });
+            }
+
+            function convertBehavior(b) {
+                let outB = {};
+                if (b.conditions) {
+                    let conds = convertConditions(b.conditions);
+                    if (conds.length > 0) outB.conditions = conds;
+                }
+                
+                if (b.animation) {
+                    // 对于 CE 来说，如果是普通的攻击或技能动画，并不一定需要 actionType
+                    // CE 的规范是直接使用 "animation" 字段，并不需要 "animationId"
+                    outB.animation = b.animation; 
+                    
+                    let params = {};
+                    if (b.convert_time !== undefined) params.transitionTime = b.convert_time;
+                    if (b.play_speed !== undefined) params.playSpeed = b.play_speed;
+                    if (Object.keys(params).length > 0) outB.animationParams = params;
+
+                    if (b.command_list) {
+                        let te = convertCommandList(b.command_list);
+                        if (te.length > 0) outB.timeEvents = te;
+                    }
+                    if (b.hit_command_list) {
+                        let he = convertHitCommandList(b.hit_command_list);
+                        if (he.length > 0) outB.hitEvents = he;
+                    }
+                    if (b.damage_modifier) {
+                        let phaseParam = { phase: -1 }; 
+                        let mod = b.damage_modifier;
+                        if (mod.damage !== undefined) phaseParam.damageMultiplier = mod.damage;
+                        if (mod.impact !== undefined) phaseParam.impactMultiplier = mod.impact;
+                        if (mod.armor_negation !== undefined) phaseParam.armorNegationMultiplier = mod.armor_negation;
+                        if (mod.stun_type !== undefined) phaseParam.stunType = mod.stun_type;
+                        if (Object.keys(phaseParam).length > 1) {
+                            outB.animationParams = outB.animationParams || {};
+                            outB.animationParams.phaseParams = [phaseParam];
+                        }
+                    }
+                    if (b.set_phase !== undefined) {
+                        outB.setPhase = b.set_phase;
+                    }
+                } else if (b.guard !== undefined) {
+                    outB.behaviorType = "guard";
+                    outB.guardTime = b.guard;
+                    if (b.counter) {
+                        outB.counterAnimation = b.counter; 
+                        outB.counterType = "random";
+                        outB.counterChance = b.counter_chance || 0.3;
+                    }
+                } else if (b.wander !== undefined) {
+                    outB.behaviorType = "wander"; // 添加行为类型
+                    outB.wanderTime = b.wander;
+                    if (b.x_axis !== undefined) outB.strafe = b.x_axis;
+                    if (b.z_axis !== undefined) outB.forward = b.z_axis;
+                }
+
+                if (b.stamina !== undefined && b.stamina > 0) {
+                    outB.addStamina = -b.stamina;
+                }
+                return outB;
+            }
+
+            function convertData(data) {
+                let out = {
+                    faction: data.faction || "neutral",
+                    renderer: data.renderer || "skeleton",
+                    model: data.model || "skeleton",
+                    armature: data.armature || "epicfight:entity/biped",
+                    humanoid: data.isHumanoid !== undefined ? data.isHumanoid : true
+                };
+
+                if (data.attributes) {
+                    let attrs = data.attributes;
+                    if (attrs.chasing_speed !== undefined) out.chasingSpeed = attrs.chasing_speed;
+                    if (attrs.scale !== undefined) out.scale = attrs.scale;
+                    if (attrs.stamina_regan_delay !== undefined) out.staminaRegenDelay = attrs.stamina_regan_delay;
+                    if (attrs.stamina_lose_multiply !== undefined) out.hurtImpact = attrs.stamina_lose_multiply;
+                    
+                    let outAttrs = [];
+                    if (attrs.max_stamina !== undefined) outAttrs.push({ attribute: "epicfight:staminar", value: attrs.max_stamina });
+                    if (attrs.stamina_regan_multiply !== undefined) outAttrs.push({ attribute: "epicfight:stamina_regen", value: attrs.stamina_regan_multiply });
+                    if (attrs.impact !== undefined) outAttrs.push({ attribute: "epicfight:impact", value: attrs.impact });
+                    if (attrs.armor_negation !== undefined) outAttrs.push({ attribute: "epicfight:armor_negation", value: attrs.armor_negation });
+                    
+                    if (outAttrs.length > 0) out.attributes = outAttrs;
+                }
+
+                if (data.stun_animations) out.stunAnimations = data.stun_animations;
+                
+                let defaultMotions = data.default_livingmotions || {};
+                
+                if (data.humanoid_weapon_motions) {
+                    out.weaponLivingMotions = [];
+                    for (let wm of data.humanoid_weapon_motions) {
+                        let combinedMotions = Object.assign({}, defaultMotions, wm.livingmotions || {});
+                        let wMotion = {
+                            weaponCategories: wm.weapon_categories || [],
+                            style: wm.style || "common",
+                            livingMotions: combinedMotions
+                        };
+                        out.weaponLivingMotions.push(wMotion);
+                    }
+                } else if (Object.keys(defaultMotions).length > 0) {
+                    out.weaponLivingMotions = [{
+                        weaponCategories: [], 
+                        style: "common",
+                        livingMotions: defaultMotions
+                    }];
+                }
+                
+                if (data.custom_guard_motion) {
+                    out.guardHitAnimation = [];
+                    for (let gm of data.custom_guard_motion) {
+                        let gHit = {
+                            weaponCategories: gm.weapon_categories || [],
+                            style: gm.style || "common",
+                            animations: gm.parry_animation || [] 
+                        };
+                        if (gHit.animations.length === 0 && gm.guard) {
+                            gHit.animations.push(gm.guard);
+                        }
+                        if (gHit.animations.length > 0) out.guardHitAnimation.push(gHit);
+                    }
+                }
+
+                if (data.combat_behavior) {
+                    let outCbs = [];
+                    for (let idxCb = 0; idxCb < data.combat_behavior.length; idxCb++) {
+                        let cb = data.combat_behavior[idxCb];
+                        let outCb = {
+                            weaponCategories: cb.weapon_categories || [],
+                            style: cb.style || "common",
+                            behaviorRoots: []
+                        };
+
+                        if (cb.behavior_series) {
+                            for (let idxS = 0; idxS < cb.behavior_series.length; idxS++) {
+                                let series = cb.behavior_series[idxS];
+                                let root = {
+                                    rootName: "BehaviorRoot_" + idxS,
+                                    weight: series.weight || 1.0,
+                                    maxCooldown: series.cooldown || 0,
+                                    firstBehaviors: [] // 根据 CE 参考文件，根节点使用的是 firstBehaviors
+                                };
+
+                                if (series.behaviors && series.behaviors.length > 0) {
+                                    let first = convertBehavior(series.behaviors[0]);
+                                    first.behaviorName = "Action_" + idxS + "_0";
+                                    let current = first;
+                                    for (let i = 1; i < series.behaviors.length; i++) {
+                                        let next = convertBehavior(series.behaviors[i]);
+                                        next.behaviorName = "Action_" + idxS + "_" + i;
+                                        current.nextBehaviors = [next];
+                                        current = next;
+                                    }
+                                    root.firstBehaviors.push(first);
+                                }
+                                outCb.behaviorRoots.push(root);
+                            }
+                        }
+                        outCbs.push(outCb);
+                    }
+                    out.combatBehaviors = outCbs;
+                }
+                return out;
+            }
+
+            function customStringify(obj, indentLevel = 0) {
+                if (obj === undefined) return undefined;
+                if (obj === null) return "null";
+                
+                const indent = "\\t".repeat(indentLevel);
+                const nextIndent = "\\t".repeat(indentLevel + 1);
+                
+                if (Array.isArray(obj)) {
+                    if (obj.length === 0) return "[]";
+                    let allSimple = obj.every(item => typeof item !== 'object' || item === null);
+                    if (allSimple) {
+                        return "[" + obj.map(item => JSON.stringify(item)).join(", ") + "]";
+                    }
+                    
+                    let items = [];
+                    for (let i = 0; i < obj.length; i++) {
+                        let itemStr = "";
+                        let item = obj[i];
+                        if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+                            if (Object.keys(item).length <= 4 && !Object.values(item).some(v => typeof v === 'object' && v !== null)) {
+                                itemStr = JSON.stringify(item);
+                            } else {
+                                itemStr = customStringify(item, indentLevel + 1);
+                            }
+                        } else {
+                            itemStr = customStringify(item, indentLevel + 1);
+                        }
+                        
+                        if (itemStr !== undefined) {
+                            items.push(nextIndent + itemStr);
+                        } else {
+                            items.push(nextIndent + "null");
+                        }
+                    }
+                    return "[\\n" + items.join(",\\n") + "\\n" + indent + "]";
+                } else if (typeof obj === 'object') {
+                    let keys = Object.keys(obj);
+                    if (keys.length === 0) return "{}";
+                    
+                    let items = [];
+                    for (let i = 0; i < keys.length; i++) {
+                        let key = keys[i];
+                        let valStr = customStringify(obj[key], indentLevel + 1);
+                        if (valStr === undefined) continue;
+                        
+                        items.push(nextIndent + JSON.stringify(key) + ": " + valStr);
+                    }
+                    if (items.length === 0) return "{}";
+                    return "{\\n" + items.join(",\\n") + "\\n" + indent + "}";
+                } else {
+                    return JSON.stringify(obj);
+                }
+            }
+
+            self.onmessage = async function(e) {
+                const file = e.data.file;
+                try {
+                    const text = await file.text();
+                    const json = JSON.parse(text);
+                    
+                    validateSchema(json);
+                    
+                    const ceJson = convertData(json);
+                    const jsonStr = customStringify(ceJson);
+                    
+                    self.postMessage({ success: true, fileName: file.name, jsonStr: jsonStr });
+                } catch (err) {
+                    self.postMessage({ success: false, fileName: file.name, error: err.message });
+                }
+            };
+        `;
+
+        let myWorker = null;
+        let downloadQueue = [];
+        let isDownloading = false;
+
+        function processDownloadQueue() {
+            if (isDownloading || downloadQueue.length === 0) return;
+            isDownloading = true;
+            
+            let item = downloadQueue.shift();
+            
+            let blob = new Blob([item.jsonStr], { type: "application/json" });
+            let url = URL.createObjectURL(blob);
+            
+            let a = document.createElement('a');
+            a.href = url;
+            
+            let newName = item.fileName.replace(/\.json$/i, '') + '_ce.json';
+            a.download = newName;
+            
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            URL.revokeObjectURL(url);
+            log(`成功转换并下载: ${item.fileName} -> ${newName}`, "success");
+            
+            setTimeout(() => {
+                isDownloading = false;
+                processDownloadQueue();
+            }, 150);
+        }
+
+        function processFiles() {
+            const fileInput = document.getElementById('fileInput');
+            const files = fileInput.files;
+            
+            if (files.length === 0) {
+                log("请先选择要转换的 JSON 文件！", "error");
+                return;
+            }
+
+            log(`开始批量转换 ${files.length} 个文件 (启用 Web Worker 异步加速)...`, "info");
+            
+            if (!myWorker) {
+                const blob = new Blob([workerCode], { type: 'application/javascript' });
+                myWorker = new Worker(URL.createObjectURL(blob));
+                
+                myWorker.onmessage = function(e) {
+                    const result = e.data;
+                    if (result.success) {
+                        downloadQueue.push(result);
+                        processDownloadQueue();
+                    } else {
+                        log(`转换失败: ${result.fileName} (错误: ${result.error})`, "error");
+                    }
+                };
+                
+                myWorker.onerror = function(err) {
+                    log(`Worker 发生系统级错误: ${err.message}`, "error");
+                };
+            }
+
+            for (let i = 0; i < files.length; i++) {
+                myWorker.postMessage({ file: files[i] });
+            }
+        }
+    </script>
+</body>
+</html>

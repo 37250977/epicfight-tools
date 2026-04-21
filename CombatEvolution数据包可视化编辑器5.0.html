@@ -1,0 +1,3327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CombatEvolution 数据包可视化编辑器</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --border: #e2e8f0;
+            --text: #1e293b;
+            --input-bg: #ffffff;
+            --hover-btn: #2563eb;
+            --sec-bg: #64748b;
+            --sec-hover: #475569;
+            --danger-bg: #ef4444;
+            --danger-hover: #dc2626;
+            --panel-bg: #f1f5f9;
+        }
+        body.dark-mode {
+            --primary: #3b82f6;
+            --bg: #0f172a;
+            --card: #1e293b;
+            --border: #334155;
+            --text: #f8fafc;
+            --input-bg: #0f172a;
+            --hover-btn: #60a5fa;
+            --sec-bg: #475569;
+            --sec-hover: #64748b;
+            --danger-bg: #dc2626;
+            --danger-hover: #ef4444;
+            --panel-bg: #334155;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.5;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+            display: grid;
+            /* 宽度通过 Vue 内联样式动态控制，默认比例 */
+            grid-template-columns: minmax(600px, 1fr) 10px minmax(400px, 1fr);
+            gap: 15px;
+        }
+        @media (max-width: 1100px) {
+            .container { grid-template-columns: 1fr !important; }
+            .resizer { display: none; }
+        }
+        .resizer {
+            width: 10px;
+            cursor: col-resize;
+            background: transparent;
+            transition: background 0.2s;
+            border-radius: 4px;
+        }
+        .resizer:hover, .resizer.dragging {
+            background: var(--primary);
+        }
+        .panel {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            max-height: 95vh;
+            overflow-y: auto;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+        .preview-panel {
+            display: flex;
+            flex-direction: column;
+            position: sticky;
+            top: 20px;
+        }
+        h1, h2, h3, h4 { margin-top: 0; color: var(--text); }
+        .section-header {
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+            transition: color 0.2s;
+        }
+        .section-header:hover { color: var(--primary); }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+        .form-group input[type="text"],
+        .form-group input[type="number"],
+        .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            box-sizing: border-box;
+            background: var(--input-bg);
+            color: var(--text);
+            transition: all 0.2s ease;
+        }
+        .form-group input[type="text"]:focus,
+        .form-group input[type="number"]:focus,
+        .form-group select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+            outline: none;
+        }
+        .form-group input[type="checkbox"] {
+            margin-right: 8px;
+        }
+        .btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s ease;
+        }
+        .btn:hover { background-color: var(--hover-btn); transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .btn:active { transform: scale(0.98); }
+        .btn-secondary {
+            background-color: var(--sec-bg);
+        }
+        .btn-secondary:hover {
+            background-color: var(--sec-hover);
+        }
+        .btn-danger { background-color: var(--danger-bg); }
+        .btn-danger:hover { background-color: var(--danger-hover); }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .array-item {
+            border: 1px solid var(--border);
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            background: #f1f5f9;
+            position: relative;
+        }
+        .remove-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+        .code-preview {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            white-space: pre;
+            overflow-x: auto;
+            flex: 1;
+            min-height: 200px;
+            content-visibility: auto;
+        }
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+        .section {
+            border-top: 2px solid var(--border);
+            margin-top: 20px;
+            padding-top: 20px;
+        }
+        .behavior-node {
+            margin-left: 20px;
+            border-left: 2px solid #cbd5e1;
+            padding-left: 15px;
+            content-visibility: auto;
+        }
+        .tooltip {
+            font-size: 0.8em;
+            color: #64748b;
+            margin-top: 2px;
+        }
+        .tree-node {
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 10px;
+            background: #ffffff;
+            position: relative;
+        }
+        .tree-node-children {
+            margin-left: 20px;
+            padding-left: 10px;
+            border-left: 2px dashed var(--primary);
+        }
+        .node-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            background: #f8fafc;
+            padding: 5px;
+            border-radius: 4px;
+        }
+        .node-type-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+            margin-right: 10px;
+        }
+        .type-animation { background-color: #3b82f6; }
+        .type-guard { background-color: #10b981; }
+        .type-wander { background-color: #f59e0b; }
+        .type-guard-wander { background-color: #8b5cf6; }
+        .type-unknown { background-color: #64748b; }
+        
+        .sub-panel {
+            border: 1px solid #cbd5e1;
+            background: #f8fafc;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 4px;
+        }
+        .sub-panel h5 {
+            margin: 0 0 10px 0;
+            font-size: 13px;
+            color: #334155;
+            display: flex;
+            justify-content: space-between;
+        }
+        .resource-import-box {
+            background: #f8fafc;
+            border: 1px dashed #cbd5e1;
+            border-radius: 6px;
+            padding: 10px 12px;
+            min-width: 280px;
+            flex: 1;
+        }
+        .resource-import-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .resource-import-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .resource-import-summary {
+            font-size: 12px;
+            color: #334155;
+            margin-top: 6px;
+        }
+        .resource-import-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+        .resource-tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: #dbeafe;
+            color: #1d4ed8;
+            font-size: 12px;
+            border: 1px solid #bfdbfe;
+        }
+        .animation-path-input {
+            width: 100%;
+        }
+        .animation-autocomplete-panel {
+            position: fixed;
+            z-index: 9999;
+            min-width: 260px;
+            max-width: 520px;
+            max-height: 280px;
+            overflow-y: auto;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+            display: none;
+        }
+        .animation-autocomplete-item {
+            padding: 8px 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #eef2f7;
+            font-size: 13px;
+            line-height: 1.4;
+            word-break: break-all;
+        }
+        .animation-autocomplete-item:last-child {
+            border-bottom: none;
+        }
+        .animation-autocomplete-item:hover,
+        .animation-autocomplete-item.active {
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
+        .animation-autocomplete-group {
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .animation-autocomplete-group:last-child {
+            border-bottom: none;
+        }
+        .animation-autocomplete-group-title {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            padding: 6px 10px;
+            background: #f8fafc;
+            color: #475569;
+            font-size: 12px;
+            font-weight: 600;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .animation-autocomplete-path {
+            color: inherit;
+        }
+        .animation-autocomplete-highlight {
+            background: #fef3c7;
+            color: #92400e;
+            font-weight: 700;
+            border-radius: 2px;
+            padding: 0 1px;
+        }
+        .animation-autocomplete-empty {
+            padding: 8px 10px;
+            color: #64748b;
+            font-size: 12px;
+        }
+        .preview-container-box {
+            width: 100%;
+            height: 360px;
+            background: #1e1e1e;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        .preview-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #aaa;
+            font-size: 13px;
+            text-align: center;
+            pointer-events: none;
+        }
+        .floating-window {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            width: 400px;
+            height: 500px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            resize: both;
+            overflow: hidden;
+        }
+        .floating-header {
+            padding: 10px;
+            background: var(--panel-bg);
+            border-bottom: 1px solid var(--border);
+            cursor: move;
+            display: flex;
+            align-items: center;
+            font-weight: bold;
+            user-select: none;
+            color: var(--text);
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="container" :style="{ gridTemplateColumns: leftWidth + '% 10px minmax(0, 1fr)' }">
+        <!-- 左侧编辑区 -->
+        <div class="panel">
+            <div class="top-bar">
+                <h2>CE 数据包可视化编辑器</h2>
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    <button class="btn btn-secondary" @click="toggleTheme" style="font-size:12px; padding:6px 12px;" title="切换深色/浅色模式">{{ isDarkMode ? '☀️ 浅色模式' : '🌙 深色模式' }}</button>
+                    <div class="resource-import-box">
+                        <div class="resource-import-header">
+                            <div style="font-size:12px; color:#3b82f6; font-weight:bold;">动画资源索引</div>
+                            <div class="resource-import-actions">
+                                <label class="btn" style="cursor:pointer; margin:0;">
+                                    导入资源文件夹
+                                    <input type="file" webkitdirectory directory multiple @change="importAnimationResources" style="display:none">
+                                </label>
+                                <label class="btn btn-secondary" style="cursor:pointer; margin:0;" title="如果不兼容文件夹导入，点此多选文件">
+                                    导入多个文件
+                                    <input type="file" multiple accept=".json,.obj,.geo" @change="importAnimationResources" style="display:none">
+                                </label>
+                                <button class="btn btn-secondary" @click="clearAnimationLibrary" :disabled="availableAnimations.length === 0">清空索引</button>
+                            </div>
+                        </div>
+                        <div class="tooltip">支持选择资源包根目录、模组目录、`assets` 或 `data` 目录；导入后在动画输入框中输入关键字或按下方向键即可调出建议。</div>
+                        <div class="resource-import-summary">{{ animationLibrarySummary }}</div>
+                        <div class="resource-import-tags" v-if="loadedAnimationMods.length > 0">
+                            <span class="resource-tag" v-for="mod in loadedAnimationMods" :key="mod.modId">{{ mod.modId }} ({{ mod.count }})</span>
+                        </div>
+                        <input type="file" id="assetFolderInput" webkitdirectory directory multiple @change="importAnimationResources" style="display:none;">
+                    </div>
+                    <input type="file" id="importFile" @change="importJSON" style="display:none" accept=".json">
+                    <button class="btn" onclick="document.getElementById('importFile').click()">导入 JSON</button>
+                    <button class="btn" @click="exportJSON">导出 JSON</button>
+                </div>
+            </div>
+
+            <!-- 基础属性 -->
+            <div class="section">
+                <h3 class="section-header" @click="toggleSection('basic')">基础属性 <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['basic'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+                <div v-show="!collapsedSections['basic']">
+                    <div class="form-group">
+                        <label title="<必填> 阵营，用于防止攻击命中同阵营的实体">Faction (阵营)</label>
+                        <input type="text" v-model="config.faction" placeholder="例如: neutral, player, zombie, skeleton">
+                    </div>
+                    <div class="form-group">
+                        <label title="<必填> 渲染类型，常用的有player, zombie, skeleton等">Renderer (渲染类型)</label>
+                        <input type="text" v-model="config.renderer" placeholder="例如: player">
+                    </div>
+                    <div class="form-group">
+                        <label title="<必填> 实体模型，常用的有player, zombie, skeleton等">Model (模型)</label>
+                        <input type="text" v-model="config.model" placeholder="例如: player">
+                    </div>
+                    <div class="form-group">
+                        <label title="<必填> 实体骨架，可用类型请查阅epicfight/animmodels/entity/下的文件">Armature (骨架)</label>
+                        <input type="text" v-model="config.armature" placeholder="例如: epicfight:entity/biped">
+                    </div>
+                    <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:8px;">
+                        <label title="[可选] 是否使用人形模型，在渲染类型为epicfight:custom时如果该选项为true，会使用默认人模"><input type="checkbox" v-model="config.humanoid"> Humanoid (人形模型)</label>
+                    </div>
+                    <div class="form-group">
+                        <label title="[可选] 生物追逐目标时额外的速度倍率">Chasing Speed (追逐速度倍率)</label>
+                        <input type="number" step="0.1" v-model.number="config.chasingSpeed" placeholder="默认: 1.0">
+                    </div>
+                    <div class="form-group">
+                        <label title="[可选] 渲染大小，不影响实际碰撞箱">Scale (渲染大小)</label>
+                        <input type="number" step="0.1" v-model.number="config.scale" placeholder="默认: 1.0">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 耐力系统 -->
+            <div class="section">
+                <h3 class="section-header" @click="toggleSection('stamina')">耐力与破防 <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['stamina'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+                <div v-show="!collapsedSections['stamina']">
+                    <div class="form-group">
+                        <label title="[可选] 耐力清空的破防持续时间（和动画无关）Tick">Break Time (破防持续时间 Tick)</label>
+                        <input type="number" v-model.number="config.breakTime" placeholder="默认: 40">
+                    </div>
+                    <div class="form-group">
+                        <label title="[可选] 耐力从破防结束到完全恢复所需要的时间 Tick">Recover Time (完全恢复所需时间 Tick)</label>
+                        <input type="number" v-model.number="config.recoverTime" placeholder="默认: 60">
+                    </div>
+                    <div class="form-group">
+                        <label title="[可选] 正常状态且没有行动的情况下，需要多久才会开始自然恢复耐力值">Stamina Regen Delay (恢复延迟 Tick)</label>
+                        <input type="number" v-model.number="config.staminaRegenDelay" placeholder="默认: 60">
+                    </div>
+                    <div class="form-group">
+                        <label title="[可选] 攻击被招架时，自身损耗的耐力值">Be Parried Damage (被招架损耗耐力)</label>
+                        <input type="number" step="0.1" v-model.number="config.beParriedDamage" placeholder="默认: 1.0">
+                    </div>
+                    <div class="form-group">
+                        <label title="[可选] 防御敌人攻击时，损耗的耐力百分比（如果敌人攻击3冲击，为0.5就是3*0.5，最终受到1.5的耐力伤害）">Guard Hit Impact (防御损耗百分比)</label>
+                        <input type="number" step="0.01" v-model.number="config.guardHitImpact" placeholder="默认: 1.0">
+                    </div>
+                    <div class="form-group">
+                        <label title="[可选] 受到伤害时，耐力损耗的百分比（如果敌人攻击10冲击，为0.35就是10*0.35，最终受到3.5的耐力伤害）">Hurt Impact (受击损耗百分比)</label>
+                        <input type="number" step="0.01" v-model.number="config.hurtImpact" placeholder="默认: 0.35">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Boss 配置 -->
+            <div class="section">
+                <h3><input type="checkbox" v-model="hasBossBar"> Boss 血条 (ceBossBar)</h3>
+                <div v-if="hasBossBar">
+                    <div class="form-group">
+                        <label>Boss Bar Name (名称)</label>
+                        <input type="text" v-model="config.ceBossBar.bossBarName">
+                    </div>
+                    <div class="form-group">
+                        <label>Textures (材质)</label>
+                        <input type="text" v-model="config.ceBossBar.bossBarTextures">
+                    </div>
+                </div>
+
+                <h3><input type="checkbox" v-model="hasBossMusic"> Boss 音乐 (ceBossMusic)</h3>
+                <div v-if="hasBossMusic">
+                    <div class="form-group">
+                        <label>BGM 路径</label>
+                        <input type="text" v-model="config.ceBossMusic.bgm">
+                    </div>
+                    <div class="form-group">
+                        <label><input type="checkbox" v-model="config.ceBossMusic.loop"> 循环播放 (Loop)</label>
+                    </div>
+                    <div class="form-group">
+                        <label>Duration (循环开始时间 Tick)</label>
+                        <input type="number" v-model.number="config.ceBossMusic.duration">
+                    </div>
+                    <div class="form-group">
+                        <label>Volume (音量)</label>
+                        <input type="number" step="0.1" v-model.number="config.ceBossMusic.volume">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attributes -->
+            <div class="section">
+                <h3 class="section-header" @click="toggleSection('attributes')">Attributes (属性) <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['attributes'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+                <div v-show="!collapsedSections['attributes']">
+                    <div style="margin-bottom: 10px;"><button class="btn" @click="addAttribute" style="font-size:12px;padding:4px 8px">+ 添加属性</button></div>
+                    <div v-for="(attr, index) in config.attributes" :key="index" class="array-item">
+                        <button class="btn btn-danger remove-btn" @click="config.attributes.splice(index, 1)">X</button>
+                        <div class="form-group">
+                            <label>属性名</label>
+                            <input type="text" v-model="attr.attribute">
+                        </div>
+                        <div class="form-group">
+                            <label>值</label>
+                            <input type="number" step="0.1" v-model.number="attr.value">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 武器行为动画 (WeaponLivingMotions & GuardHitAnimation) -->
+            <div class="section">
+                <h3 class="section-header" @click="toggleSection('weaponLiving')">Weapon Living Motions (武器特殊站立/移动动画) <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['weaponLiving'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+                <div v-show="!collapsedSections['weaponLiving']">
+                    <div style="margin-bottom: 10px;"><button class="btn" @click="addWeaponLivingMotion" style="font-size:12px;padding:4px 8px">+ 添加武器动画组</button></div>
+                    <div v-for="(wlm, index) in config.weaponLivingMotions" :key="'wlm'+index" class="array-item">
+                        <button class="btn btn-danger remove-btn" @click="config.weaponLivingMotions.splice(index, 1)">X</button>
+                        <div class="form-group">
+                            <label>Weapon Categories (逗号分隔)</label>
+                            <input type="text" :value="wlm.weaponCategories?.join(', ')" @input="wlm.weaponCategories = $event.target.value.split(',').map(s=>s.trim()).filter(s=>s)">
+                        </div>
+                        <div class="form-group">
+                            <label>Style</label>
+                            <input type="text" v-model="wlm.style">
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                            <div class="form-group"><label>idle (站立)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="wlm.livingMotions.idle"><button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" title="预览动画" @click="previewAnimation(wlm.livingMotions.idle)">▶</button></div></div>
+                            <div class="form-group"><label>walk (行走)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="wlm.livingMotions.walk"><button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" title="预览动画" @click="previewAnimation(wlm.livingMotions.walk)">▶</button></div></div>
+                            <div class="form-group"><label>run (奔跑)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="wlm.livingMotions.run"><button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" title="预览动画" @click="previewAnimation(wlm.livingMotions.run)">▶</button></div></div>
+                            <div class="form-group"><label>chase (追逐)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="wlm.livingMotions.chase"><button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" title="预览动画" @click="previewAnimation(wlm.livingMotions.chase)">▶</button></div></div>
+                            <div class="form-group"><label>death (死亡)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="wlm.livingMotions.death"><button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" title="预览动画" @click="previewAnimation(wlm.livingMotions.death)">▶</button></div></div>
+                            <div class="form-group"><label>block (防御)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="wlm.livingMotions.block"><button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" title="预览动画" @click="previewAnimation(wlm.livingMotions.block)">▶</button></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <h3 class="section-header" style="margin-top:20px;" @click="toggleSection('guardHit')">Guard Hit Animations (防御受击动画) <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['guardHit'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+                <div v-show="!collapsedSections['guardHit']">
+                    <div style="margin-bottom: 10px;"><button class="btn" @click="addGuardHitAnimation" style="font-size:12px;padding:4px 8px">+ 添加防御受击组</button></div>
+                    <div v-for="(gha, index) in config.guardHitAnimation" :key="'gha'+index" class="array-item">
+                        <button class="btn btn-danger remove-btn" @click="config.guardHitAnimation.splice(index, 1)">X</button>
+                        <div class="form-group">
+                            <label>Weapon Categories (逗号分隔)</label>
+                            <input type="text" :value="gha.weaponCategories?.join(', ')" @input="gha.weaponCategories = $event.target.value.split(',').map(s=>s.trim()).filter(s=>s)">
+                        </div>
+                        <div class="form-group">
+                            <label>Style</label>
+                            <input type="text" v-model="gha.style">
+                        </div>
+                        <div class="form-group">
+                            <label>Animations (逐条输入) <button class="btn" style="padding:2px 6px;font-size:10px;" @click="addStringItem(gha.animations)">+</button></label>
+                            <div v-for="(anim, aIdx) in gha.animations" :key="'ghaAnim'+index+'-'+aIdx" style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">
+                                <input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" :value="anim" @input="gha.animations[aIdx] = $event.target.value" placeholder="例如: epicfight:biped/skill/guard_longsword_hit_active1">
+                                <button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" title="预览动画" @click="previewAnimation(gha.animations[aIdx])">▶</button>
+                                <button class="btn btn-danger" style="padding:2px 6px;font-size:10px;" @click="removeStringItem(gha.animations, aIdx)">X</button>
+                            </div>
+                            <div class="tooltip" v-if="!gha.animations || gha.animations.length === 0">可逐条录入并直接使用导入后的动画提示。</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 眩晕动画 -->
+            <div class="section">
+                <h3>Stun Animations (眩晕动画)</h3>
+                <div class="form-group" v-for="key in ['short', 'long', 'hold', 'fall', 'knockdown', 'neutralize']" :key="key">
+                    <label>{{ key }}</label>
+                    <div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="config.stunAnimations[key]"><button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" title="预览动画" @click="previewAnimation(config.stunAnimations[key])">▶</button></div>
+                </div>
+            </div>
+
+            <!-- 战斗行为 -->
+            <div class="section">
+                <h3>Combat Behaviors (战斗行为) <button class="btn" @click="addBehavior" style="font-size:12px;padding:2px 8px">+</button></h3>
+                <div class="tooltip">行为树逻辑复杂，建议使用源码编辑或仅做基本修改。</div>
+                <div v-for="(cb, index) in config.combatBehaviors" :key="index" class="array-item">
+                    <button class="btn btn-danger remove-btn" @click="config.combatBehaviors.splice(index, 1)">X</button>
+                    <div class="form-group">
+                        <label>Weapon Categories (逗号分隔)</label>
+                        <input type="text" :value="cb.weaponCategories?.join(', ')" @input="cb.weaponCategories = $event.target.value.split(',').map(s=>s.trim()).filter(s=>s)">
+                    </div>
+                    <div class="form-group">
+                        <label>Style</label>
+                        <input type="text" v-model="cb.style">
+                    </div>
+
+                    <!-- 眩晕事件 stunEvents -->
+                    <div class="sub-panel">
+                        <h5>
+                            <span>Stun Events (眩晕触发事件)</span>
+                            <button class="btn" style="padding:2px 6px;font-size:12px;" @click="cb._showStunEvents = !cb._showStunEvents">{{ cb._showStunEvents ? '关闭' : '开启' }}</button>
+                        </h5>
+                        <div v-if="cb._showStunEvents">
+                            <div class="tooltip" style="margin-bottom:10px;">当实体处于特定眩晕状态时执行指令</div>
+                            <div v-for="key in ['short', 'long', 'fall', 'knockdown', 'neutralize']" :key="key" style="margin-bottom:8px;">
+                                <div style="display:flex;align-items:center;gap:10px;">
+                                    <label style="width:80px;margin:0;">{{ key }}</label>
+                                    <button class="btn" style="padding:2px 6px;font-size:10px;" @click="addStunEvent(cb, key)">+ 添加指令</button>
+                                </div>
+                                <div v-if="cb.stunEvents && cb.stunEvents[key]" style="margin-top:5px;">
+                                    <div v-for="(ev, eIdx) in cb.stunEvents[key]" :key="eIdx" style="display:flex;gap:5px;margin-bottom:5px;align-items:center;">
+                                        <input type="checkbox" v-model="ev.onTarget" title="是否对目标执行">
+                                        <input type="text" v-model="ev.command" placeholder="/say ...">
+                                        <button class="btn btn-danger" style="padding:2px 6px;font-size:10px;" @click="cb.stunEvents[key].splice(eIdx, 1)">X</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h4>Behavior Roots (根节点) <button class="btn" @click="cb.behaviorRoots.push({rootName:'New Root', priority:1, weight:1, maxCooldown:0, cooldown:0, isGlobal:false, backAfterFinished:false, firstBehaviors:[]})" style="font-size:12px;padding:2px 8px">+</button></h4>
+                    
+                    <div style="margin-bottom: 10px;">
+                        <input type="text" ref="searchInput" v-model="searchBehaviorKeyword" placeholder="🔍 搜索 Root Name 或节点名称 (快捷键 Ctrl+F)..." style="width:100%; padding:8px; border-radius:4px; border:1px solid var(--border);">
+                    </div>
+
+                    <div v-for="(root, rIdx) in cb.behaviorRoots" :key="rIdx" class="array-item behavior-node" v-show="matchSearch(root)">
+                        <button class="btn btn-danger remove-btn" @click="cb.behaviorRoots.splice(rIdx, 1)">X</button>
+                        <div class="form-group">
+                            <label title="[可选] 名字，在非全局模式下可以随意命名，全局模式下不要重名">Root Name</label>
+                            <input type="text" v-model="root.rootName" placeholder="例如: 基础近战组合">
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                            <div class="form-group">
+                                <label title="[可选] 优先级，AI总会选择优先级最高的节点执行（如果冷却完毕且有可用的子行为），默认1">Priority (优先级)</label>
+                                <input type="number" v-model.number="root.priority" placeholder="默认: 1">
+                            </div>
+                            <div class="form-group">
+                                <label title="[可选] 权重，优先级相等时会根据权重随机选择，权重越大概率越高，默认1">Weight (权重)</label>
+                                <input type="number" v-model.number="root.weight" placeholder="默认: 1">
+                            </div>
+                            <div class="form-group">
+                                <label title="[可选] 最大冷却时间，行为执行完毕或被打断时会进入冷却状态，冷却状态下无法被选中，默认0">Max Cooldown (最大冷却 Tick)</label>
+                                <input type="number" v-model.number="root.maxCooldown" placeholder="默认: 0">
+                            </div>
+                            <div class="form-group">
+                                <label title="[可选] 初始冷却，敌人首次启用AI时的冷却时间，仅生效一次，默认0">Cooldown (初始冷却 Tick)</label>
+                                <input type="number" v-model.number="root.cooldown" placeholder="默认: 0">
+                            </div>
+                            <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:8px;">
+                                <label title="[可选] 是否为全局行为，如果该节点是全局行为，那么无法单独执行，需要衔接在其他行为之后"><input type="checkbox" v-model="root.isGlobal"> Global (全局行为)</label>
+                            </div>
+                            <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:8px;" v-if="root.isGlobal">
+                                <label title="[可选] 如果是全局行为，且全局行为在执行完毕后是否返回父节点，如果不返回则所有关联行为全部结束"><input type="checkbox" v-model="root.backAfterFinished"> 返回父节点 (Back After Finished)</label>
+                            </div>
+                        </div>
+                        
+                        <!-- 递归渲染子行为，使用自定义树形组件 -->
+                        <div class="form-group">
+                            <label>First Behaviors (子行为)</label>
+                            <button class="btn" @click="addNode(root.firstBehaviors)" style="font-size:12px;padding:2px 8px;margin-bottom:10px;">添加子行为</button>
+                            <behavior-node v-for="(node, nIdx) in root.firstBehaviors" :key="nIdx" :node="node" @remove="root.firstBehaviors.splice(nIdx, 1)"></behavior-node>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="resizer" id="mainResizer" @mousedown="startDrag" @touchstart="startDrag"></div>
+
+        <!-- 右侧预览 -->
+        <div class="panel preview-panel">
+            <div class="top-bar">
+                <h2>实时 JSON 预览</h2>
+                <button class="btn" @click="copyJSON">复制代码</button>
+            </div>
+            <div class="code-preview" style="height: calc(100vh - 120px); overflow-y: auto;">{{ jsonPreviewText }}</div>
+        </div>
+        
+        <!-- 悬浮窗: 3D 动画预览 -->
+        <div id="floating-3d-window" class="floating-window" style="display: none;">
+            <div id="floating-3d-header" class="floating-header">
+                <span>3D 动画预览</span>
+                <button class="btn btn-secondary" style="padding:2px 6px; font-size:12px; margin-left: auto; cursor: pointer;" onclick="document.getElementById('floating-3d-window').style.display='none'">关闭</button>
+            </div>
+            <div style="padding:10px; background:#fff; display:flex; flex-direction:column; flex:1; height: calc(100% - 40px);">
+                <div style="margin-bottom:10px; display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                    <label style="font-size:13px; font-weight:bold; white-space:nowrap;">武器模型:</label>
+                    <input type="text" class="animation-path-input" style="flex:1;" v-model="previewWeaponModel" placeholder="例如: epicfight:weapon/greatsword">
+                </div>
+                <div id="preview-container" class="preview-container-box" style="flex:1; margin-bottom:0; height: auto;">
+                    <div id="preview-msg" class="preview-overlay">点击动画输入框旁的“预览”按钮加载</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const floatWin = document.getElementById('floating-3d-window');
+            const floatHeader = document.getElementById('floating-3d-header');
+            let isDragging = false;
+            let initialX, initialY;
+
+            const dragStart = (e) => {
+                if (e.target.tagName.toLowerCase() === 'button') return;
+                isDragging = true;
+                initialX = e.touches ? e.touches[0].clientX : e.clientX;
+                initialY = e.touches ? e.touches[0].clientY : e.clientY;
+            };
+
+            const dragMove = (e) => {
+                if (!isDragging) return;
+                if (e.type === 'touchmove') e.preventDefault(); // prevent scrolling
+                const currentX = e.touches ? e.touches[0].clientX : e.clientX;
+                const currentY = e.touches ? e.touches[0].clientY : e.clientY;
+                const dx = currentX - initialX;
+                const dy = currentY - initialY;
+                initialX = currentX;
+                initialY = currentY;
+                
+                const rect = floatWin.getBoundingClientRect();
+                floatWin.style.left = rect.left + dx + 'px';
+                floatWin.style.top = rect.top + dy + 'px';
+                floatWin.style.right = 'auto';
+                floatWin.style.bottom = 'auto';
+            };
+
+            const dragEnd = () => {
+                isDragging = false;
+            };
+
+            floatHeader.addEventListener('mousedown', dragStart);
+            floatHeader.addEventListener('touchstart', dragStart, {passive: false});
+            document.addEventListener('mousemove', dragMove);
+            document.addEventListener('touchmove', dragMove, {passive: false});
+            document.addEventListener('mouseup', dragEnd);
+            document.addEventListener('touchend', dragEnd);
+        });
+
+        const { createApp } = Vue;
+
+        // Make config accessible to components
+        window.appConfig = {};
+
+        function customStringify(obj, indentLevel = 0) {
+            const indent = "\t".repeat(indentLevel);
+            const nextIndent = "\t".repeat(indentLevel + 1);
+
+            if (Array.isArray(obj)) {
+                if (obj.length === 0) return "[]";
+                let allSimple = obj.every(item => typeof item !== 'object' || item === null);
+                if (allSimple) {
+                    return "[" + obj.map(item => JSON.stringify(item)).join(", ") + "]";
+                }
+                let str = "[\n";
+                for (let i = 0; i < obj.length; i++) {
+                    str += nextIndent + customStringify(obj[i], indentLevel + 1);
+                    if (i < obj.length - 1) str += ",";
+                    str += "\n";
+                }
+                str += indent + "]";
+                return str;
+            } else if (typeof obj === 'object' && obj !== null) {
+                const keys = Object.keys(obj);
+                if (keys.length === 0) return "{}";
+                let allSimpleVals = keys.every(key => typeof obj[key] !== 'object' || obj[key] === null || Array.isArray(obj[key]) && obj[key].every(v => typeof v !== 'object'));
+                if (allSimpleVals && keys.length <= 4 && indentLevel > 1) { 
+                    let props = keys.map(key => `"${key}": ${customStringify(obj[key], indentLevel + 1)}`).join(", ");
+                    return `{ ${props} }`;
+                }
+                
+                // 专门针对 conditions 里的 current_angle / health_check / stamina_check 等字段可能略多（但依然希望在一行）的情况
+                if (allSimpleVals && obj.hasOwnProperty("type") && indentLevel > 1) {
+                    let props = keys.map(key => `"${key}": ${customStringify(obj[key], indentLevel + 1)}`).join(", ");
+                    return `{ ${props} }`;
+                }
+                let str = "{\n";
+                for (let i = 0; i < keys.length; i++) {
+                    const key = keys[i];
+                    str += nextIndent + `"${key}": ` + customStringify(obj[key], indentLevel + 1);
+                    if (i < keys.length - 1) str += ",";
+                    str += "\n";
+                }
+                str += indent + "}";
+                return str;
+            } else {
+                return JSON.stringify(obj);
+            }
+        }
+
+        function normalizeAnimationResourcePath(path) {
+            return String(path || '').replace(/\\/g, '/').replace(/^\/+/, '');
+        }
+
+    const fileResourceMap = new Map(); // Global map for File objects
+    function extractAnimationDescriptor(path, fileObj) {
+        const p = normalizeAnimationResourcePath(path);
+        const lowerP = p ? p.toLowerCase() : '';
+        if (!p || (!lowerP.endsWith('.json') && !lowerP.endsWith('.obj') && !lowerP.endsWith('.png') && !lowerP.endsWith('.geo'))) return null;
+
+        const parts = p.split('/').filter(Boolean);
+        
+        let isModel = false;
+        let idx = parts.findIndex((part, i) => part === 'animmodels' && parts[i+1] === 'animations');
+        let off = 2;
+        
+        if (idx === -1) {
+            // 如果不是 animations，我们只要找到 animmodels，那么它下面的所有文件夹（如 entity, weapon, item, obj 等）都算作模型
+            idx = parts.indexOf('animmodels');
+            if (idx !== -1 && idx + 1 < parts.length) {
+                isModel = true;
+                off = 1; // 保留第二级的子文件夹名（例如 entity/biped, weapon/sword）作为前缀
+            } else {
+                // 有些原版或自定义模型可能直接放在 models/item 等目录下，并不在 animmodels 里
+                idx = parts.indexOf('models');
+                if (idx !== -1 && idx + 1 < parts.length) {
+                    isModel = true;
+                    off = 1; 
+                } else {
+                    idx = parts.indexOf('textures');
+                    if (idx !== -1 && idx + 1 < parts.length) {
+                        isModel = true;
+                        off = 1;
+                    } else {
+                        idx = parts.indexOf('geo'); // 支持放在 geo 目录下的文件
+                        if (idx !== -1 && idx + 1 < parts.length) {
+                            isModel = true;
+                            off = 1;
+                        } else {
+                            idx = parts.indexOf('animations');
+                            off = 1;
+                            if (idx === -1) return null;
+                        }
+                    }
+                }
+            }
+        }
+
+        let modId = null;
+        const assetsIndex = parts.indexOf('assets');
+        const dataIndex = parts.indexOf('data');
+        if (assetsIndex !== -1 && assetsIndex + 1 < parts.length) modId = parts[assetsIndex + 1];
+        else if (dataIndex !== -1 && dataIndex + 1 < parts.length) modId = parts[dataIndex + 1];
+        else if (idx > 0) modId = parts[idx - 1];
+
+        // 保留 .obj 后缀以便后续区分解析，去掉 .json 后缀
+        let rel = parts.slice(idx + off).join('/');
+        if (lowerP.endsWith('.json')) {
+            rel = rel.replace(/\.json$/i, '');
+        } else if (lowerP.endsWith('.obj')) {
+            // 保留 obj 后缀，但不做修改，确保 id 生成时包含 .obj
+        } else if (lowerP.endsWith('.png')) {
+            // 对 png 图片，前缀设为 texture 方便区分，但在保存时按 minecraft ID 风格记录
+            rel = rel.replace(/\.png$/i, '');
+        } else if (lowerP.endsWith('.geo')) {
+            // 保留 geo 后缀
+        }
+        
+        if (!modId || !rel) return null;
+        
+        let id = `${modId}:${rel}`;
+        
+        // 修正：强制确保 obj/png/geo 文件生成的 ID 带有后缀
+        if (lowerP.endsWith('.obj') && !id.toLowerCase().endsWith('.obj')) {
+            id += '.obj';
+        } else if (lowerP.endsWith('.png') && !id.toLowerCase().endsWith('.png')) {
+            id += '.png';
+        } else if (lowerP.endsWith('.geo') && !id.toLowerCase().endsWith('.geo')) {
+            id += '.geo';
+        }
+        
+        if (fileObj) fileResourceMap.set(id, fileObj);
+        
+        return { type: isModel ? 'model' : (lowerP.endsWith('.png') ? 'texture' : 'animation'), modId, id };
+    }
+
+        function createAnimationAutocomplete(getAnimOptions, getModelOptions) {
+            const panel = document.createElement('div');
+            panel.className = 'animation-autocomplete-panel';
+            document.body.appendChild(panel);
+
+            const state = {
+                activeInput: null,
+                items: [],
+                selectedIndex: -1
+            };
+
+            function isAnimationInput(target) {
+                return target && target.classList && target.classList.contains('animation-path-input');
+            }
+
+            function isModelInput(target) {
+                return target && target.placeholder && target.placeholder.includes('epicfight:weapon');
+            }
+
+            function escapeHtml(value) {
+                return String(value)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            function escapeRegExp(value) {
+                return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            }
+
+            function highlightMatch(text, keyword) {
+                const safeText = escapeHtml(text);
+                if (!keyword) return safeText;
+
+                const matcher = new RegExp(`(${escapeRegExp(keyword)})`, 'ig');
+                return safeText.replace(matcher, '<span class="animation-autocomplete-highlight">$1</span>');
+            }
+
+            function getMatches(query, isModel) {
+                const source = Array.isArray(isModel ? getModelOptions() : getAnimOptions()) ? (isModel ? getModelOptions() : getAnimOptions()) : [];
+                const keyword = String(query || '').trim().toLowerCase();
+                const options = keyword
+                    ? source.filter(item => item.toLowerCase().includes(keyword))
+                    : source.slice();
+
+                return options
+                    .sort((a, b) => {
+                        const aLower = a.toLowerCase();
+                        const bLower = b.toLowerCase();
+                        const aStarts = keyword && aLower.startsWith(keyword) ? 0 : 1;
+                        const bStarts = keyword && bLower.startsWith(keyword) ? 0 : 1;
+                        if (aStarts !== bStarts) return aStarts - bStarts;
+                        return aLower.localeCompare(bLower);
+                    })
+                    .slice(0, 50);
+            }
+
+            function groupMatches(items) {
+                const groups = new Map();
+
+                items.forEach(item => {
+                    const groupKey = item.includes(':') ? item.split(':')[0] : 'other';
+                    if (!groups.has(groupKey)) {
+                        groups.set(groupKey, []);
+                    }
+                    groups.get(groupKey).push(item);
+                });
+
+                return Array.from(groups.entries())
+                    .sort((a, b) => a[0].localeCompare(b[0]))
+                    .map(([groupName, entries]) => ({ groupName, entries }));
+            }
+
+            function updatePosition() {
+                if (!state.activeInput || panel.style.display === 'none') return;
+
+                const rect = state.activeInput.getBoundingClientRect();
+                panel.style.left = rect.left + 'px';
+                panel.style.top = Math.min(window.innerHeight - 20, rect.bottom + 4) + 'px';
+                panel.style.width = Math.max(rect.width, 320) + 'px';
+            }
+
+            function hide() {
+                panel.style.display = 'none';
+                panel.innerHTML = '';
+                state.items = [];
+                state.selectedIndex = -1;
+            }
+
+            function applySelection(value) {
+                if (!state.activeInput) return;
+                state.activeInput.value = value;
+                state.activeInput.dispatchEvent(new Event('input', { bubbles: true }));
+                hide();
+            }
+
+            function ensureVisible() {
+                const active = panel.querySelector('.animation-autocomplete-item.active');
+                if (active) {
+                    active.scrollIntoView({ block: 'nearest' });
+                }
+            }
+
+            function render() {
+                if (!state.activeInput) {
+                    hide();
+                    return;
+                }
+
+                const isModel = isModelInput(state.activeInput);
+                const source = Array.isArray(isModel ? getModelOptions() : getAnimOptions()) ? (isModel ? getModelOptions() : getAnimOptions()) : [];
+                if (source.length === 0) {
+                    hide();
+                    return;
+                }
+
+                if (state.items.length === 0) {
+                    panel.innerHTML = `<div class="animation-autocomplete-empty">没有匹配的${isModel ? '模型' : '动画'}路径</div>`;
+                    panel.style.display = 'block';
+                    updatePosition();
+                    return;
+                }
+
+                const keyword = String(state.activeInput.value || '').trim();
+                let globalIndex = 0;
+                panel.innerHTML = groupMatches(state.items).map(group => {
+                    const groupItems = group.entries.map(item => {
+                        const activeClass = globalIndex === state.selectedIndex ? ' active' : '';
+                        const html = `
+                            <div class="animation-autocomplete-item${activeClass}" data-index="${globalIndex}" data-value="${escapeHtml(item)}">
+                                <span class="animation-autocomplete-path">${highlightMatch(item, keyword)}</span>
+                            </div>
+                        `;
+                        globalIndex += 1;
+                        return html;
+                    }).join('');
+
+                    return `
+                        <div class="animation-autocomplete-group">
+                            <div class="animation-autocomplete-group-title">${escapeHtml(group.groupName)}</div>
+                            ${groupItems}
+                        </div>
+                    `;
+                }).join('');
+
+                panel.style.display = 'block';
+                updatePosition();
+                ensureVisible();
+            }
+
+            function openForInput(input) {
+                state.activeInput = input;
+                state.items = getMatches(input.value, isModelInput(input));
+                state.selectedIndex = state.items.length > 0 ? 0 : -1;
+                render();
+            }
+
+            function refresh() {
+                if (!state.activeInput || document.activeElement !== state.activeInput) return;
+                state.items = getMatches(state.activeInput.value, isModelInput(state.activeInput));
+                state.selectedIndex = state.items.length > 0 ? Math.min(state.selectedIndex >= 0 ? state.selectedIndex : 0, state.items.length - 1) : -1;
+                render();
+            }
+
+            document.addEventListener('focusin', (event) => {
+                if (!isAnimationInput(event.target)) return;
+                openForInput(event.target);
+            });
+
+            document.addEventListener('input', (event) => {
+                if (!isAnimationInput(event.target)) return;
+                openForInput(event.target);
+            });
+
+            document.addEventListener('keydown', (event) => {
+                if (!isAnimationInput(event.target)) return;
+
+                const input = event.target;
+                const panelVisible = panel.style.display !== 'none';
+
+                if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && !panelVisible) {
+                    openForInput(input);
+                }
+
+                if (event.key === 'ArrowDown') {
+                    if (state.items.length === 0) return;
+                    event.preventDefault();
+                    state.selectedIndex = (state.selectedIndex + 1 + state.items.length) % state.items.length;
+                    render();
+                    return;
+                }
+
+                if (event.key === 'ArrowUp') {
+                    if (state.items.length === 0) return;
+                    event.preventDefault();
+                    state.selectedIndex = (state.selectedIndex - 1 + state.items.length) % state.items.length;
+                    render();
+                    return;
+                }
+
+                if (event.key === 'Enter' || event.key === 'Tab') {
+                    if (panelVisible && state.selectedIndex >= 0 && state.items[state.selectedIndex]) {
+                        event.preventDefault();
+                        applySelection(state.items[state.selectedIndex]);
+                    }
+                    return;
+                }
+
+                if (event.key === 'Escape') {
+                    hide();
+                }
+            });
+
+            panel.addEventListener('mousedown', (event) => {
+                const option = event.target.closest('.animation-autocomplete-item');
+                if (!option) return;
+                event.preventDefault();
+                applySelection(option.dataset.value || '');
+            });
+
+            document.addEventListener('click', (event) => {
+                if (panel.contains(event.target)) return;
+                if (isAnimationInput(event.target)) return;
+                hide();
+            });
+
+            window.addEventListener('resize', updatePosition);
+            window.addEventListener('scroll', updatePosition, true);
+
+            return {
+                refresh,
+                hide
+            };
+        }
+
+        const BehaviorNodeComponent = {
+            name: 'behavior-node',
+            props: ['node'],
+            template: `
+                <div class="tree-node">
+                    <div class="node-header">
+                        <div>
+                            <span :class="['node-type-badge', typeBadgeClass]">{{ nodeType }}</span>
+                            <strong>{{ node.behaviorName || 'Unnamed Behavior' }}</strong>
+                            <button class="btn" @click="toggleExpand" style="font-size:12px;padding:2px 8px;margin-left:10px;">{{ expanded ? '折叠' : '展开' }}</button>
+                        </div>
+                        <button class="btn btn-danger" @click="$emit('remove')" style="font-size:12px;padding:2px 8px;">删除此节点</button>
+                    </div>
+                    
+                    <div v-if="expanded" style="margin-top:10px;">
+                        <div class="form-group" style="display:flex;gap:10px;margin-bottom:15px;align-items:center;background:#f1f5f9;padding:10px;border-radius:4px;">
+                            <label style="margin:0;white-space:nowrap;">行为类型快速切换：</label>
+                            <select :value="nodeType" @change="changeNodeType($event.target.value)" style="width:auto;">
+                                <option value="Animation">动画行为 (Animation)</option>
+                                <option value="Guard">防御行为 (Guard)</option>
+                                <option value="Wander">游荡行为 (Wander)</option>
+                                <option value="GuardWithWander">防御与游荡 (GuardWithWander)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Behavior Name</label>
+                            <input type="text" v-model="node.behaviorName">
+                        </div>
+
+                        <!-- 节点高级属性 (Priority, Weight, etc.) -->
+                        <div class="sub-panel">
+                            <h5>
+                                <span>节点高级属性 (Advanced Properties)</span>
+                                <button class="btn" style="padding:2px 6px;font-size:12px;" @click="toggleAdvanced">{{ hasAdvanced ? '关闭' : '开启' }}</button>
+                            </h5>
+                            <div v-if="hasAdvanced" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                                <div class="form-group" style="margin:0;"><label title="[可选] 优先级，在有多个可用的子节点时，根据优先级选择，默认1">Priority (优先级)</label><input type="number" v-model.number="node.priority" placeholder="默认: 1"></div>
+                                <div class="form-group" style="margin:0;"><label title="[可选] 权重，优先级相等时会根据权重随机选择，权重越大概率越高，默认1">Weight (权重)</label><input type="number" v-model.number="node.weight" placeholder="默认: 1"></div>
+                                <div class="form-group" style="margin:0;"><label title="[可选] 眩晕打断，是否会被眩晕打断整个行为。1会被所有眩晕打断, 2不会被short打断, 3不会被short,long打断, 4不会被short,long,hold打断, 5不会被short,long,hold,fall打断, 6不会被short,long,hold,knockdown打断, 7完全免疫打断">Stop By Stun (眩晕打断级别 1-7)</label><input type="number" min="1" max="7" v-model.number="node.stopByStun" placeholder="默认: 1"></div>
+                                <div class="form-group" style="margin:0;"><label title="[可选] 如果子行为没有可用的行为，会进行等待，等待期间如果有子行为满足则继续执行，否则直接结束">Wait Time (等待子节点 Tick)</label><input type="number" v-model.number="node.waitTime"></div>
+                                <div class="form-group" style="margin:0;"><label title="[可选] 额外增加/减少根节点的冷却时间">Add Cooldown (增减冷却)</label><input type="number" v-model.number="node.addCoolDown"></div>
+                                <div class="form-group" style="margin:0;"><label title="[可选] 直接设置额外的冷却时间（额外冷却时间会在行为结束后，在根节点的冷却计时器上额外增加/减少冷却时间）">Set Cooldown (设置冷却)</label><input type="number" v-model.number="node.setCoolDown"></div>
+                                <div class="form-group" style="margin:0;"><label title="[可选] 修改耐力">Add Stamina (修改耐力)</label><input type="number" step="0.1" v-model.number="node.addStamina"></div>
+                                <div class="form-group" style="margin:0;"><label title="[可选] 设置耐力（修改和设置耐力为0无法使实体播放破防动画，但是可以切换耐力状态）">Set Stamina (设置耐力)</label><input type="number" step="0.1" v-model.number="node.setStamina"></div>
+                                <div class="form-group" style="margin:0;"><label title="[可选] 设置特殊的条件Phase">Add Phase</label><input type="number" v-model.number="node.addPhase"></div>
+                                <div class="form-group" style="margin:0;"><label title="[可选] 设置特殊的条件Phase">Set Phase</label><input type="number" v-model.number="node.setPhase"></div>
+                                <div class="form-group" style="margin:0;"><label title="[可选] 被特殊子行为打断的类型。Level:在实体的Level为对应值时打断; Time:根据动画播放时间打断">Interrupt Type</label>
+                                    <select v-model="node.interruptType">
+                                        <option :value="undefined">无 (None)</option>
+                                        <option value="level">Level</option>
+                                        <option value="time">Time</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin:0;" v-if="node.interruptType">
+                                    <label title="[可选] Level模式下可填任意整数；Time模式下为两个浮点数(表示可打断的时间窗口)">Interrupted Window (逗号分隔)</label>
+                                    <input type="text" :value="node.interruptedWindow?.join(',')" @input="node.interruptedWindow = $event.target.value.split(',').map(s=>parseFloat(s.trim())).filter(n=>!isNaN(n))" placeholder="例如: 2, 3">
+                                </div>
+                                <div class="form-group" style="margin:0;display:flex;align-items:flex-end;">
+                                    <label title="[可选] 是否能打断父行为。若父行为有interruptType且满足打断条件，自身也满足执行条件时，可打断父行为"><input type="checkbox" v-model="node.canInterruptParent"> 可打断父行为</label>
+                                </div>
+                                <div class="form-group" style="margin:0;display:flex;align-items:flex-end;">
+                                    <label title="[可选] 当存在全局行为且该选项为true时，能够将全局行为视作自身的子节点"><input type="checkbox" v-model="node.canInsertGlobalBehavior"> 可插入全局行为</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Conditions (执行条件) -->
+                        <div class="sub-panel">
+                            <h5>
+                                <span>Conditions (执行条件)</span>
+                                <button class="btn" style="padding:2px 6px;font-size:12px;" @click="toggleConditions">{{ hasConditions ? '关闭' : '开启' }}</button>
+                            </h5>
+                            <div v-if="hasConditions">
+                                <button class="btn" style="padding:2px 6px;font-size:10px;margin-bottom:10px;" @click="addCondition">添加条件</button>
+                                <div v-for="(cond, cIdx) in node.conditions" :key="'cond'+cIdx" class="array-item" style="padding:5px 10px;">
+                                    <button class="btn btn-danger remove-btn" style="padding:2px 6px;font-size:10px;" @click="node.conditions.splice(cIdx, 1)">X</button>
+                                    <div class="form-group" style="margin-bottom:5px;">
+                                        <label style="display:inline-block;width:60px;">类型</label>
+                                        <select v-model="cond.type" @change="changeConditionType(cond, $event.target.value)" style="width:calc(100% - 70px);">
+                                            <option value="epicfight:within_distance">范围内 (epicfight:within_distance)</option>
+                                            <option value="combat_evolution:target_in_distance">目标距离 (target_in_distance)</option>
+                                            <option value="combat_evolution:phase_between">Phase 之间 (phase_between)</option>
+                                            <option value="combat_evolution:phase_contain">包含 Phase (phase_contain)</option>
+                                            <option value="combat_evolution:entity_tag">实体标签 (entity_tag)</option>
+                                            <option value="combat_evolution:current_angle">当前角度 (current_angle)</option>
+                                            <option value="combat_evolution:health_check">血量检查 (health_check)</option>
+                                            <option value="combat_evolution:stamina_check">耐力检查 (stamina_check)</option>
+                                            <option value="combat_evolution:attack_level">攻击等级 (attack_level)</option>
+                                            <option value="combat_evolution:attack_level_contain">包含攻击等级 (attack_level_contain)</option>
+                                            <option value="combat_evolution:target_guard_break">目标破防 (target_guard_break)</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <!-- 根据不同条件类型渲染对应的输入项 -->
+                                    <div v-if="cond.type === 'epicfight:within_distance' || cond.type === 'combat_evolution:target_in_distance' || cond.type === 'combat_evolution:phase_between' || cond.type === 'combat_evolution:attack_level'" style="display:flex;gap:10px;">
+                                        <div class="form-group" style="margin-bottom:0;"><label>Min</label><input type="number" step="0.1" v-model.number="cond.min"></div>
+                                        <div class="form-group" style="margin-bottom:0;"><label>Max</label><input type="number" step="0.1" v-model.number="cond.max"></div>
+                                    </div>
+                                    
+                                    <div v-if="cond.type === 'combat_evolution:phase_contain'" class="form-group" style="margin-bottom:0;">
+                                        <label>Phases (逗号分隔)</label>
+                                        <input type="text" :value="cond.phases?.join(',')" @input="cond.phases = $event.target.value.split(',').map(s=>parseInt(s.trim())).filter(n=>!isNaN(n))">
+                                    </div>
+                                    
+                                    <div v-if="cond.type === 'combat_evolution:entity_tag'" class="form-group" style="margin-bottom:0;">
+                                        <label>Tag Name</label>
+                                        <input type="text" v-model="cond.tag">
+                                    </div>
+                                    
+                                    <div v-if="cond.type === 'combat_evolution:current_angle'" style="display:flex;gap:10px;">
+                                        <div class="form-group" style="margin-bottom:0;">
+                                            <label>Side</label>
+                                            <select v-model="cond.side"><option value="left">left</option><option value="right">right</option></select>
+                                        </div>
+                                        <div class="form-group" style="margin-bottom:0;"><label>First</label><input type="number" v-model.number="cond.first"></div>
+                                        <div class="form-group" style="margin-bottom:0;"><label>Second</label><input type="number" v-model.number="cond.second"></div>
+                                    </div>
+                                    
+                                    <div v-if="cond.type === 'combat_evolution:health_check'" style="display:flex;gap:10px;">
+                                        <div class="form-group" style="margin-bottom:0;"><label>Health</label><input type="number" step="0.01" v-model.number="cond.health"></div>
+                                        <div class="form-group" style="margin-bottom:0;">
+                                            <label>Comparator</label>
+                                            <select v-model="cond.comparator">
+                                                <option value="greater_ratio_contain">greater_ratio_contain</option>
+                                                <option value="greater_ratio">greater_ratio</option>
+                                                <option value="greater_absolute_contain">greater_absolute_contain</option>
+                                                <option value="greater_absolute">greater_absolute</option>
+                                                <option value="less_ratio_contain">less_ratio_contain</option>
+                                                <option value="less_ratio">less_ratio</option>
+                                                <option value="less_absolute_contain">less_absolute_contain</option>
+                                                <option value="less_absolute">less_absolute</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div v-if="cond.type === 'combat_evolution:stamina_check'" style="display:flex;gap:10px;">
+                                        <div class="form-group" style="margin-bottom:0;"><label>Stamina</label><input type="number" step="0.01" v-model.number="cond.stamina"></div>
+                                        <div class="form-group" style="margin-bottom:0;">
+                                            <label>Comparator</label>
+                                            <select v-model="cond.comparator">
+                                                <option value="greater_ratio_contain">greater_ratio_contain</option>
+                                                <option value="greater_ratio">greater_ratio</option>
+                                                <option value="greater_absolute_contain">greater_absolute_contain</option>
+                                                <option value="greater_absolute">greater_absolute</option>
+                                                <option value="less_ratio_contain">less_ratio_contain</option>
+                                                <option value="less_ratio">less_ratio</option>
+                                                <option value="less_absolute_contain">less_absolute_contain</option>
+                                                <option value="less_absolute">less_absolute</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div v-if="cond.type === 'combat_evolution:attack_level_contain'" class="form-group" style="margin-bottom:0;">
+                                        <label>Levels (逗号分隔)</label>
+                                        <input type="text" :value="cond.levels?.join(',')" @input="cond.levels = $event.target.value.split(',').map(s=>parseInt(s.trim())).filter(n=>!isNaN(n))">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 动画行为属性 -->
+                        <template v-if="nodeType === 'Animation'">
+                            <div class="form-group">
+                                <label>Animation (动画路径)</label>
+                                <div style="display:flex;gap:4px;">
+                                    <input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="node.animation" placeholder="epicfight:biped/combat/longsword_auto1">
+                                    <button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" title="预览动画" @click="window.playAnimationPreview ? window.playAnimationPreview(window.appConfig.armature, node.animation, previewWeaponModel) : alert('3D预览环境尚未加载完成')">▶</button>
+                                </div>
+                            </div>
+                            
+                            <!-- Animation Params -->
+                            <div class="sub-panel">
+                                <h5>
+                                    <span>动画参数 (Animation Params)</span>
+                                    <button class="btn" style="padding:2px 6px;font-size:12px;" @click="toggleAnimParams">{{ hasAnimParams ? '关闭' : '开启' }}</button>
+                                </h5>
+                                <div v-if="hasAnimParams">
+                                    <div class="form-group">
+                                        <label>Play Speed (播放速度)</label>
+                                        <input type="number" step="0.1" v-model.number="node.animationParams.playSpeed">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Transition Time (过渡时间)</label>
+                                        <input type="number" step="0.05" v-model.number="node.animationParams.transitionTime">
+                                    </div>
+                                    
+                                    <h6>Phase Params (段数属性修改) <button class="btn" style="padding:2px 6px;font-size:10px;" @click="addPhaseParam">+</button></h6>
+                                    <div v-for="(phase, pIdx) in node.animationParams.phaseParams" :key="pIdx" class="array-item">
+                                        <button class="btn btn-danger remove-btn" style="padding:2px 6px;font-size:10px;" @click="node.animationParams.phaseParams.splice(pIdx, 1)">X</button>
+                                        <div class="form-group">
+                                            <label>Phase (段数, -1为全部)</label>
+                                            <input type="number" v-model.number="phase.phase">
+                                        </div>
+                                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                                            <div class="form-group">
+                                                <label>Damage 倍率</label>
+                                                <input type="number" step="0.1" v-model.number="phase.damageMultiplier">
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Impact 倍率</label>
+                                                <input type="number" step="0.1" v-model.number="phase.impactMultiplier">
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Armor Negation</label>
+                                                <input type="number" step="0.1" v-model.number="phase.armorNegationMultiplier">
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Stun Type</label>
+                                                <input type="text" v-model="phase.stunType" placeholder="default">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 指令与事件 -->
+                            <div class="sub-panel">
+                                <h5>指令与额外事件 (Events)</h5>
+                                <div class="form-group">
+                                    <label>ExBehavior (行为开始额外指令) <button class="btn" style="padding:2px 6px;font-size:10px;" @click="addEvent('exBehavior')">+</button></label>
+                                    <div v-for="(ex, idx) in node.exBehavior" :key="'ex'+idx" style="display:flex;gap:5px;margin-bottom:5px;">
+                                        <input type="checkbox" v-model="ex.onTarget" title="是否对目标执行">
+                                        <input type="text" v-model="ex.command" placeholder="/say ...">
+                                        <button class="btn btn-danger" style="padding:2px 6px;font-size:10px;" @click="node.exBehavior.splice(idx,1)">X</button>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>TimeEvents (时间戳事件) <button class="btn" style="padding:2px 6px;font-size:10px;" @click="addEvent('timeEvents')">+</button></label>
+                                    <div v-for="(te, idx) in node.timeEvents" :key="'te'+idx" style="display:flex;gap:5px;margin-bottom:5px;align-items:center;">
+                                        <select v-model="te.type" style="width:90px;"><option value="tick">Tick</option><option value="in_time">In Time</option><option value="between_times">Between</option></select>
+                                        <input v-if="te.type !== 'tick'" type="number" step="0.05" v-model.number="te.timeStart" placeholder="Start" style="width:60px;">
+                                        <input v-if="te.type === 'between_times'" type="number" step="0.05" v-model.number="te.timeEnd" placeholder="End" style="width:60px;">
+                                        <input type="checkbox" v-model="te.onTarget" title="对目标">
+                                        <input type="text" v-model="te.command" placeholder="/say ...">
+                                        <button class="btn btn-danger" style="padding:2px 6px;font-size:10px;" @click="node.timeEvents.splice(idx,1)">X</button>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>HitEvents (命中事件) <button class="btn" style="padding:2px 6px;font-size:10px;" @click="addEvent('hitEvents')">+</button></label>
+                                    <div v-for="(he, idx) in node.hitEvents" :key="'he'+idx" style="display:flex;gap:5px;margin-bottom:5px;align-items:center;">
+                                        <select v-model="he.type" style="width:80px;"><option value="success">Success</option><option value="blocked">Blocked</option><option value="missed">Missed</option></select>
+                                        <input type="number" v-model.number="he.phase" placeholder="Phase" style="width:50px;">
+                                        <input type="checkbox" v-model="he.onTarget" title="对目标">
+                                        <input type="text" v-model="he.command" placeholder="/say ...">
+                                        <button class="btn btn-danger" style="padding:2px 6px;font-size:10px;" @click="node.hitEvents.splice(idx,1)">X</button>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>BlockedEvents (攻击被格挡事件) <button class="btn" style="padding:2px 6px;font-size:10px;" @click="addEvent('blockedEvents')">+</button></label>
+                                    <div v-for="(be, idx) in node.blockedEvents" :key="'be'+idx" style="display:flex;gap:5px;margin-bottom:5px;align-items:center;">
+                                        <input type="checkbox" v-model="be.parried" title="是否招架(Parried)">
+                                        <input type="number" v-model.number="be.phase" placeholder="Phase" style="width:50px;">
+                                        <input type="checkbox" v-model="be.onTarget" title="对目标">
+                                        <input type="text" v-model="be.command" placeholder="/say ...">
+                                        <button class="btn btn-danger" style="padding:2px 6px;font-size:10px;" @click="node.blockedEvents.splice(idx,1)">X</button>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>OnHurtEvent (行为内受击事件) <button v-if="!node.onHurtEvent" class="btn" style="padding:2px 6px;font-size:10px;" @click="addEvent('onHurtEvent')">+</button></label>
+                                    <div v-if="node.onHurtEvent" style="display:flex;gap:5px;margin-bottom:5px;align-items:center;">
+                                        <select v-model="node.onHurtEvent.returnResult" style="width:90px;"><option value="default">Default</option><option value="success">Success</option><option value="blocked">Blocked</option><option value="missed">Missed</option></select>
+                                        <input type="number" step="0.1" v-model.number="node.onHurtEvent.damage" placeholder="Damage" style="width:60px;" title="伤害(-1为原伤害)">
+                                        <input type="checkbox" v-model="node.onHurtEvent.onTarget" title="对目标">
+                                        <input type="text" v-model="node.onHurtEvent.command" placeholder="/say ...">
+                                        <button class="btn btn-danger" style="padding:2px 6px;font-size:10px;" @click="node.onHurtEvent = undefined">X</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- 防御行为属性 -->
+                        <template v-if="nodeType === 'Guard'">
+                            <div class="form-group">
+                                <label>Guard Time (防御时长 Tick)</label>
+                                <input type="number" v-model.number="node.guardTime">
+                            </div>
+                            <div class="form-group">
+                                <label><input type="checkbox" v-model="node.resetGuardTime"> Reset Guard Time (重置防御时间)</label>
+                            </div>
+                            <div class="form-group">
+                                <label>Counter Animation (反击动画)</label>
+                                <div style="display:flex;gap:4px;">
+                                    <input type="text" class="animation-path-input" v-model="node.counterAnimation" autocomplete="off" spellcheck="false" placeholder="例如: combat_evolution:biped/skill/shield_counter/shield_counter">
+                                    <button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" title="预览动画" @click="window.playAnimationPreview ? window.playAnimationPreview(window.appConfig.armature, node.counterAnimation, previewWeaponModel) : alert('3D预览环境尚未加载完成')">▶</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Counter Type (反击类型 random/end/never)</label>
+                                <select v-model="node.counterType">
+                                    <option value="random">Random</option>
+                                    <option value="end">End</option>
+                                    <option value="never">Never</option>
+                                </select>
+                            </div>
+                            <div class="form-group" v-if="node.counterType === 'random'">
+                                <label>Counter Chance (反击概率 0.0-1.0)</label>
+                                <input type="number" step="0.01" v-model.number="node.counterChance">
+                            </div>
+                            <div class="form-group" v-if="node.counterType === 'end'">
+                                <label>Max Guard Hit (最大防御受击次数)</label>
+                                <input type="number" v-model.number="node.maxGuardHit">
+                            </div>
+                            
+                            <div class="sub-panel">
+                                <h5>防御指令与事件 (Guard Events)</h5>
+                                <div class="form-group">
+                                    <label>OnGuardHit (每次防御受击指令) <button class="btn" style="padding:2px 6px;font-size:10px;" @click="addEvent('onGuardHit')">+</button></label>
+                                    <div v-for="(gh, idx) in node.onGuardHit" :key="'gh'+idx" style="display:flex;gap:5px;margin-bottom:5px;">
+                                        <input type="checkbox" v-model="gh.onTarget" title="对目标">
+                                        <input type="text" v-model="gh.command" placeholder="/say ...">
+                                        <button class="btn btn-danger" style="padding:2px 6px;font-size:10px;" @click="node.onGuardHit.splice(idx,1)">X</button>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>BeforeCounter (反击前最后一次防御) <button v-if="!node.beforeCounter" class="btn" style="padding:2px 6px;font-size:10px;" @click="addEvent('beforeCounter')">+</button></label>
+                                    <div v-if="node.beforeCounter" style="display:flex;gap:5px;margin-bottom:5px;">
+                                        <input type="checkbox" v-model="node.beforeCounter.cancelHitAnimation" title="取消受击动画">
+                                        <input type="checkbox" v-model="node.beforeCounter.onTarget" title="对目标">
+                                        <input type="text" v-model="node.beforeCounter.command" placeholder="/say ...">
+                                        <button class="btn btn-danger" style="padding:2px 6px;font-size:10px;" @click="node.beforeCounter = undefined">X</button>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>OnCounterStart (反击开始指令) <button class="btn" style="padding:2px 6px;font-size:10px;" @click="addEvent('onCounterStart')">+</button></label>
+                                    <div v-for="(ocs, idx) in node.onCounterStart" :key="'ocs'+idx" style="display:flex;gap:5px;margin-bottom:5px;">
+                                        <input type="checkbox" v-model="ocs.onTarget" title="对目标">
+                                        <input type="text" v-model="ocs.command" placeholder="/say ...">
+                                        <button class="btn btn-danger" style="padding:2px 6px;font-size:10px;" @click="node.onCounterStart.splice(idx,1)">X</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- 游荡行为属性 -->
+                        <template v-if="nodeType === 'Wander'">
+                            <div class="form-group">
+                                <label>Wander Time (游荡时长 Tick)</label>
+                                <input type="number" v-model.number="node.wanderTime">
+                            </div>
+                            <div class="form-group">
+                                <label>Forward (前后位移)</label>
+                                <input type="number" step="0.1" v-model.number="node.forward">
+                            </div>
+                            <div class="form-group">
+                                <label>Strafe (左右位移)</label>
+                                <input type="number" step="0.1" v-model.number="node.strafe">
+                            </div>
+                        </template>
+
+                        <!-- 防御与游荡属性 -->
+                        <template v-if="nodeType === 'GuardWithWander'">
+                            <div class="form-group">
+                                <label>Guard With Wander (时长 Tick)</label>
+                                <input type="number" v-model.number="node.guardWithWander">
+                            </div>
+                            <div class="form-group">
+                                <label><input type="checkbox" v-model="node.guardAnimation"> Guard Animation (播放防御动画)</label>
+                            </div>
+                            <div class="form-group">
+                                <label>Forward (前后位移)</label>
+                                <input type="number" step="0.1" v-model.number="node.forward">
+                            </div>
+                            <div class="form-group">
+                                <label>Strafe (左右位移)</label>
+                                <input type="number" step="0.1" v-model.number="node.strafe">
+                            </div>
+                            <div class="form-group">
+                                <label>Counter Animation (反击动画)</label>
+                                <div style="display:flex;gap:4px;">
+                                    <input type="text" class="animation-path-input" v-model="node.counterAnimation" autocomplete="off" spellcheck="false" placeholder="例如: epicfight:biped/combat/tachi_auto3">
+                                    <button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" title="预览动画" @click="window.playAnimationPreview ? window.playAnimationPreview(window.appConfig.armature, node.counterAnimation, previewWeaponModel) : alert('3D预览环境尚未加载完成')">▶</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Counter Type (反击类型 random/end/never)</label>
+                                <select v-model="node.counterType">
+                                    <option value="random">Random</option>
+                                    <option value="end">End</option>
+                                    <option value="never">Never</option>
+                                </select>
+                            </div>
+                            <div class="form-group" v-if="node.counterType === 'random'">
+                                <label>Counter Chance (反击概率 0.0-1.0)</label>
+                                <input type="number" step="0.01" v-model.number="node.counterChance">
+                            </div>
+                        </template>
+
+                        <hr style="border:0;border-top:1px solid #e2e8f0;margin:15px 0;">
+
+                        <div class="form-group">
+                            <label>Next Behaviors (后继子行为)</label>
+                            <button class="btn" @click="addChild" style="font-size:12px;padding:2px 8px;margin-bottom:10px;">添加后继行为</button>
+                            <div class="tree-node-children" v-if="node.nextBehaviors && node.nextBehaviors.length > 0">
+                                <behavior-node 
+                                    v-for="(child, idx) in node.nextBehaviors" 
+                                    :key="idx" 
+                                    :node="child"
+                                    @remove="node.nextBehaviors.splice(idx, 1)">
+                                </behavior-node>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `,
+            data() {
+                return {
+                    expanded: false,
+                    hasAnimParams: false,
+                    hasConditions: false,
+                    hasAdvanced: false
+                }
+            },
+            computed: {
+                nodeType() {
+                    if ('guardWithWander' in this.node) return 'GuardWithWander';
+                    if ('wanderTime' in this.node) return 'Wander';
+                    if ('guardTime' in this.node) return 'Guard';
+                    if ('animation' in this.node) return 'Animation';
+                    return 'Animation'; // 默认回退
+                },
+                typeBadgeClass() {
+                    switch(this.nodeType) {
+                        case 'Animation': return 'type-animation';
+                        case 'Guard': return 'type-guard';
+                        case 'Wander': return 'type-wander';
+                        case 'GuardWithWander': return 'type-guard-wander';
+                        default: return 'type-unknown';
+                    }
+                }
+            },
+            mounted() {
+                if (this.node.animationParams) {
+                    this.hasAnimParams = true;
+                }
+                if (this.node.conditions && this.node.conditions.length > 0) {
+                    this.hasConditions = true;
+                }
+            },
+            methods: {
+                toggleExpand() {
+                    this.expanded = !this.expanded;
+                },
+                toggleAdvanced() {
+                    this.hasAdvanced = !this.hasAdvanced;
+                },
+                addChild() {
+                    if (!this.node.nextBehaviors) {
+                        this.node.nextBehaviors = [];
+                    }
+                    this.node.nextBehaviors.push({
+                        behaviorName: "New Child Behavior",
+                        animation: "epicfight:biped/combat/longsword_auto2"
+                    });
+                    this.expanded = true;
+                },
+                changeNodeType(newType) {
+                    // 清理旧类型特有的属性
+                    delete this.node.animation;
+                    delete this.node.animationParams;
+                    delete this.node.exBehavior;
+                    delete this.node.hitEvents;
+                    delete this.node.guardTime;
+                    delete this.node.wanderTime;
+                    delete this.node.guardWithWander;
+                    delete this.node.counterChance;
+                    
+                    // 根据新类型赋予默认属性
+                    if (newType === 'Animation') {
+                        this.node.animation = "epicfight:biped/combat/longsword_auto1";
+                    } else if (newType === 'Guard') {
+                        this.node.guardTime = 60;
+                        this.node.counterAnimation = "combat_evolution:biped/skill/shield_counter/shield_counter";
+                        this.node.counterType = "random";
+                    } else if (newType === 'Wander') {
+                        this.node.wanderTime = 60;
+                        this.node.forward = 0.25;
+                        this.node.strafe = 1;
+                    } else if (newType === 'GuardWithWander') {
+                        this.node.guardWithWander = 100;
+                        this.node.counterAnimation = "epicfight:biped/combat/tachi_auto3";
+                        this.node.counterType = "random";
+                        this.node.counterChance = 0.15;
+                    }
+                },
+                toggleConditions() {
+                    this.hasConditions = !this.hasConditions;
+                    if (this.hasConditions && !this.node.conditions) {
+                        this.node.conditions = [];
+                    }
+                },
+                addCondition() {
+                    if (!this.node.conditions) this.node.conditions = [];
+                    this.node.conditions.push({ type: "epicfight:within_distance", min: 0, max: 4 });
+                },
+                changeConditionType(cond, newType) {
+                    // 清理旧属性
+                    delete cond.min; delete cond.max; delete cond.phases; delete cond.tag; delete cond.side; delete cond.first; delete cond.second; delete cond.health; delete cond.stamina; delete cond.comparator; delete cond.levels;
+                    
+                    // 设置新默认值
+                    if (newType.includes("distance") || newType === "combat_evolution:phase_between" || newType === "combat_evolution:attack_level") {
+                        cond.min = 0; cond.max = 4;
+                    } else if (newType === "combat_evolution:phase_contain") {
+                        cond.phases = [0, 1, 2];
+                    } else if (newType === "combat_evolution:entity_tag") {
+                        cond.tag = "tagName";
+                    } else if (newType === "combat_evolution:current_angle") {
+                        cond.side = "left"; cond.first = 0; cond.second = 180;
+                    } else if (newType === "combat_evolution:health_check") {
+                        cond.health = 0.75; cond.comparator = "greater_ratio_contain";
+                    } else if (newType === "combat_evolution:stamina_check") {
+                        cond.stamina = 0.75; cond.comparator = "greater_ratio_contain";
+                    } else if (newType === "combat_evolution:attack_level_contain") {
+                        cond.levels = [1, 2];
+                    }
+                },
+                toggleAnimParams() {
+                    this.hasAnimParams = !this.hasAnimParams;
+                    if (this.hasAnimParams && !this.node.animationParams) {
+                        this.node.animationParams = { playSpeed: 1.0, transitionTime: 0.1, phaseParams: [] };
+                    }
+                },
+                addPhaseParam() {
+                    if (!this.node.animationParams.phaseParams) this.node.animationParams.phaseParams = [];
+                    this.node.animationParams.phaseParams.push({ phase: 0, damageMultiplier: 1.0, impactMultiplier: 1.0, armorNegationMultiplier: 1.0, stunType: "default" });
+                },
+                addEvent(type) {
+                    if (!this.node[type]) {
+                        this.node[type] = [];
+                    }
+                    if (type === 'hitEvents') {
+                        this.node[type].push({ type: 'success', phase: -1, onTarget: false, command: '' });
+                    } else if (type === 'blockedEvents') {
+                        this.node[type].push({ parried: false, phase: -1, onTarget: false, command: '' });
+                    } else if (type === 'timeEvents') {
+                        this.node[type].push({ type: 'tick', onTarget: false, command: '' });
+                    } else if (type === 'onHurtEvent') {
+                        this.node[type] = { returnResult: 'default', damage: -1, onTarget: false, command: '' };
+                    } else if (type === 'beforeCounter') {
+                        this.node[type] = { cancelHitAnimation: false, onTarget: false, command: '' };
+                    } else {
+                        this.node[type].push({ onTarget: false, command: '' });
+                    }
+                }
+            }
+        };
+
+        function getDefaultConfig() {
+            return {
+                faction: "neutral",
+                renderer: "player",
+                model: "player",
+                armature: "epicfight:entity/biped",
+                humanoid: true,
+                chasingSpeed: 1.25,
+                scale: 1.0,
+                breakTime: 40,
+                recoverTime: 60,
+                staminaRegenDelay: 60,
+                beParriedDamage: 1,
+                guardHitImpact: 1,
+                hurtImpact: 0.35,
+                ceBossBar: {
+                    enableBossBar: true,
+                    bossBarName: "Zombie Boss",
+                    bossBarTextures: "combat_evolution:textures/gui/bossbar/ce_boss_bar.png"
+                },
+                ceBossMusic: {
+                    playBGM: true,
+                    bgm: "combat_evolution:music.test_bgm",
+                    loop: true,
+                    duration: 3500,
+                    volume: 1,
+                    fadeIn: 40,
+                    fadeOut: 40
+                },
+                attributes: [
+                    { attribute: "minecraft:generic.attack_damage", value: 10.0 },
+                    { attribute: "epicfight:staminar", value: 30 },
+                    { attribute: "epicfight:stamina_regen", value: 1 }
+                ],
+                weaponLivingMotions: [],
+                guardHitAnimation: [],
+                stunAnimations: {
+                    short: "epicfight:biped/combat/hit_short",
+                    long: "epicfight:biped/combat/hit_long",
+                    hold: "epicfight:biped/combat/hit_short",
+                    fall: "epicfight:biped/living/landing",
+                    knockdown: "epicfight:biped/combat/knockdown",
+                    neutralize: "epicfight:biped/skill/guard_break1"
+                },
+                combatBehaviors: [
+                    {
+                        weaponCategories: ["sword", "longsword"],
+                        style: "common",
+                        stunEvents: {},
+                        behaviorRoots: [
+                            {
+                                rootName: "Default Root",
+                                priority: 1,
+                                weight: 10,
+                                firstBehaviors: [
+                                    {
+                                        behaviorName: "Attack",
+                                        animation: "epicfight:biped/combat/longsword_auto1"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            };
+        }
+
+        function deepEqual(a, b) {
+            if (a === b) return true;
+            if (a == null || typeof a !== "object" || b == null || typeof b !== "object") return false;
+            
+            let keysA = Object.keys(a), keysB = Object.keys(b);
+            if (keysA.length !== keysB.length) return false;
+            
+            for (let key of keysA) {
+                if (!keysB.includes(key)) return false;
+                if (!deepEqual(a[key], b[key])) return false;
+            }
+            return true;
+        }
+
+        function getModifiedConfig(current, defaultCfg) {
+            let diff = {};
+            for (let key in current) {
+                if (key === 'combatBehaviors' || key === 'attributes' || key === 'weaponLivingMotions' || key === 'guardHitAnimation') {
+                    // For main arrays, if they changed, just output the whole array
+                    if (!deepEqual(current[key], defaultCfg[key])) {
+                        diff[key] = current[key];
+                    }
+                } else if (typeof current[key] === 'object' && current[key] !== null && !Array.isArray(current[key])) {
+                    if (!deepEqual(current[key], defaultCfg[key])) {
+                        diff[key] = current[key]; // output the whole nested object (like stunAnimations, ceBossBar)
+                    }
+                } else {
+                    if (current[key] !== defaultCfg[key]) {
+                        diff[key] = current[key];
+                    }
+                }
+            }
+            return diff;
+        }
+
+        let animationAutocompleteController = null;
+
+        const app = createApp({
+            data() {
+                let savedConfig = null;
+                try {
+                    const savedStr = localStorage.getItem('ce_autosave_config');
+                    if (savedStr) savedConfig = JSON.parse(savedStr);
+                } catch (e) { console.warn("Failed to load autosave config", e); }
+                
+                return {
+                    isDarkMode: localStorage.getItem('ce_theme') === 'dark',
+                    collapsedSections: {},
+                    leftWidth: 50,
+                    isDragging: false,
+                    hasBossBar: savedConfig ? !!savedConfig.ceBossBar : true,
+                    hasBossMusic: savedConfig ? !!savedConfig.ceBossMusic : true,
+                    availableAnimations: [],
+                    availableModels: [],
+                    loadedAnimationMods: [],
+                    animationImportBatches: 0,
+                    animationSourceFileCount: 0,
+                    matchedAnimationFileCount: 0,
+                    previewWeaponModel: '',
+                    jsonPreviewText: '',
+                    searchBehaviorKeyword: '',
+                    config: savedConfig || getDefaultConfig()
+                }
+            },
+            computed: {
+                animationLibrarySummary() {
+                    if (this.availableAnimations.length === 0) {
+                        return '尚未导入动画资源索引。';
+                    }
+
+                    return `已索引 ${this.availableAnimations.length} 个动画，来自 ${this.loadedAnimationMods.length} 个命名空间，累计导入 ${this.animationImportBatches} 次，扫描 ${this.animationSourceFileCount} 个文件并命中 ${this.matchedAnimationFileCount} 个动画 JSON。`;
+                }
+            },
+            watch: {
+                config: {
+                    handler(val) {
+                        window.appConfig = val;
+                        try {
+                            localStorage.setItem('ce_autosave_config', JSON.stringify(val));
+                        } catch(e) { console.warn("Failed to autosave", e); }
+                        
+                        if (this.debouncedUpdateJSON) {
+                            this.debouncedUpdateJSON();
+                        } else {
+                            this.updateJSONPreview();
+                        }
+                    },
+                    deep: true,
+                    immediate: true
+                },
+                hasBossBar() {
+                    if (this.debouncedUpdateJSON) this.debouncedUpdateJSON();
+                },
+                hasBossMusic() {
+                    if (this.debouncedUpdateJSON) this.debouncedUpdateJSON();
+                }
+            },
+            created() {
+                // simple debounce implementation
+                let timeout = null;
+                this.debouncedUpdateJSON = () => {
+                    if (timeout) clearTimeout(timeout);
+                    timeout = setTimeout(() => {
+                        this.updateJSONPreview();
+                    }, 300);
+                };
+            },
+            methods: {
+                toggleSection(sectionName) {
+                    this.collapsedSections[sectionName] = !this.collapsedSections[sectionName];
+                },
+                toggleTheme() {
+                    this.isDarkMode = !this.isDarkMode;
+                    if (this.isDarkMode) {
+                        document.body.classList.add('dark-mode');
+                        localStorage.setItem('ce_theme', 'dark');
+                    } else {
+                        document.body.classList.remove('dark-mode');
+                        localStorage.setItem('ce_theme', 'light');
+                    }
+                },
+                startDrag(e) {
+                    e.preventDefault();
+                    this.isDragging = true;
+                    document.body.style.cursor = 'col-resize';
+                    document.body.style.userSelect = 'none';
+                    
+                    // Bind methods to 'this'
+                    this.boundOnDrag = this.onDrag.bind(this);
+                    this.boundStopDrag = this.stopDrag.bind(this);
+                    
+                    document.addEventListener('mousemove', this.boundOnDrag);
+                    document.addEventListener('mouseup', this.boundStopDrag);
+                },
+                onDrag(e) {
+                    if (!this.isDragging) return;
+                    const container = document.getElementById('app');
+                    const rect = container.getBoundingClientRect();
+                    let newPct = ((e.clientX - rect.left) / rect.width) * 100;
+                    if (newPct < 20) newPct = 20;
+                    if (newPct > 80) newPct = 80;
+                    this.leftWidth = newPct;
+                },
+                stopDrag() {
+                    this.isDragging = false;
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+                    document.removeEventListener('mousemove', this.boundOnDrag);
+                    document.removeEventListener('mouseup', this.boundStopDrag);
+                },
+                handleKeydown(e) {
+                    if (e.ctrlKey && e.key.toLowerCase() === 's') {
+                        e.preventDefault();
+                        this.exportJSON();
+                    } else if (e.ctrlKey && e.key.toLowerCase() === 'f') {
+                        e.preventDefault();
+                        if (this.$refs.searchInput) this.$refs.searchInput.focus();
+                    }
+                },
+                matchSearch(root) {
+                    if (!this.searchBehaviorKeyword) return true;
+                    const kw = this.searchBehaviorKeyword.toLowerCase();
+                    if (root.rootName && root.rootName.toLowerCase().includes(kw)) return true;
+                    
+                    // Recursive search for behaviorName inside tree
+                    let found = false;
+                    function searchNodes(nodes) {
+                        if (!nodes || found) return;
+                        for (let node of nodes) {
+                            if (node.behaviorName && node.behaviorName.toLowerCase().includes(kw)) {
+                                found = true;
+                                return;
+                            }
+                            if (node.children) searchNodes(node.children);
+                        }
+                    }
+                    searchNodes(root.firstBehaviors);
+                    return found;
+                },
+                updateJSONPreview() {
+                    let out = JSON.parse(JSON.stringify(this.config));
+                    let defaultCfg = getDefaultConfig();
+                    
+                    if (!this.hasBossBar) delete out.ceBossBar;
+                    if (!this.hasBossMusic) delete out.ceBossMusic;
+                    
+                    if (out.combatBehaviors) {
+                        out.combatBehaviors.forEach(cb => {
+                            if (cb.behaviorRoots) {
+                                cb.behaviorRoots.forEach(root => {
+                                    if(!root.firstBehaviors) root.firstBehaviors = [];
+                                });
+                            }
+                        });
+                    }
+
+                    if(out.weaponLivingMotions && out.weaponLivingMotions.length === 0) delete out.weaponLivingMotions;
+                    if(out.guardHitAnimation && out.guardHitAnimation.length === 0) delete out.guardHitAnimation;
+
+                    // 只把 combatBehaviors 进行深度过滤
+                    if (out.combatBehaviors) {
+                        let diffCB = getModifiedConfig({ combatBehaviors: out.combatBehaviors }, { combatBehaviors: defaultCfg.combatBehaviors });
+                        if (diffCB.combatBehaviors) {
+                            out.combatBehaviors = diffCB.combatBehaviors;
+                        } else {
+                            delete out.combatBehaviors;
+                        }
+                    }
+
+                    this.jsonPreviewText = customStringify(out);
+                },
+                addNode(list) {
+                    if(!list) return;
+                    list.push({
+                        behaviorName: "New Behavior",
+                        animation: "epicfight:biped/combat/longsword_auto1"
+                    });
+                },
+                addAttribute() {
+                    this.config.attributes.push({ attribute: "minecraft:generic.max_health", value: 20 });
+                },
+                addBehavior() {
+                    this.config.combatBehaviors.push({
+                        weaponCategories: ["sword"],
+                        style: "common",
+                        behaviorRoots: []
+                    });
+                },
+                addWeaponLivingMotion() {
+                    if (!this.config.weaponLivingMotions) this.config.weaponLivingMotions = [];
+                    this.config.weaponLivingMotions.push({
+                        weaponCategories: ["longsword"],
+                        style: "common",
+                        livingMotions: {
+                            idle: "epicfight:biped/living/hold_longsword",
+                            walk: "epicfight:biped/living/walk_longsword",
+                            run: "epicfight:biped/living/run_longsword",
+                            chase: "epicfight:biped/living/run_longsword",
+                            death: "epicfight:biped/living/death",
+                            block: "epicfight:biped/skill/guard_longsword"
+                        }
+                    });
+                },
+                addGuardHitAnimation() {
+                    if (!this.config.guardHitAnimation) this.config.guardHitAnimation = [];
+                    this.config.guardHitAnimation.push({
+                        weaponCategories: ["longsword"],
+                        style: "common",
+                        animations: [
+                            "epicfight:biped/skill/guard_longsword_hit_active1",
+                            "epicfight:biped/skill/guard_longsword_hit_active2"
+                        ]
+                    });
+                },
+                addStringItem(list) {
+                    if (!Array.isArray(list)) return;
+                    list.push('');
+                },
+                removeStringItem(list, index) {
+                    if (!Array.isArray(list)) return;
+                    list.splice(index, 1);
+                },
+                updateFirstBehaviors(root, val) {
+                    root.firstBehaviorsJSON = val;
+                },
+                clearAnimationLibrary() {
+                    this.availableAnimations = [];
+                    this.availableModels = [];
+                    this.loadedAnimationMods = [];
+                    this.animationImportBatches = 0;
+                    this.animationSourceFileCount = 0;
+                    this.matchedAnimationFileCount = 0;
+                    fileResourceMap.clear();
+                    if (animationAutocompleteController) animationAutocompleteController.refresh();
+                },
+                collectAnimationResources(files) {
+                    const animationSet = new Set();
+                    const modelSet = new Set();
+                    const modCounts = new Map();
+                    let matchedFileCount = 0;
+
+                    files.forEach(file => {
+                        const descriptor = extractAnimationDescriptor(file.webkitRelativePath || file.name, file);
+                        if (!descriptor) return;
+
+                        if (descriptor.type === 'animation') {
+                            matchedFileCount += 1;
+                            animationSet.add(descriptor.id);
+                            modCounts.set(descriptor.modId, (modCounts.get(descriptor.modId) || 0) + 1);
+                        } else if (descriptor.type === 'model') {
+                            matchedFileCount += 1;
+                            modelSet.add(descriptor.id);
+                            modCounts.set(descriptor.modId, (modCounts.get(descriptor.modId) || 0) + 1);
+                        }
+                    });
+
+                    return {
+                        animations: Array.from(animationSet).sort(),
+                        models: Array.from(modelSet).sort(),
+                        modCounts: Array.from(modCounts.entries())
+                            .map(([modId, count]) => ({ modId, count }))
+                            .sort((a, b) => a.modId.localeCompare(b.modId)),
+                        matchedFileCount
+                    };
+                },
+                mergeLoadedAnimationMods(nextMods) {
+                    const merged = new Map(this.loadedAnimationMods.map(item => [item.modId, item.count]));
+
+                    nextMods.forEach(item => {
+                        merged.set(item.modId, (merged.get(item.modId) || 0) + item.count);
+                    });
+
+                    this.loadedAnimationMods = Array.from(merged.entries())
+                        .map(([modId, count]) => ({ modId, count }))
+                        .sort((a, b) => a.modId.localeCompare(b.modId));
+                },
+                previewAnimation(animationId) {
+                    if (!window.playAnimationPreview) return;
+                    window.playAnimationPreview(this.config.armature, animationId, this.previewWeaponModel);
+                },
+                copyJSON() {
+                    navigator.clipboard.writeText(this.jsonPreviewText).then(() => {
+                        alert("已复制到剪贴板！");
+                    });
+                },
+                exportJSON() {
+                    let filename = prompt("请输入导出的文件名称:", "ce_mobpatch.json");
+                    if (filename === null) return; // User cancelled
+                    if (!filename.trim().toLowerCase().endsWith('.json')) {
+                        filename = filename.trim() + '.json';
+                    }
+
+                    const blob = new Blob([this.jsonPreviewText], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                },
+                importJSON(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const imported = JSON.parse(e.target.result);
+                            
+                            // 清除将导入转 JSON 字符串的代码
+                            if (imported.combatBehaviors) {
+                                imported.combatBehaviors.forEach(cb => {
+                                    if (cb.behaviorRoots) {
+                                        cb.behaviorRoots.forEach(root => {
+                                            if(!root.firstBehaviors) root.firstBehaviors = [];
+                                        });
+                                    }
+                                });
+                            }
+                            
+                            // 合并数据
+                            let baseConfig = getDefaultConfig();
+                            this.config = { ...baseConfig, ...imported };
+                            this.hasBossBar = Object.prototype.hasOwnProperty.call(imported, 'ceBossBar');
+                            this.hasBossMusic = Object.prototype.hasOwnProperty.call(imported, 'ceBossMusic');
+                            
+                            // 保证基础结构存在，防止 v-if 报错
+                            if (!this.config.ceBossBar) this.config.ceBossBar = baseConfig.ceBossBar;
+                            if (!this.config.ceBossMusic) this.config.ceBossMusic = baseConfig.ceBossMusic;
+                            
+                            // 保证部分对象存在
+                            if (!this.config.stunAnimations) this.config.stunAnimations = {};
+                            if (!this.config.attributes) this.config.attributes = [];
+                            if (!this.config.combatBehaviors) this.config.combatBehaviors = [];
+                            
+                            this.debouncedUpdateJSON();
+                        } catch(err) {
+                            alert("JSON 解析失败: " + err.message);
+                        }
+                    };
+                    reader.readAsText(file);
+                    event.target.value = ''; // reset
+                },
+                async importAnimationResources(event) {
+                    const files = Array.from(event.target.files || []);
+                    if (files.length === 0) return;
+
+                    // 分批次加载，不阻塞页面
+                    const animationSet = new Set(this.availableAnimations);
+                    const modelSet = new Set(this.availableModels);
+                    const modCounts = new Map(this.loadedAnimationMods.map(item => [item.modId, item.count]));
+                    let matchedFileCount = this.matchedAnimationFileCount;
+                    
+                    const batchSize = 1000;
+                    let processed = 0;
+                    
+                    const processBatch = () => {
+                        return new Promise(resolve => {
+                            setTimeout(() => {
+                                const end = Math.min(processed + batchSize, files.length);
+                                for (let i = processed; i < end; i++) {
+                                    const file = files[i];
+                                    const descriptor = extractAnimationDescriptor(file.webkitRelativePath || file.name, file);
+                                    if (!descriptor) continue;
+
+                                    if (descriptor.type === 'animation') {
+                                        matchedFileCount += 1;
+                                        animationSet.add(descriptor.id);
+                                        modCounts.set(descriptor.modId, (modCounts.get(descriptor.modId) || 0) + 1);
+                                    } else if (descriptor.type === 'model') {
+                                        matchedFileCount += 1;
+                                        modelSet.add(descriptor.id);
+                                        modCounts.set(descriptor.modId, (modCounts.get(descriptor.modId) || 0) + 1);
+                                    }
+                                }
+                                processed = end;
+                                resolve(processed < files.length);
+                            }, 0);
+                        });
+                    };
+
+                    while (await processBatch()) {
+                        // 可以选择在这里更新UI进度
+                    }
+
+                    if (animationSet.size === 0 && modelSet.size === 0) {
+                        alert("未在所选目录中找到可识别的动画或模型资源。请确认目录内包含 animmodels 文件夹。");
+                        event.target.value = '';
+                        return;
+                    }
+
+                    this.availableAnimations = Array.from(animationSet).sort();
+                    this.availableModels = Array.from(modelSet).sort();
+                    
+                    this.loadedAnimationMods = Array.from(modCounts.entries())
+                        .map(([modId, count]) => ({ modId, count }))
+                        .sort((a, b) => a.modId.localeCompare(b.modId));
+                        
+                    this.animationImportBatches += 1;
+                    this.animationSourceFileCount += files.length;
+                    this.matchedAnimationFileCount = matchedFileCount;
+
+                    if (animationAutocompleteController) animationAutocompleteController.refresh();
+                    event.target.value = '';
+                }
+            },
+            mounted() {
+                if (this.isDarkMode) {
+                    document.body.classList.add('dark-mode');
+                }
+                window.addEventListener('keydown', this.handleKeydown);
+                window.appConfig = this.config;
+                if (!animationAutocompleteController) {
+                    animationAutocompleteController = createAnimationAutocomplete(
+                        () => this.availableAnimations,
+                        () => this.availableModels
+                    );
+                }
+            }
+        });
+
+        app.config.errorHandler = function(err) { console.error(err); alert("发生错误: " + err.message); };
+        app.component('behavior-node', BehaviorNodeComponent);
+        app.mount('#app');
+    </script>
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+
+    const container = document.getElementById('preview-container');
+    const msgEl = document.getElementById('preview-msg');
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1e1e1e);
+
+    const gridHelper = new THREE.GridHelper(10, 10, 0x444444, 0x222222);
+    scene.add(gridHelper);
+    const axesHelper = new THREE.AxesHelper(2);
+    scene.add(axesHelper);
+
+    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+    camera.position.set(2, 2, 4);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1, 0);
+    controls.enableDamping = true;
+    controls.update();
+
+    let currentRootGroup = null;
+    let currentRootBone = null;
+    let currentSkeletonHelper = null;
+    let currentMesh = null;
+    let currentBindToOrigin = [];
+    
+    let currentWeaponGroup = null;
+    let currentWeaponMesh = null;
+    let currentWeaponBindToOrigin = [];
+    
+    let bonesMap = {};
+    let mixer = null;
+    let currentWeaponMixer = null;
+    let clock = new THREE.Clock();
+
+    function disposeThreeObject(obj) {
+        if (!obj) return;
+        obj.traverse((child) => {
+            if (child.isMesh) {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(m => {
+                            if (m.map) m.map.dispose();
+                            m.dispose();
+                        });
+                    } else {
+                        if (child.material.map) child.material.map.dispose();
+                        child.material.dispose();
+                    }
+                }
+            }
+        });
+    }
+
+    const _matA = new THREE.Matrix4();
+    const _matB = new THREE.Matrix4();
+    const _vec4A = new THREE.Vector4();
+    const _vec4B = new THREE.Vector4();
+
+    function applyCpuSkinning(mesh, rootGroup, bindToOriginArr) {
+        if (!mesh || !mesh.userData.cpuSkinning || !rootGroup) return;
+
+        const cpu = mesh.userData.cpuSkinning;
+        const posAttr = mesh.geometry.getAttribute('position');
+        const normAttr = mesh.geometry.getAttribute('normal');
+        const posArray = posAttr.array;
+        const normArray = normAttr ? normAttr.array : null;
+
+        rootGroup.updateMatrixWorld(true);
+
+        for (let i = 0; i < cpu.vertexCount; i++) {
+            const basePosIdx = i * 3;
+            const skinIdxBase = i * 4;
+
+            let px = 0, py = 0, pz = 0;
+            let nx = 0, ny = 0, nz = 0;
+
+            for (let j = 0; j < 4; j++) {
+                const weight = cpu.skinWeights[skinIdxBase + j];
+                if (weight <= 0) continue;
+
+                const jointIndex = cpu.skinIndices[skinIdxBase + j];
+                const bone = cpu.boneList[jointIndex];
+                const toOrigin = bindToOriginArr[jointIndex];
+                if (!bone || !toOrigin) continue;
+
+                const poseMat = getBoneMatrixRelativeToGroup(bone, rootGroup);
+                const finalMat = _matB.copy(poseMat).multiply(toOrigin);
+
+                _vec4A.set(
+                    cpu.basePositions[basePosIdx],
+                    cpu.basePositions[basePosIdx + 1],
+                    cpu.basePositions[basePosIdx + 2],
+                    1.0
+                ).applyMatrix4(finalMat);
+
+                px += _vec4A.x * weight;
+                py += _vec4A.y * weight;
+                pz += _vec4A.z * weight;
+
+                if (normArray && cpu.baseNormals.length >= basePosIdx + 3) {
+                    finalMat.setPosition(0, 0, 0);
+                    _vec4B.set(
+                        cpu.baseNormals[basePosIdx],
+                        cpu.baseNormals[basePosIdx + 1],
+                        cpu.baseNormals[basePosIdx + 2],
+                        1.0
+                    ).applyMatrix4(finalMat);
+
+                    nx += _vec4B.x * weight;
+                    ny += _vec4B.y * weight;
+                    nz += _vec4B.z * weight;
+                }
+            }
+
+            posArray[basePosIdx] = px;
+            posArray[basePosIdx + 1] = py;
+            posArray[basePosIdx + 2] = pz;
+
+            if (normArray) {
+                const len = Math.hypot(nx, ny, nz) || 1;
+                normArray[basePosIdx] = nx / len;
+                normArray[basePosIdx + 1] = ny / len;
+                normArray[basePosIdx + 2] = nz / len;
+            }
+        }
+
+        posAttr.needsUpdate = true;
+        if (normAttr) normAttr.needsUpdate = true;
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        const dt = clock.getDelta();
+        if (mixer) {
+            mixer.update(dt);
+        }
+        if (currentWeaponMixer) {
+            currentWeaponMixer.update(dt);
+        }
+        applyCpuSkinning(currentMesh, currentRootGroup, currentBindToOrigin);
+        applyCpuSkinning(currentWeaponMesh, currentWeaponGroup, currentWeaponBindToOrigin);
+        controls.update();
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    const resizeObserver = new ResizeObserver(() => {
+        if (!container.clientWidth) return;
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+    });
+    resizeObserver.observe(container);
+
+    function buildBoneHierarchy(nodeData) {
+        const bone = new THREE.Bone();
+        bone.name = nodeData.name;
+        bonesMap[bone.name] = bone;
+        const arr = nodeData.transform;
+        if (arr && arr.length === 16) {
+            const mat = new THREE.Matrix4().fromArray(arr).transpose();
+            mat.decompose(bone.position, bone.quaternion, bone.scale);
+        }
+        if (nodeData.children) {
+            for (let childData of nodeData.children) {
+                bone.add(buildBoneHierarchy(childData));
+            }
+        }
+        return bone;
+    }
+
+    function buildGeometry(verticesData) {
+        const geometry = new THREE.BufferGeometry();
+        
+        const posArray = verticesData.positions.array;
+        const uvArray = verticesData.uvs ? verticesData.uvs.array : null;
+        const normArray = verticesData.normals ? verticesData.normals.array : null;
+        
+        const vcounts = verticesData.vcounts ? verticesData.vcounts.array : null;
+        const vindices = verticesData.vindices ? verticesData.vindices.array : null;
+        const weights = verticesData.weights ? verticesData.weights.array : null;
+        
+        const posSkinIndices = [];
+        const posSkinWeights = [];
+        if (vcounts && vindices && weights) {
+            let vIndexOffset = 0;
+            for (let i = 0; i < vcounts.length; i++) {
+                const count = vcounts[i];
+                const jData = [];
+                for (let j = 0; j < count; j++) {
+                    const jointIdx = vindices[vIndexOffset++];
+                    const weightIdx = vindices[vIndexOffset++];
+                    jData.push({ j: jointIdx, w: weights[weightIdx] });
+                }
+                jData.sort((a, b) => b.w - a.w);
+                let wSum = 0;
+                const sIdx = [0,0,0,0];
+                const sWt = [0,0,0,0];
+                for (let j = 0; j < 4; j++) {
+                    if (j < jData.length) {
+                        sIdx[j] = jData[j].j;
+                        sWt[j] = jData[j].w;
+                        wSum += jData[j].w;
+                    }
+                }
+                if (wSum > 0) {
+                    for (let j = 0; j < 4; j++) { sWt[j] /= wSum; }
+                }
+                posSkinIndices.push(sIdx);
+                posSkinWeights.push(sWt);
+            }
+        }
+        
+        const outPositions = [];
+        const outUvs = [];
+        const outNormals = [];
+        const outSkinIndices = [];
+        const outSkinWeights = [];
+        const outPositionIndices = [];
+        const outNormalIndices = [];
+        
+        function processVertex(posIdx, uvIdx, normIdx) {
+            outPositions.push(posArray[posIdx * 3], posArray[posIdx * 3 + 1], posArray[posIdx * 3 + 2]);
+            outPositionIndices.push(posIdx);
+            outNormalIndices.push(normIdx);
+            if (uvArray) {
+                outUvs.push(uvArray[uvIdx * 2], uvArray[uvIdx * 2 + 1]);
+            }
+            if (normArray) {
+                outNormals.push(normArray[normIdx * 3], normArray[normIdx * 3 + 1], normArray[normIdx * 3 + 2]);
+            }
+            if (posSkinIndices.length > 0) {
+                const sIdx = posSkinIndices[posIdx];
+                const sWt = posSkinWeights[posIdx];
+                outSkinIndices.push(sIdx[0], sIdx[1], sIdx[2], sIdx[3]);
+                outSkinWeights.push(sWt[0], sWt[1], sWt[2], sWt[3]);
+            }
+        }
+        
+        if (verticesData.parts) {
+            for (const partName in verticesData.parts) {
+                const part = verticesData.parts[partName];
+                if (part && part.array) {
+                    for (let i = 0; i < part.array.length; i += 3) {
+                        const posIdx = part.array[i];
+                        const uvIdx = part.array[i + 1];
+                        const normIdx = part.array[i + 2];
+                        processVertex(posIdx, uvIdx, normIdx);
+                    }
+                }
+            }
+        } else if (verticesData.indices) {
+            const arr = verticesData.indices.array;
+            for (let i = 0; i < arr.length; i += 3) {
+                processVertex(arr[i], arr[i+1], arr[i+2]);
+            }
+        }
+        
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(outPositions, 3));
+        if (outUvs.length > 0) geometry.setAttribute('uv', new THREE.Float32BufferAttribute(outUvs, 2));
+        if (outNormals.length > 0) geometry.setAttribute('normal', new THREE.Float32BufferAttribute(outNormals, 3));
+
+        return {
+            geometry,
+            cpuSkinning: outSkinIndices.length > 0 ? {
+                basePositions: new Float32Array(outPositions),
+                baseNormals: new Float32Array(outNormals),
+                skinIndices: new Float32Array(outSkinIndices),
+                skinWeights: new Float32Array(outSkinWeights),
+                positionIndices: outPositionIndices,
+                normalIndices: outNormalIndices
+            } : null
+        };
+    }
+
+    function getBoneMatrixRelativeToGroup(bone, group) {
+        group.updateMatrixWorld(true);
+        return _matA.copy(group.matrixWorld).invert().multiply(bone.matrixWorld);
+    }
+
+    async function createExtrudedMeshFromImage(imageFile, materialConfig) {
+        return new Promise((resolve, reject) => {
+            const url = URL.createObjectURL(imageFile);
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                
+                const imgData = ctx.getImageData(0, 0, img.width, img.height);
+                const data = imgData.data;
+                const w = img.width;
+                const h = img.height;
+                
+                const group = new THREE.Group();
+                const depth = 1 / 16;
+                const pixelW = 1 / w;
+                const pixelH = 1 / h;
+                
+                // 为了降低 DrawCall，我们理论上应该 MergeGeometry，但对于单个预览，简单使用 InstancedMesh 或 Group 也行。
+                // 采用 BoxGeometry，每像素一个
+                const boxGeo = new THREE.BoxGeometry(pixelW, pixelH, depth);
+                
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        const idx = (y * w + x) * 4;
+                        const alpha = data[idx + 3];
+                        if (alpha > 10) { // 非透明像素
+                            const r = data[idx] / 255;
+                            const g = data[idx + 1] / 255;
+                            const b = data[idx + 2] / 255;
+                            
+                            const mat = new THREE.MeshStandardMaterial({
+                                color: new THREE.Color(r, g, b),
+                                roughness: 0.5,
+                                metalness: 0.1,
+                                side: THREE.DoubleSide
+                            });
+                            
+                            const mesh = new THREE.Mesh(boxGeo, mat);
+                            // 坐标计算：
+                            // 图片原点在左上角 (0,0)，模型坐标系通常需要将其对应到 X(0->1), Y(1->0)
+                            // Minecraft 默认 2D item 挤压后，X从左向右为 0->1，Y从下向上为 0->1
+                            // 将图片中心化的话，再在外部包一层 Group 进行修正即可。
+                            mesh.position.set(
+                                x * pixelW + pixelW/2,
+                                (h - 1 - y) * pixelH + pixelH/2,
+                                0
+                            );
+                            group.add(mesh);
+                        }
+                    }
+                }
+                
+                URL.revokeObjectURL(url);
+                resolve(group);
+            };
+            img.onerror = (err) => {
+                URL.revokeObjectURL(url);
+                reject(err);
+            };
+            img.src = url;
+        });
+    }
+
+    async function resolveMinecraftModel(data, depth = 0) {
+        if (depth > 10) return data; // 防止死循环
+        let mergedData = { ...data };
+        
+        if (data.parent) {
+            let parentPath = data.parent;
+            // 如果不包含 namespace，默认当做 minecraft
+            if (!parentPath.includes(':')) {
+                parentPath = 'minecraft:' + parentPath;
+            }
+            
+            let parentFile = fileResourceMap.get(parentPath);
+            if (!parentFile) {
+                // 有时候路径可能是没有前缀的
+                const parts = parentPath.split(':');
+                const noNs = parts[parts.length - 1];
+                parentFile = fileResourceMap.get(noNs) || fileResourceMap.get('minecraft:item/' + noNs);
+            }
+
+            if (parentFile) {
+                try {
+                    const parentText = await new Promise((res, rej) => {
+                        const r = new FileReader();
+                        r.onload = e => res(e.target.result);
+                        r.onerror = e => rej(e);
+                        r.readAsText(parentFile);
+                    });
+                    const parentData = JSON.parse(parentText);
+                    const resolvedParent = await resolveMinecraftModel(parentData, depth + 1);
+                    
+                    // 合并 display (当前 data 优先级高)
+                    mergedData.display = { ...(resolvedParent.display || {}), ...(mergedData.display || {}) };
+                    
+                    // 合并 elements (如果当前 data 没有，用 parent 的)
+                    if (!mergedData.elements && resolvedParent.elements) {
+                        mergedData.elements = resolvedParent.elements;
+                    }
+                    
+                    // 合并 textures (当前 data 优先级高)
+                    mergedData.textures = { ...(resolvedParent.textures || {}), ...(mergedData.textures || {}) };
+                } catch(e) {
+                    console.warn("解析父模型失败:", data.parent, e);
+                }
+            } else {
+                console.warn("未找到父模型文件 (可能是原生资源未上传):", data.parent);
+            }
+        }
+        return mergedData;
+    }
+
+    async function parseAndBuildModel(fileObj, isWeapon) {
+        return new Promise((resolve, reject) => {
+            const fileName = fileObj.name.toLowerCase();
+            
+            if (fileName.endsWith('.obj')) {
+                // 如果是 .obj 文件，使用 Three.js 的 OBJLoader
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    try {
+                        const objContent = evt.target.result;
+                        const loader = new OBJLoader();
+                        const objGroup = loader.parse(objContent);
+                        
+                        const rootGroup = new THREE.Group();
+                        
+                        // 为 OBJ 分配材质
+                        const material = new THREE.MeshStandardMaterial({
+                            color: isWeapon ? 0x88aaff : 0xcccccc,
+                            roughness: 0.5,
+                            metalness: 0.5,
+                            side: THREE.DoubleSide
+                        });
+                        
+                        let firstMesh = null;
+                        objGroup.traverse((child) => {
+                            if (child.isMesh) {
+                                child.material = material;
+                                if (!firstMesh) firstMesh = child;
+                            }
+                        });
+                        
+                        rootGroup.add(objGroup);
+                        
+                        // obj 文件没有骨架，返回一个假数据保证接口兼容
+                        resolve({ 
+                            rootGroup, 
+                            rootBone: null, 
+                            mesh: firstMesh, 
+                            bindToOrigin: [], 
+                            localBonesMap: {},
+                            isObj: true
+                        });
+                    } catch(err) {
+                        reject(err);
+                    }
+                };
+                reader.readAsText(fileObj);
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async (evt) => {
+                try {
+                    let data = JSON.parse(evt.target.result);
+                    
+                    const rootGroup = new THREE.Group();
+                    let rootBone = null;
+                    let mesh = null;
+                    let bindToOrigin = [];
+                    const localBonesMap = {};
+
+                    const material = new THREE.MeshStandardMaterial({
+                        color: isWeapon ? 0x88aaff : 0xcccccc,
+                        roughness: 0.5,
+                        metalness: 0.5,
+                        side: THREE.DoubleSide
+                    });
+
+                    // 判断是否为 geo 模型 (Blockbench 导出的 Bedrock geometry)
+                    if (data['minecraft:geometry'] || fileName.endsWith('.geo') || (data.format_version && data.geometry)) {
+                        let geoArray = data['minecraft:geometry'] || data.geometry;
+                        if (!Array.isArray(geoArray)) {
+                            // 可能是单个对象
+                            geoArray = [geoArray];
+                        }
+                        
+                        if (geoArray && geoArray.length > 0) {
+                            const geoData = geoArray[0];
+                            const bones = geoData.bones || [];
+                            
+                            // 建立骨架节点并挂载 cubes
+                            const boneGroupMap = {};
+                            
+                            // 创建虚拟根节点
+                            rootBone = new THREE.Bone();
+                            rootBone.name = "Root";
+                            localBonesMap["Root"] = rootBone;
+                            rootGroup.add(rootBone);
+                            
+                            // 第一次遍历：创建所有的 Bone 和 Group
+                            bones.forEach(b => {
+                                const bGroup = new THREE.Bone();
+                                bGroup.name = b.name;
+                                localBonesMap[b.name] = bGroup;
+                                boneGroupMap[b.name] = bGroup;
+                                
+                                // 设置默认的 pivot 和 rotation
+                                // Bedrock 坐标系 (x,y,z) 转 ThreeJS: Y 轴一致，由于是 blockbench，单位可能需除以 16
+                                if (b.pivot) {
+                                    bGroup.position.set(b.pivot[0]/16, b.pivot[1]/16, b.pivot[2]/16);
+                                }
+                                if (b.rotation) {
+                                    // Blockbench rotation in degrees: [x, y, z]
+                                    bGroup.rotation.set(
+                                        THREE.MathUtils.degToRad(-b.rotation[0]), 
+                                        THREE.MathUtils.degToRad(-b.rotation[1]), 
+                                        THREE.MathUtils.degToRad(b.rotation[2])
+                                    );
+                                }
+                                
+                                // 生成对应的网格 (cubes)
+                                if (b.cubes) {
+                                    b.cubes.forEach(cube => {
+                                        if (cube.size && cube.origin) {
+                                            const w = cube.size[0] / 16;
+                                            const h = cube.size[1] / 16;
+                                            const d = cube.size[2] / 16;
+                                            const boxGeo = new THREE.BoxGeometry(w, h, d);
+                                            const boxMesh = new THREE.Mesh(boxGeo, material);
+                                            
+                                            // cube.origin 是最小角点，cube.size 是尺寸
+                                            const cx = cube.origin[0]/16 + w/2;
+                                            const cy = cube.origin[1]/16 + h/2;
+                                            const cz = cube.origin[2]/16 + d/2;
+                                            
+                                            // Mesh 位置系相对于它所属的 Bone
+                                            boxMesh.position.set(cx, cy, cz);
+                                            
+                                            // Cube 也有自身的 pivot 和 rotation
+                                            if (cube.rotation && cube.pivot) {
+                                                const pivotGroup = new THREE.Group();
+                                                pivotGroup.position.set(cube.pivot[0]/16, cube.pivot[1]/16, cube.pivot[2]/16);
+                                                pivotGroup.rotation.set(
+                                                    THREE.MathUtils.degToRad(-cube.rotation[0]), 
+                                                    THREE.MathUtils.degToRad(-cube.rotation[1]), 
+                                                    THREE.MathUtils.degToRad(cube.rotation[2])
+                                                );
+                                                
+                                                boxMesh.position.sub(pivotGroup.position);
+                                                pivotGroup.add(boxMesh);
+                                                bGroup.add(pivotGroup);
+                                            } else {
+                                                // 如果没有独立旋转，但我们要让它的绝对坐标生效，由于被添加进了 bGroup，需要减去 bGroup.position
+                                                boxMesh.position.sub(bGroup.position);
+                                                bGroup.add(boxMesh);
+                                            }
+                                            
+                                            if (!mesh) mesh = boxMesh; // 取第一个作为标志
+                                        }
+                                    });
+                                }
+                            });
+                            
+                            // 第二次遍历：建立父子层级关系
+                            bones.forEach(b => {
+                                const bGroup = boneGroupMap[b.name];
+                                if (b.parent && boneGroupMap[b.parent]) {
+                                    const parentGroup = boneGroupMap[b.parent];
+                                    // 子骨骼的 position 是基于全局的 pivot 减去 父骨骼的全局 pivot
+                                    if (b.pivot && parentGroup.position) {
+                                        // 实际上前面赋予 bGroup 的 position 已经是绝对的 pivot
+                                        // 我们需要把它变成相对于 parent 的局部坐标
+                                        const globalPivot = bGroup.position.clone();
+                                        // TODO: 完整的正向动力学换算较复杂，这里简化处理，假设 parentGroup.position 即其 pivot
+                                        bGroup.position.sub(parentGroup.position);
+                                    }
+                                    parentGroup.add(bGroup);
+                                } else {
+                                    // 没有 parent 的，挂载到 root
+                                    rootBone.add(bGroup);
+                                }
+                            });
+                            
+                            resolve({ 
+                                rootGroup, 
+                                rootBone, 
+                                mesh, 
+                                bindToOrigin: [], 
+                                localBonesMap,
+                                isGeo: true
+                            });
+                            return;
+                        }
+                    }
+
+                    // 解析并合并父模型的 display/elements
+                    data = await resolveMinecraftModel(data);
+                    
+                    function buildHierarchy(nodeData) {
+                        const bone = new THREE.Bone();
+                        bone.name = nodeData.name;
+                        localBonesMap[bone.name] = bone;
+                        const arr = nodeData.transform;
+                        if (arr && arr.length === 16) {
+                            const mat = new THREE.Matrix4().fromArray(arr).transpose();
+                            mat.decompose(bone.position, bone.quaternion, bone.scale);
+                        }
+                        if (nodeData.children) {
+                            for (let childData of nodeData.children) {
+                                bone.add(buildHierarchy(childData));
+                            }
+                        }
+                        return bone;
+                    }
+
+                    let armatureData = data.armature;
+
+                    // 如果当前模型没有骨架，且没有 vertices，判断是否是 Minecraft 原生模型
+                    if (!armatureData && !data.vertices) {
+                        rootBone = new THREE.Bone();
+                        rootBone.name = "Root";
+                        localBonesMap["Root"] = rootBone;
+                        rootGroup.add(rootBone);
+
+                        const material = new THREE.MeshStandardMaterial({
+                            color: isWeapon ? 0x88aaff : 0xcccccc,
+                            roughness: 0.5,
+                            metalness: 0.5,
+                            side: THREE.DoubleSide
+                        });
+
+                        const mcGroup = new THREE.Group();
+
+                        if (data.elements && Array.isArray(data.elements)) {
+                            // 解析 Minecraft 像素方块模型
+                            for (let el of data.elements) {
+                                if (!el.from || !el.to) continue;
+                                const w = (el.to[0] - el.from[0]) / 16;
+                                const h = (el.to[1] - el.from[1]) / 16;
+                                const d = (el.to[2] - el.from[2]) / 16;
+                                
+                                const box = new THREE.BoxGeometry(w, h, d);
+                                const boxMesh = new THREE.Mesh(box, material);
+                                
+                                const cx = (el.from[0] + el.to[0]) / 2 / 16;
+                                const cy = (el.from[1] + el.to[1]) / 2 / 16;
+                                const cz = (el.from[2] + el.to[2]) / 2 / 16;
+                                
+                                // Minecraft 坐标系以方块为单位
+                                boxMesh.position.set(cx - 0.5, cy, cz - 0.5);
+                                
+                                // 处理方块级旋转 (如果有)
+                                if (el.rotation) {
+                                    const axis = el.rotation.axis;
+                                    const angle = THREE.MathUtils.degToRad(el.rotation.angle || 0);
+                                    const origin = el.rotation.origin ? [el.rotation.origin[0]/16 - 0.5, el.rotation.origin[1]/16, el.rotation.origin[2]/16 - 0.5] : [0,0,0];
+                                    
+                                    const pivot = new THREE.Group();
+                                    pivot.position.set(origin[0], origin[1], origin[2]);
+                                    if (axis === 'x') pivot.rotation.x = angle;
+                                    else if (axis === 'y') pivot.rotation.y = angle;
+                                    else if (axis === 'z') pivot.rotation.z = angle;
+                                    
+                                    boxMesh.position.sub(pivot.position);
+                                    pivot.add(boxMesh);
+                                    mcGroup.add(pivot);
+                                } else {
+                                    mcGroup.add(boxMesh);
+                                }
+                            }
+                            
+                            // Minecraft 默认手持武器时，模型在右手是竖直朝上的，而我们直接从 JSON 生成的是平躺的。
+                            // 且默认是以坐标原点 (0,0,0) 为手握位置。
+                            // 做一个基础的默认朝向修正，然后再应用 display 旋转：
+                            mcGroup.position.set(0, 0, 0);
+                            
+                        } else if (data.textures && data.textures.layer0) {
+                            // 处理 2D 物品 (如铁斧、钻石剑等没有 elements 只有 textures 的情况)
+                            let texPath = data.textures.layer0;
+                            if (!texPath.includes(':')) {
+                                texPath = 'minecraft:' + texPath;
+                            }
+                            
+                            // 尝试去 fileResourceMap 找对应的 png 文件
+                            const parts = texPath.split(':');
+                            const ns = parts[0];
+                            let relPath = parts[1];
+                            
+                            // 由于我们前面将 png 文件提取 ID 时去掉了后缀
+                            let texFile = fileResourceMap.get(ns + ':' + relPath + '.png') 
+                                       || fileResourceMap.get(ns + ':texture/' + relPath + '.png')
+                                       || fileResourceMap.get(ns + ':textures/' + relPath + '.png');
+                            
+                            // 兼容性：如果找不到，也有可能是用户上传的路径包含完整目录名
+                            if (!texFile) {
+                                // 暴力遍历匹配
+                                const searchStr = relPath.toLowerCase() + '.png';
+                                for (const [k, v] of fileResourceMap.entries()) {
+                                    if (k.toLowerCase().endsWith(searchStr)) {
+                                        texFile = v;
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            if (texFile) {
+                                try {
+                                    const extrudedGroup = await createExtrudedMeshFromImage(texFile);
+                                    
+                                    // 挤压出来的模型，默认原点在 (0,0,0)，宽高大约在 0~1 范围
+                                    // 把它居中对齐，类似于 Minecraft 的原点习惯 (-0.5, 0, 0)
+                                    extrudedGroup.position.set(-0.5, 0, 0);
+                                    mcGroup.add(extrudedGroup);
+                                } catch(e) {
+                                    console.warn("生成 2D 挤压模型失败:", e);
+                                    createPlaceholderSword();
+                                }
+                            } else {
+                                createPlaceholderSword();
+                            }
+                        } else {
+                            createPlaceholderSword();
+                        }
+                        
+                        function createPlaceholderSword() {
+                            // 如果只是 2D 物品模型但找不到材质，生成一个简单的占位剑形几何体
+                            const box = new THREE.BoxGeometry(0.1, 1.0, 0.1);
+                            const boxMesh = new THREE.Mesh(box, material);
+                            boxMesh.position.set(0, 0.5, 0); // 握把在底部
+                            mcGroup.add(boxMesh);
+                        }
+
+                        rootGroup.add(mcGroup);
+                        
+                        resolve({ 
+                            rootGroup, 
+                            rootBone, 
+                            mesh: mcGroup, 
+                            bindToOrigin: [], 
+                            localBonesMap: {},
+                            isMinecraft: true,
+                            display: data.display
+                        });
+                        return;
+                    }
+
+                    // 如果当前模型没有骨架，尝试加载 epicfight:biped 作为默认骨架
+                    if (!armatureData || !armatureData.hierarchy || armatureData.hierarchy.length === 0) {
+                        const bipedFile = fileResourceMap.get('epicfight:entity/biped') || fileResourceMap.get('epicfight:biped');
+                        if (!bipedFile) {
+                            throw new Error("缺少 armature.hierarchy 结构，且未导入 epicfight:biped 骨骼文件，无法生成模型！请确保资源包中包含该文件。");
+                        }
+                        
+                        // 异步读取 biped.json 获取它的 armature
+                        const bipedText = await new Promise((res, rej) => {
+                            const r = new FileReader();
+                            r.onload = e => res(e.target.result);
+                            r.onerror = e => rej(e);
+                            r.readAsText(bipedFile);
+                        });
+                        const bipedData = JSON.parse(bipedText);
+                        if (bipedData.armature && bipedData.armature.hierarchy) {
+                            armatureData = bipedData.armature;
+                        } else {
+                            throw new Error("epicfight:biped 文件中未找到有效的 armature 结构！");
+                        }
+                        
+                        // 很多静态武器 JSON 里其实没有定义 vcounts/vindices/weights 蒙皮权重。
+                        // 对于这种没有权重的纯静态模型，需要给所有的顶点分配一个指向 Tool_R 的假权重。
+                        if (data.vertices && (!data.vertices.vcounts || !data.vertices.weights)) {
+                            const posCount = data.vertices.positions.array.length / 3;
+                            
+                            // 找出 Tool_R 在 joints 数组里的索引
+                            let toolRIndex = armatureData.joints ? armatureData.joints.indexOf("Tool_R") : -1;
+                            if (toolRIndex === -1) toolRIndex = 0; // fallback to root
+                            
+                            // 每个顶点绑定到 Tool_R 骨骼，权重 1.0
+                            const fakeVcounts = new Array(posCount).fill(1);
+                            const fakeVindices = [];
+                            const fakeWeights = [1.0]; // 权重表只需要一个 1.0
+
+                            for (let i = 0; i < posCount; i++) {
+                                fakeVindices.push(toolRIndex); // 关节索引指向 Tool_R
+                                fakeVindices.push(0); // 权重索引 0 (指向 1.0)
+                            }
+                            
+                            data.vertices.vcounts = { array: fakeVcounts };
+                            data.vertices.vindices = { array: fakeVindices };
+                            data.vertices.weights = { array: fakeWeights };
+                        }
+                    }
+
+                    // 构建正常骨架树
+                    rootBone = buildHierarchy(armatureData.hierarchy[0]);
+                    rootGroup.add(rootBone);
+                    
+                    if (data.vertices) {
+                        const { geometry, cpuSkinning } = buildGeometry(data.vertices);
+                        const boneList = [];
+                        
+                        // 优先使用模型自己的 joints 定义，如果没有则用骨架的 joints
+                        const jointsToUse = data.armature && data.armature.joints ? data.armature.joints : armatureData.joints;
+                        
+                        if (jointsToUse) {
+                            for (let jName of jointsToUse) {
+                                boneList.push(localBonesMap[jName] || rootBone);
+                            }
+                        } else {
+                            rootBone.traverse(b => { if (b.isBone) boneList.push(b); });
+                        }
+                        
+                        const material = new THREE.MeshStandardMaterial({
+                            color: isWeapon ? 0x88aaff : 0xcccccc, // 武器用偏蓝色区分
+                            roughness: 0.5,
+                            metalness: 0.5,
+                            side: THREE.DoubleSide
+                        });
+
+                        mesh = new THREE.Mesh(geometry, material);
+                        rootGroup.add(mesh);
+
+                        rootGroup.updateMatrixWorld(true);
+                        bindToOrigin = boneList.map(bone => {
+                            rootGroup.updateMatrixWorld(true);
+                            return new THREE.Matrix4().copy(rootGroup.matrixWorld).invert().multiply(bone.matrixWorld).invert();
+                        });
+                        
+                        mesh.userData.cpuSkinning = cpuSkinning ? {
+                            ...cpuSkinning,
+                            boneList,
+                            vertexCount: cpuSkinning.basePositions.length / 3
+                        } : null;
+                    }
+                    
+                    resolve({ rootGroup, rootBone, mesh, bindToOrigin, localBonesMap });
+                } catch(err) {
+                    reject(err);
+                }
+            };
+            reader.readAsText(fileObj);
+        });
+    }
+
+    async function loadAnimation(fileObj) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                try {
+                    const data = JSON.parse(evt.target.result);
+                    if (!data.animation) throw new Error("缺少 animation 数组");
+                    
+                    if (mixer) { mixer.stopAllAction(); }
+                    if (currentWeaponMixer) { currentWeaponMixer.stopAllAction(); }
+                    
+                    mixer = new THREE.AnimationMixer(currentRootBone);
+                    if (currentWeaponGroup && currentWeaponGroup.children.length > 0) {
+                        // 查找真正的 rootBone，可能不是 children[0] (mesh 也可能是 children)
+                        let weaponRootBone = null;
+                        for (let child of currentWeaponGroup.children) {
+                            if (child.isBone) {
+                                weaponRootBone = child;
+                                break;
+                            }
+                        }
+                        if (weaponRootBone) {
+                            currentWeaponMixer = new THREE.AnimationMixer(weaponRootBone);
+                        }
+                    }
+
+                    const tracks = [];
+                    for (let trackData of data.animation) {
+                        const boneName = trackData.name;
+
+                        const times = trackData.time;
+                        const positions = [];
+                        const quaternions = [];
+                        const scales = [];
+
+                        for (let arr of trackData.transform) {
+                            const mat = new THREE.Matrix4().fromArray(arr).transpose();
+                            const p = new THREE.Vector3();
+                            const q = new THREE.Quaternion();
+                            const s = new THREE.Vector3();
+                            mat.decompose(p, q, s);
+
+                            positions.push(p.x, p.y, p.z);
+                            quaternions.push(q.x, q.y, q.z, q.w);
+                            scales.push(s.x, s.y, s.z);
+                        }
+
+                        tracks.push(new THREE.VectorKeyframeTrack(`${boneName}.position`, times, positions));
+                        tracks.push(new THREE.QuaternionKeyframeTrack(`${boneName}.quaternion`, times, quaternions));
+                        tracks.push(new THREE.VectorKeyframeTrack(`${boneName}.scale`, times, scales));
+                    }
+
+                    const clip = new THREE.AnimationClip('EpicFightAnim', -1, tracks);
+                    mixer.clipAction(clip).play();
+                    if (currentWeaponMixer) {
+                        currentWeaponMixer.clipAction(clip).play();
+                    }
+                    resolve();
+                } catch(err) {
+                    reject(err);
+                }
+            };
+            reader.readAsText(fileObj);
+        });
+    }
+
+    window.playAnimationPreview = async function(modelId, animationId, weaponId) {
+        document.getElementById('floating-3d-window').style.display = 'flex';
+        msgEl.innerText = "加载中...";
+        msgEl.style.color = "#aaa";
+        try {
+            console.log(`[Preview] Starting: model=${modelId}, anim=${animationId}, weapon=${weaponId}`);
+            // 清理旧资源
+            if (currentRootGroup) {
+                scene.remove(currentRootGroup);
+                disposeThreeObject(currentRootGroup);
+            }
+            if (currentWeaponGroup) {
+                if (currentWeaponGroup.parent) currentWeaponGroup.parent.remove(currentWeaponGroup);
+                scene.remove(currentWeaponGroup); // 确保从场景中移除
+                disposeThreeObject(currentWeaponGroup);
+            }
+            if (mixer) { mixer.stopAllAction(); mixer = null; }
+            if (currentWeaponMixer) { currentWeaponMixer.stopAllAction(); currentWeaponMixer = null; }
+            
+            currentRootGroup = null;
+            currentMesh = null;
+            currentWeaponGroup = null;
+            currentWeaponMesh = null;
+            bonesMap = {};
+
+            // 1. 加载主模型
+            let lookupModelId = modelId;
+            if (modelId && !modelId.includes(':entity/') && !modelId.includes('/')) {
+                // 如果只写了 epicfight:biped，尝试去匹配 epicfight:entity/biped
+                lookupModelId = modelId.replace(':', ':entity/');
+            }
+            const modelFile = fileResourceMap.get(lookupModelId) || fileResourceMap.get(modelId);
+            if (!modelFile) throw new Error(`未找到模型文件: ${modelId}`);
+            
+            console.log(`[Preview] Parsing main model...`);
+            const mainModel = await parseAndBuildModel(modelFile, false);
+            currentRootGroup = mainModel.rootGroup;
+            currentRootBone = mainModel.rootBone;
+            currentMesh = mainModel.mesh;
+            currentBindToOrigin = mainModel.bindToOrigin;
+            bonesMap = mainModel.localBonesMap;
+            
+            currentRootGroup.rotation.set(-Math.PI / 2, 0, 0);
+            scene.add(currentRootGroup);
+
+            // 添加灯光
+            if (!scene.lightsAdded) {
+                const amb = new THREE.AmbientLight(0xffffff, 0.5);
+                scene.add(amb);
+                const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+                dir.position.set(5, 10, 7);
+                scene.add(dir);
+                scene.lightsAdded = true;
+            }
+
+            // 2. 加载武器模型 (如果有)
+            if (weaponId) {
+                let weaponFile = fileResourceMap.get(weaponId);
+                
+                if (!weaponFile && !weaponId.includes('/')) {
+                    weaponFile = fileResourceMap.get(weaponId.replace(':', ':weapon/')) || fileResourceMap.get(weaponId.replace(':', ':item/'));
+                }
+
+                if (weaponFile) {
+                    console.log(`[Preview] Parsing weapon model...`);
+                    const weaponModel = await parseAndBuildModel(weaponFile, true);
+                    currentWeaponGroup = weaponModel.rootGroup;
+                    currentWeaponMesh = weaponModel.mesh;
+                    currentWeaponBindToOrigin = weaponModel.bindToOrigin;
+                    
+                    if (weaponModel.isObj || weaponModel.isMinecraft || weaponModel.isGeo) {
+                        // 对于 OBJ/Minecraft/Geo 模型，检查自身的 display 或是同级目录下的 .json 提供的 display
+                        let tData = null;
+                        if (weaponModel.isMinecraft && weaponModel.display) {
+                            tData = { display: weaponModel.display };
+                        } else if (weaponModel.isObj || weaponModel.isGeo) {
+                            let jsonId = weaponId.replace(/\.(obj|geo)$/i, '.json');
+                            let transformJsonFile = fileResourceMap.get(jsonId);
+                            if (!transformJsonFile) {
+                                transformJsonFile = fileResourceMap.get(weaponId.replace(/\.(obj|geo)$/i, ''));
+                            }
+                            if (transformJsonFile && transformJsonFile.name.toLowerCase().endsWith('.json')) {
+                                try {
+                                    const tText = await new Promise((res, rej) => {
+                                        const r = new FileReader();
+                                        r.onload = e => res(e.target.result);
+                                        r.readAsText(transformJsonFile);
+                                    });
+                                    tData = JSON.parse(tText);
+                                } catch(e) {
+                                    console.warn("解析 OBJ 伴随的 JSON transform 失败", e);
+                                }
+                            }
+                        }
+
+                        if (tData && tData.display && tData.display.thirdperson_righthand) {
+                            const tr = tData.display.thirdperson_righthand;
+                            if (tr.translation) {
+                                // Minecraft translation is roughly in units of 1/16th of a block
+                                currentWeaponGroup.position.set(tr.translation[0] / 16, tr.translation[1] / 16, tr.translation[2] / 16);
+                            }
+                            if (tr.rotation) {
+                                // Minecraft rotation is in degrees
+                                currentWeaponGroup.rotation.set(
+                                    THREE.MathUtils.degToRad(tr.rotation[0]), 
+                                    THREE.MathUtils.degToRad(tr.rotation[1]), 
+                                    THREE.MathUtils.degToRad(tr.rotation[2])
+                                );
+                            }
+                            if (tr.scale) {
+                                currentWeaponGroup.scale.set(tr.scale[0], tr.scale[1], tr.scale[2]);
+                            }
+                        }
+
+                        // 所以把它作为子节点塞给人物的 Tool_R 骨头，并应用 EpicFight 的 Correction 变换
+                        const toolR = bonesMap['Tool_R'] || currentRootBone;
+                        if (currentWeaponGroup.position.length() === 0 && currentWeaponGroup.rotation.x === 0 && currentWeaponGroup.scale.x === 1) {
+                            currentWeaponGroup.position.set(0, 0, 0);
+                            currentWeaponGroup.rotation.set(0, 0, 0);
+                            currentWeaponGroup.scale.set(1, 1, 1);
+                        }
+                        
+                        const correctionGroup = new THREE.Group();
+                        correctionGroup.position.set(0, 0, -0.13);
+                        correctionGroup.rotation.x = THREE.MathUtils.degToRad(-90);
+                        
+                        // 对于 OBJ 和 JSON 静态模型，Minecraft 原生渲染通常还有一个 (-0.5, -0.5, -0.5) 的中心偏移
+                        // 由于我们在解析 Minecraft json 时只做了部分中心化，为了准确还原游戏中持握位置，需要包裹一个 offsetGroup
+                        const offsetGroup = new THREE.Group();
+                        
+                        if (weaponModel.isMinecraft) {
+                            // JSON 模型已经在生成时处理了一部分坐标，但可能缺少 Y 轴或整体的中心修正
+                            // 在这里如果发现位置不对，可以继续调整。之前我们让 mcGroup.position.set(0,0,0)
+                            // 实际上标准是 translate(-0.5, -0.5, -0.5)
+                            offsetGroup.position.set(0, -0.5, 0); // X和Z已经在解析时减去0.5了，补上Y
+                        } else if (weaponModel.isObj) {
+                            // OBJ 多数以 0,0,0 为中心，不需要额外的 90 度修复（之前这个旋转抵消了 EpicFight 默认的 -90 修正导致武器倒垂）
+                        }
+                        
+                        offsetGroup.name = "OffsetGroup";
+                        
+                        // 移动原有的 children 到 offsetGroup 中
+                        const childrenToMove = [...currentWeaponGroup.children];
+                        for (let child of childrenToMove) {
+                            offsetGroup.add(child);
+                        }
+                        currentWeaponGroup.add(offsetGroup);
+
+                        correctionGroup.add(currentWeaponGroup);
+                        toolR.add(correctionGroup);
+                    } else {
+                        // 必须让武器骨架的根节点旋转也和人物保持一致，因为我们在加载动画时是各自播放的
+                        currentWeaponGroup.rotation.set(-Math.PI / 2, 0, 0);
+                        scene.add(currentWeaponGroup);
+                    }
+                } else {
+                    console.warn(`未找到武器模型文件: ${weaponId}`);
+                    msgEl.innerText = `未找到武器模型: ${weaponId}`;
+                    msgEl.style.color = "#f59e0b";
+                }
+            }
+            
+            // 3. 加载动画
+            if (animationId) {
+                const animFile = fileResourceMap.get(animationId);
+                if (!animFile) throw new Error(`未找到动画文件: ${animationId}`);
+                console.log(`[Preview] Parsing animation...`);
+                await loadAnimation(animFile);
+            }
+            
+            if (msgEl.style.color !== "rgb(245, 158, 11)") {
+                msgEl.innerText = "";
+            }
+            console.log(`[Preview] Success!`);
+        } catch(err) {
+            console.error("[Preview Error]", err);
+            msgEl.innerText = err.message;
+            msgEl.style.color = "#ef4444";
+        }
+    };
+</script>
+</body>
+</html>
