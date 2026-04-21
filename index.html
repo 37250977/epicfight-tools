@@ -347,7 +347,11 @@
         <div style="margin-top: auto; padding-bottom:20px;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <label style="font-weight:bold; font-size:13px;">生成的 JSON 数据:</label>
-                <button class="btn secondary" style="padding:4px 8px; font-size:12px;" @click="copyJSON">复制</button>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn secondary" style="padding:4px 8px; font-size:12px;" @click="triggerImportJSON">导入</button>
+                    <button class="btn secondary" style="padding:4px 8px; font-size:12px;" @click="copyJSON">复制</button>
+                </div>
+                <input type="file" id="importJsonInput" accept=".json" style="display:none" @change="importJSON">
             </div>
             <div class="code-preview" v-html="highlightedJSON"></div>
         </div>
@@ -2527,6 +2531,58 @@
                 }).catch(() => {
                     alert("复制失败，请手动复制。");
                 });
+            },
+            triggerImportJSON() {
+                document.getElementById('importJsonInput').click();
+            },
+            importJSON(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const text = e.target.result;
+                        const data = JSON.parse(text);
+                        
+                        if (data && data.trail) {
+                            const trail = data.trail;
+                            
+                            if (Array.isArray(trail.color) && trail.color.length >= 3) {
+                                this.trailColor = [
+                                    Number(trail.color[0]),
+                                    Number(trail.color[1]),
+                                    Number(trail.color[2])
+                                ];
+                            }
+                            if (Array.isArray(trail.begin_pos) && trail.begin_pos.length >= 3) {
+                                this.begin.x = Number(trail.begin_pos[0]);
+                                this.begin.y = Number(trail.begin_pos[1]);
+                                this.begin.z = Number(trail.begin_pos[2]);
+                            }
+                            if (Array.isArray(trail.end_pos) && trail.end_pos.length >= 3) {
+                                this.end.x = Number(trail.end_pos[0]);
+                                this.end.y = Number(trail.end_pos[1]);
+                                this.end.z = Number(trail.end_pos[2]);
+                            }
+                            
+                            if (trail.lifetime !== undefined) this.trailLifetime = Number(trail.lifetime);
+                            if (trail.interpolations !== undefined) this.trailInterpolations = Number(trail.interpolations);
+                            if (trail.texture_path !== undefined) this.trailTexturePath = String(trail.texture_path);
+                            
+                            this.updateTrail();
+                            this.saveData();
+                            this.showToast('成功导入 Trail JSON 配置！');
+                        } else {
+                            alert('导入失败：该 JSON 不包含有效的 "trail" 字段配置。');
+                        }
+                    } catch (err) {
+                        console.error(err);
+                        alert('导入失败：JSON 格式错误或文件损坏。');
+                    }
+                    event.target.value = '';
+                };
+                reader.readAsText(file);
             },
             showToast(message) {
                 const toast = document.createElement('div');
