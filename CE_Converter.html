@@ -2,52 +2,455 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; worker-src 'self' blob:;">
     <title>Indestructible 转 CombatEvolution 格式工具</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #1e1e1e; color: #d4d4d4; padding: 20px; }
-        .container { max-width: 800px; margin: 0 auto; background-color: #252526; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-        h1 { text-align: center; color: #4fc1ff; }
-        .btn { background-color: #0e639c; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 4px; cursor: pointer; display: inline-block; margin-top: 10px; }
-        .btn:hover { background-color: #1177bb; }
-        .btn:disabled { background-color: #444; color: #888; cursor: not-allowed; }
-        input[type="file"] { margin-bottom: 20px; display: block; width: 100%; padding: 10px; background: #333; border-radius: 4px; border: 1px solid #555; color: #fff;}
-        #log { margin-top: 20px; padding: 15px; background: #111; border-radius: 4px; min-height: 150px; overflow-y: auto; font-family: Consolas, monospace; white-space: pre-wrap; font-size: 14px;}
-        .success { color: #4ec9b0; display: block;}
-        .error { color: #f48771; display: block;}
-        .info { color: #dcdcaa; display: block;}
-        p { line-height: 1.6; }
+        :root {
+            --bg: #f6f7fb;
+            --text: #111827;
+            --muted: #6b7280;
+            --card: #ffffff;
+            --border: #d1d5db;
+            --shadow: 0 4px 10px rgba(0,0,0,0.08);
+            --primary: #0e639c;
+            --primary-hover: #1177bb;
+            --secondary: #64748b;
+            --warn: #d97706;
+            --btn-disabled-bg: #e5e7eb;
+            --btn-disabled-text: #9ca3af;
+            --input-bg: #ffffff;
+            --input-border: #d1d5db;
+            --drop-bg: #f3f4f6;
+            --drop-border: #9ca3af;
+            --drop-hover-bg: #eaf4ff;
+            --drop-hover-border: #0ea5e9;
+            --log-bg: #0b1220;
+            --log-border: #111827;
+            --success: #059669;
+            --error: #dc2626;
+            --info: #a16207;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #1e1e1e;
+                --text: #d4d4d4;
+                --muted: #9ca3af;
+                --card: #252526;
+                --border: #3f3f46;
+                --shadow: 0 4px 10px rgba(0,0,0,0.35);
+                --input-bg: #222;
+                --input-border: #444;
+                --drop-bg: #2d2d2d;
+                --drop-border: #555;
+                --drop-hover-bg: #1a3a4d;
+                --drop-hover-border: #4fc1ff;
+                --log-bg: #111;
+                --log-border: #333;
+                --success: #4ec9b0;
+                --error: #f48771;
+                --info: #dcdcaa;
+            }
+        }
+
+        html[data-theme="light"] {
+            --bg: #f6f7fb;
+            --text: #111827;
+            --muted: #6b7280;
+            --card: #ffffff;
+            --border: #d1d5db;
+            --shadow: 0 4px 10px rgba(0,0,0,0.08);
+            --input-bg: #ffffff;
+            --input-border: #d1d5db;
+            --drop-bg: #f3f4f6;
+            --drop-border: #9ca3af;
+            --drop-hover-bg: #eaf4ff;
+            --drop-hover-border: #0ea5e9;
+            --log-bg: #0b1220;
+            --log-border: #111827;
+            --success: #059669;
+            --error: #dc2626;
+            --info: #a16207;
+        }
+
+        html[data-theme="dark"] {
+            --bg: #1e1e1e;
+            --text: #d4d4d4;
+            --muted: #9ca3af;
+            --card: #252526;
+            --border: #3f3f46;
+            --shadow: 0 4px 10px rgba(0,0,0,0.35);
+            --input-bg: #222;
+            --input-border: #444;
+            --drop-bg: #2d2d2d;
+            --drop-border: #555;
+            --drop-hover-bg: #1a3a4d;
+            --drop-hover-border: #4fc1ff;
+            --log-bg: #111;
+            --log-border: #333;
+            --success: #4ec9b0;
+            --error: #f48771;
+            --info: #dcdcaa;
+        }
+
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); color: var(--text); padding: 20px; margin: 0; }
+        .container { width: 100%; max-width: 800px; margin: 0 auto; background-color: var(--card); padding: 20px; border-radius: 10px; box-shadow: var(--shadow); box-sizing: border-box; border: 1px solid var(--border); }
+        h1 { text-align: left; color: var(--text); font-size: 1.25rem; margin: 0; }
+        p { line-height: 1.6; font-size: 14px; color: var(--text); }
+        .muted { color: var(--muted); }
+
+        .topbar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+        .title-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .nav { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        .nav-group { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .nav-label { font-size: 12px; color: var(--muted); padding: 2px 6px; border: 1px solid var(--border); border-radius: 999px; }
+
+        .btn { background-color: var(--primary); color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 8px; cursor: pointer; display: inline-block; margin-top: 10px; width: 100%; box-sizing: border-box; text-align: center; transition: background-color 0.15s ease, transform 0.05s ease; }
+        .btn:hover { background-color: var(--primary-hover); }
+        .btn:active { transform: translateY(1px); }
+        .btn:disabled { background-color: var(--btn-disabled-bg); color: var(--btn-disabled-text); cursor: not-allowed; }
+        .btn-secondary { background-color: var(--secondary); }
+        .btn-secondary:hover { background-color: color-mix(in srgb, var(--secondary) 85%, white); }
+        .btn-warn { background-color: var(--warn); }
+        .btn-warn:hover { background-color: color-mix(in srgb, var(--warn) 85%, white); }
+        .btn-sm { padding: 6px 12px; font-size: 14px; margin-top: 0; width: auto; border-radius: 999px; text-decoration: none; }
+        .btn.loading { position: relative; pointer-events: none; }
+        .btn.loading::after { content: ""; position: absolute; right: 12px; top: 50%; width: 14px; height: 14px; margin-top: -7px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.35); border-top-color: rgba(255,255,255,0.95); animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        input[type="file"] { margin-bottom: 20px; display: block; width: 100%; padding: 10px; background: var(--input-bg); border-radius: 8px; border: 1px solid var(--input-border); color: var(--text); }
+        input[type="text"] { background: var(--input-bg); border: 1px solid var(--input-border); color: var(--text); }
+
+        #log { margin-top: 20px; padding: 15px; background: var(--log-bg); border-radius: 10px; min-height: 150px; overflow-y: auto; font-family: Consolas, monospace; white-space: pre-wrap; font-size: 14px; word-wrap: break-word; border: 1px solid var(--log-border); }
+        .log-line { display: flex; gap: 8px; align-items: flex-start; padding: 2px 0; }
+        .log-icon { width: 18px; flex: 0 0 18px; text-align: center; }
+        .log-text { flex: 1 1 auto; }
+        .success { color: var(--success); }
+        .error { color: var(--error); }
+        .info { color: var(--info); }
+        
+        #dropZone { border: 2px dashed var(--drop-border); padding: 30px 15px; text-align: center; border-radius: 12px; margin-bottom: 15px; cursor: pointer; transition: all 0.2s; background: var(--drop-bg); color: var(--muted); font-size: 14px; user-select: none; }
+        #dropZone:hover, #dropZone.dragover { border-color: var(--drop-hover-border); background-color: var(--drop-hover-bg); color: var(--text); }
+        #dropZone.disabled { opacity: 0.6; cursor: not-allowed; pointer-events: none; }
+
+        #fileList { max-height: 150px; overflow-y: auto; background: color-mix(in srgb, var(--log-bg) 88%, transparent); padding: 10px; border-radius: 10px; margin-bottom: 15px; display: none; border: 1px solid var(--border); }
+        .file-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent); font-size: 13px; gap: 10px; }
+        .file-item:last-child { border-bottom: none; }
+        .file-remove { background: transparent; border: none; color: var(--error); cursor: pointer; font-size: 16px; padding: 0 5px; }
+        .file-remove:hover { filter: brightness(1.1); }
+
+        .prefix-suffix-group { display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; background: color-mix(in srgb, var(--card) 92%, var(--bg)); padding: 10px; border-radius: 10px; border: 1px solid var(--border); }
+        .prefix-suffix-group label { font-size: 14px; display: flex; flex-direction: column; gap: 5px; }
+        .prefix-suffix-group input { margin: 0; display: block; width: 100%; padding: 8px; border-radius: 8px; box-sizing: border-box; }
+
+        .button-group { display: flex; flex-direction: column; gap: 10px; align-items: stretch; width: 100%; }
+        .progress-text { font-weight: 700; color: var(--success); flex-grow: 1; text-align: center; }
+        
+        @media (min-width: 600px) {
+            .btn { width: auto; }
+            .prefix-suffix-group { flex-direction: row; align-items: center; }
+            .prefix-suffix-group label { flex-direction: row; align-items: center; width: auto; }
+            .prefix-suffix-group input { width: 150px; display: inline-block; }
+            .button-group { flex-direction: row; align-items: center; flex-wrap: wrap; }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:20px;">
-            <h1 style="margin:0;">Indestructible -> CombatEvolution</h1>
-            <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                <a href="EpicFight_TrailVisualizer.html" class="btn" style="text-decoration:none; padding:6px 12px; font-size:14px; margin-top:0; background-color:#555;">Trail 调节器</a>
-                <a href="CE_VisualEditor.html" class="btn" style="text-decoration:none; padding:6px 12px; font-size:14px; margin-top:0; background-color:#555;">CE 动作</a>
-                <a href="Indestructible_VisualEditor.html" class="btn" style="text-decoration:none; padding:6px 12px; font-size:14px; margin-top:0; background-color:#555;">Indestructible 编辑器</a>
+        <div class="topbar">
+            <div class="title-row">
+                <h1>Indestructible -> CombatEvolution</h1>
+                <button class="btn btn-secondary btn-sm" id="themeToggle" type="button" onclick="toggleTheme()">主题: 自动</button>
+            </div>
+            <div class="nav">
+                <div class="nav-group">
+                    <span class="nav-label">工具</span>
+                    <a href="EpicFight_TrailVisualizer.html" class="btn btn-secondary btn-sm">Trail 调节器</a>
+                    <a href="CE_VisualEditor.html" class="btn btn-secondary btn-sm">CE 动作</a>
+                    <a href="Indestructible_VisualEditor.html" class="btn btn-secondary btn-sm">Indestructible 编辑器</a>
+                </div>
             </div>
         </div>
         <p>
             1. 点击下方按钮选择需要转换的 <b>Indestructible</b> 数据包 (.json)。<br>
-            2. 点击“批量转换并下载”，浏览器会自动将它们转换为 <b>CombatEvolution</b> 格式并下载。<br>
-            <i>(该工具完全在本地浏览器运行，不依赖 Java/Python/Node 环境，安全且即开即用)</i>
+            2. 点击“批量转换并下载”，浏览器会自动将它们转换为 <b>CombatEvolution</b> 格式并下载。
         </p>
         
-        <input type="file" id="fileInput" accept=".json" multiple>
-        <button class="btn" id="convertBtn" onclick="processFiles()">批量转换并下载</button>
+        <div class="prefix-suffix-group">
+            <label style="font-size:14px;">输出前缀: <input type="text" id="prefixInput" value=""></label>
+            <label style="font-size:14px;">输出后缀: <input type="text" id="suffixInput" value="_ce"></label>
+        </div>
         
-        <div id="log"><span class="info">准备就绪... 等待选择文件。</span></div>
+        <div id="dropZone">
+            <div style="font-size: 24px; margin-bottom: 10px;">📁</div>
+            点击选择文件，或将 JSON 文件拖放到此处
+            <input type="file" id="fileInput" accept=".json" multiple style="display: none;">
+        </div>
+        
+        <div id="fileList"></div>
+        
+        <div class="button-group">
+            <button class="btn" id="convertBtn" onclick="processFiles()">批量转换并下载</button>
+            <button class="btn btn-warn" id="retryBtn" onclick="retryFailed()" style="display: none;">重试失败文件</button>
+            <button class="btn btn-secondary" id="clearLogBtn" onclick="clearLog()">清空日志</button>
+            <span id="progressText" class="progress-text"></span>
+        </div>
+        
+        <div id="log"><span class="log-line info"><span class="log-icon">•</span><span class="log-text">准备就绪... 等待选择或拖放文件。</span></span></div>
     </div>
 
     <script>
+        let selectedFiles = [];
+        let failedFiles = [];
+        let totalCount = 0;
+        let processedCount = 0;
+        let isProcessing = false;
+        let workerObjectUrl = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const dropZone = document.getElementById('dropZone');
+            const fileInput = document.getElementById('fileInput');
+            initTheme();
+
+            dropZone.addEventListener('click', () => fileInput.click());
+            
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('dragover');
+            });
+            
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('dragover');
+            });
+            
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+                handleFiles(e.dataTransfer.files).catch(err => log(`读取文件失败: ${err?.message || err}`, "error"));
+            });
+            
+            fileInput.addEventListener('change', (e) => {
+                handleFiles(e.target.files).catch(err => log(`读取文件失败: ${err?.message || err}`, "error"));
+                fileInput.value = ''; // Reset to allow re-selecting same files
+            });
+        });
+
+        function getFirstJsonChar(text) {
+            if (typeof text !== 'string') return '';
+            let s = text.replace(/^\uFEFF/, '');
+            for (let i = 0; i < s.length; i++) {
+                const c = s[i];
+                if (c === ' ' || c === '\n' || c === '\r' || c === '\t') continue;
+                return c;
+            }
+            return '';
+        }
+
+        async function looksLikeJsonFile(file) {
+            if (!file || typeof file.slice !== 'function') return false;
+            try {
+                const head = await file.slice(0, 4096).text();
+                const c = getFirstJsonChar(head);
+                return c === '{' || c === '[';
+            } catch {
+                return false;
+            }
+        }
+
+        async function handleFiles(files) {
+            let added = 0;
+            const arr = Array.from(files || []);
+            for (let file of arr) {
+                const name = (file && file.name) ? file.name : '';
+                if (!name.toLowerCase().endsWith('.json')) {
+                    log(`已忽略非 JSON 文件: ${name || '(未知文件名)'}`, "info");
+                    continue;
+                }
+                const likely = await looksLikeJsonFile(file);
+                if (!likely) {
+                    log(`已忽略疑似非 JSON 内容的文件: ${name}`, "error");
+                    continue;
+                }
+                if (!selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
+                    selectedFiles.push(file);
+                    added++;
+                }
+            }
+            if (added > 0) renderFileList();
+        }
+
+        function renderFileList() {
+            const list = document.getElementById('fileList');
+            if (selectedFiles.length === 0) {
+                list.style.display = 'none';
+                return;
+            }
+            list.style.display = 'block';
+            list.innerHTML = '';
+            selectedFiles.forEach((file, index) => {
+                const div = document.createElement('div');
+                div.className = 'file-item';
+                div.innerHTML = `
+                    <span>📄 ${file.name} <span style="color:#666;font-size:12px;">(${(file.size/1024).toFixed(1)} KB)</span></span>
+                    <button class="file-remove" onclick="removeFile(${index}, event)" title="移除">✖</button>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function removeFile(index, event) {
+            event.stopPropagation();
+            selectedFiles.splice(index, 1);
+            renderFileList();
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '<span class="log-line info"><span class="log-icon">•</span><span class="log-text">日志已清空。</span></span>';
+            document.getElementById('progressText').textContent = '';
+            processedCount = 0;
+            totalCount = 0;
+            failedFiles = [];
+            document.getElementById('retryBtn').style.display = 'none';
+        }
+
+        function updateProgress() {
+            const pt = document.getElementById('progressText');
+            if (totalCount > 0) {
+                pt.textContent = `进度: ${processedCount} / ${totalCount}`;
+            } else {
+                pt.textContent = '';
+            }
+        }
+
         function log(msg, type='info') {
             const logDiv = document.getElementById('log');
-            const span = document.createElement('span');
-            span.className = type;
-            span.textContent = `[${new Date().toLocaleTimeString()}] ` + msg;
-            logDiv.appendChild(span);
+            const line = document.createElement('span');
+            line.className = `log-line ${type}`;
+            const icon = document.createElement('span');
+            icon.className = 'log-icon';
+            icon.textContent = type === 'success' ? '✓' : (type === 'error' ? '✕' : '•');
+            const text = document.createElement('span');
+            text.className = 'log-text';
+            text.textContent = `[${new Date().toLocaleTimeString()}] ` + msg;
+            line.appendChild(icon);
+            line.appendChild(text);
+            logDiv.appendChild(line);
             logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function setProcessingState(next) {
+            isProcessing = !!next;
+            const dropZone = document.getElementById('dropZone');
+            const fileInput = document.getElementById('fileInput');
+            const prefixInput = document.getElementById('prefixInput');
+            const suffixInput = document.getElementById('suffixInput');
+            const convertBtn = document.getElementById('convertBtn');
+            const retryBtn = document.getElementById('retryBtn');
+            const clearLogBtn = document.getElementById('clearLogBtn');
+
+            if (isProcessing) {
+                dropZone.classList.add('disabled');
+                fileInput.disabled = true;
+                prefixInput.disabled = true;
+                suffixInput.disabled = true;
+                convertBtn.disabled = true;
+                convertBtn.classList.add('loading');
+                retryBtn.disabled = true;
+                clearLogBtn.disabled = true;
+            } else {
+                dropZone.classList.remove('disabled');
+                fileInput.disabled = false;
+                prefixInput.disabled = false;
+                suffixInput.disabled = false;
+                convertBtn.disabled = false;
+                convertBtn.classList.remove('loading');
+                retryBtn.disabled = false;
+                clearLogBtn.disabled = false;
+            }
+        }
+
+        function updateThemeToggleLabel(mode) {
+            const btn = document.getElementById('themeToggle');
+            if (!btn) return;
+            const label = mode === 'dark' ? '深色' : (mode === 'light' ? '浅色' : '自动');
+            btn.textContent = `主题: ${label}`;
+        }
+
+        function applyThemeMode(mode) {
+            const m = mode === 'dark' ? 'dark' : (mode === 'light' ? 'light' : 'auto');
+            if (m === 'auto') {
+                document.documentElement.removeAttribute('data-theme');
+            } else {
+                document.documentElement.setAttribute('data-theme', m);
+            }
+            localStorage.setItem('ce_converter_theme_mode', m);
+            updateThemeToggleLabel(m);
+        }
+
+        function initTheme() {
+            const mode = localStorage.getItem('ce_converter_theme_mode') || 'auto';
+            applyThemeMode(mode);
+        }
+
+        function toggleTheme() {
+            const current = localStorage.getItem('ce_converter_theme_mode') || 'auto';
+            const next = current === 'auto' ? 'light' : (current === 'light' ? 'dark' : 'auto');
+            applyThemeMode(next);
+        }
+
+        function customStringify(obj, indentLevel = 0) {
+            if (obj === undefined) return undefined;
+            if (obj === null) return "null";
+            
+            const indent = "\t".repeat(indentLevel);
+            const nextIndent = "\t".repeat(indentLevel + 1);
+            
+            if (Array.isArray(obj)) {
+                if (obj.length === 0) return "[]";
+                let allSimple = obj.every(item => typeof item !== 'object' || item === null);
+                if (allSimple) {
+                    return "[" + obj.map(item => JSON.stringify(item)).join(", ") + "]";
+                }
+                
+                let items = [];
+                for (let i = 0; i < obj.length; i++) {
+                    let itemStr = "";
+                    let item = obj[i];
+                    if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+                        if (Object.keys(item).length <= 4 && !Object.values(item).some(v => typeof v === 'object' && v !== null)) {
+                            itemStr = JSON.stringify(item);
+                        } else {
+                            itemStr = customStringify(item, indentLevel + 1);
+                        }
+                    } else {
+                        itemStr = customStringify(item, indentLevel + 1);
+                    }
+                    
+                    if (itemStr !== undefined) {
+                        items.push(nextIndent + itemStr);
+                    } else {
+                        items.push(nextIndent + "null");
+                    }
+                }
+                return "[\n" + items.join(",\n") + "\n" + indent + "]";
+            } else if (typeof obj === 'object') {
+                let keys = Object.keys(obj);
+                if (keys.length === 0) return "{}";
+                
+                let items = [];
+                for (let i = 0; i < keys.length; i++) {
+                    let key = keys[i];
+                    let valStr = customStringify(obj[key], indentLevel + 1);
+                    if (valStr === undefined) continue;
+                    
+                    items.push(nextIndent + JSON.stringify(key) + ": " + valStr);
+                }
+                if (items.length === 0) return "{}";
+                return "{\n" + items.join(",\n") + "\n" + indent + "}";
+            } else {
+                return JSON.stringify(obj);
+            }
         }
 
         // --- Web Worker Code ---
@@ -158,7 +561,7 @@
                         let he = convertHitCommandList(b.hit_command_list);
                         if (he.length > 0) outB.hitEvents = he;
                     }
-                    if (b.damage_modifier) {
+                    if (b.damage_modifier && typeof b.damage_modifier === 'object') {
                         let phaseParam = { phase: -1 }; 
                         let mod = b.damage_modifier;
                         if (mod.damage !== undefined) phaseParam.damageMultiplier = mod.damage;
@@ -203,7 +606,7 @@
                     humanoid: data.isHumanoid !== undefined ? data.isHumanoid : true
                 };
 
-                if (data.attributes) {
+                if (data.attributes && typeof data.attributes === 'object') {
                     let attrs = data.attributes;
                     if (attrs.chasing_speed !== undefined) out.chasingSpeed = attrs.chasing_speed;
                     if (attrs.scale !== undefined) out.scale = attrs.scale;
@@ -219,16 +622,17 @@
                     if (outAttrs.length > 0) out.attributes = outAttrs;
                 }
 
-                if (data.stun_animations) out.stunAnimations = data.stun_animations;
+                if (data.stun_animations && Array.isArray(data.stun_animations)) out.stunAnimations = data.stun_animations;
                 
-                let defaultMotions = data.default_livingmotions || {};
+                let defaultMotions = (data.default_livingmotions && typeof data.default_livingmotions === 'object') ? data.default_livingmotions : {};
                 
-                if (data.humanoid_weapon_motions) {
+                if (data.humanoid_weapon_motions && Array.isArray(data.humanoid_weapon_motions)) {
                     out.weaponLivingMotions = [];
                     for (let wm of data.humanoid_weapon_motions) {
-                        let combinedMotions = Object.assign({}, defaultMotions, wm.livingmotions || {});
+                        if (!wm || typeof wm !== 'object') continue;
+                        let combinedMotions = Object.assign({}, defaultMotions, (wm.livingmotions && typeof wm.livingmotions === 'object') ? wm.livingmotions : {});
                         let wMotion = {
-                            weaponCategories: wm.weapon_categories || [],
+                            weaponCategories: Array.isArray(wm.weapon_categories) ? wm.weapon_categories : [],
                             style: wm.style || "common",
                             livingMotions: combinedMotions
                         };
@@ -242,13 +646,14 @@
                     }];
                 }
                 
-                if (data.custom_guard_motion) {
+                if (data.custom_guard_motion && Array.isArray(data.custom_guard_motion)) {
                     out.guardHitAnimation = [];
                     for (let gm of data.custom_guard_motion) {
+                        if (!gm || typeof gm !== 'object') continue;
                         let gHit = {
-                            weaponCategories: gm.weapon_categories || [],
+                            weaponCategories: Array.isArray(gm.weapon_categories) ? gm.weapon_categories : [],
                             style: gm.style || "common",
-                            animations: gm.parry_animation || [] 
+                            animations: Array.isArray(gm.parry_animation) ? gm.parry_animation : [] 
                         };
                         if (gHit.animations.length === 0 && gm.guard) {
                             gHit.animations.push(gm.guard);
@@ -257,7 +662,7 @@
                     }
                 }
 
-                if (data.combat_behavior) {
+                if (data.combat_behavior && Array.isArray(data.combat_behavior)) {
                     let outCbs = [];
                     for (let idxCb = 0; idxCb < data.combat_behavior.length; idxCb++) {
                         let cb = data.combat_behavior[idxCb];
@@ -353,10 +758,25 @@
                 }
             }
 
+            function getFirstJsonChar(text) {
+                if (typeof text !== 'string') return '';
+                let s = text.replace(/^\uFEFF/, '');
+                for (let i = 0; i < s.length; i++) {
+                    const c = s[i];
+                    if (c === ' ' || c === '\\n' || c === '\\r' || c === '\\t') continue;
+                    return c;
+                }
+                return '';
+            }
+
             self.onmessage = async function(e) {
                 const file = e.data.file;
                 try {
                     const text = await file.text();
+                    const c = getFirstJsonChar(text.slice(0, 4096));
+                    if (c !== '{' && c !== '[') {
+                        throw new Error("文件内容不像 JSON（开头未发现 { 或 [）");
+                    }
                     const json = JSON.parse(text);
                     
                     validateSchema(json);
@@ -364,9 +784,9 @@
                     const ceJson = convertData(json);
                     const jsonStr = customStringify(ceJson);
                     
-                    self.postMessage({ success: true, fileName: file.name, jsonStr: jsonStr });
+                    self.postMessage({ success: true, fileName: file.name, jsonStr: jsonStr, originalFile: file });
                 } catch (err) {
-                    self.postMessage({ success: false, fileName: file.name, error: err.message });
+                    self.postMessage({ success: false, fileName: file.name, error: err.message, originalFile: file });
                 }
             };
         `;
@@ -374,6 +794,8 @@
         let myWorker = null;
         let downloadQueue = [];
         let isDownloading = false;
+        let filesToProcess = [];
+        let currentProcessingIndex = 0;
 
         function processDownloadQueue() {
             if (isDownloading || downloadQueue.length === 0) return;
@@ -387,7 +809,11 @@
             let a = document.createElement('a');
             a.href = url;
             
-            let newName = item.fileName.replace(/\.json$/i, '') + '_ce.json';
+            let prefix = document.getElementById('prefixInput').value.trim();
+            let suffix = document.getElementById('suffixInput').value.trim();
+            let baseName = item.fileName.replace(/\.json$/i, '');
+            let newName = prefix + baseName + suffix + '.json';
+            
             a.download = newName;
             
             document.body.appendChild(a);
@@ -400,42 +826,380 @@
             setTimeout(() => {
                 isDownloading = false;
                 processDownloadQueue();
+                maybeFinishProcessing();
             }, 150);
         }
 
-        function processFiles() {
-            const fileInput = document.getElementById('fileInput');
-            const files = fileInput.files;
+        function createWorker() {
+            if (myWorker) {
+                myWorker.terminate();
+            }
+            if (workerObjectUrl) {
+                URL.revokeObjectURL(workerObjectUrl);
+                workerObjectUrl = null;
+            }
+            const blob = new Blob([workerCode], { type: 'application/javascript' });
+            try {
+                workerObjectUrl = URL.createObjectURL(blob);
+                myWorker = new Worker(workerObjectUrl);
+                URL.revokeObjectURL(workerObjectUrl);
+                workerObjectUrl = null;
+            } catch (err) {
+                log(`Worker 初始化失败（可能被 CSP 拦截），将使用主线程顺序转换: ${err?.message || err}`, "error");
+                myWorker = null;
+                return false;
+            }
             
-            if (files.length === 0) {
-                log("请先选择要转换的 JSON 文件！", "error");
+            myWorker.onmessage = function(e) {
+                const result = e.data;
+                processedCount++;
+                updateProgress();
+
+                if (result.success) {
+                    downloadQueue.push(result);
+                    processDownloadQueue();
+                } else {
+                    failedFiles.push(result.originalFile);
+                    log(`转换失败: ${result.fileName} (错误: ${result.error})`, "error");
+                    document.getElementById('retryBtn').style.display = 'inline-block';
+                }
+                
+                sendNextBatch();
+                maybeFinishProcessing();
+            };
+            
+            myWorker.onerror = function(err) {
+                log(`Worker 发生系统级错误或崩溃: ${err.message}`, "error");
+                // 崩溃后重启 Worker，并把当前失败的记下，继续处理下一个
+                if (filesToProcess[currentProcessingIndex - 1]) {
+                    failedFiles.push(filesToProcess[currentProcessingIndex - 1]);
+                    document.getElementById('retryBtn').style.display = 'inline-block';
+                    processedCount++;
+                    updateProgress();
+                }
+                createWorker();
+                sendNextBatch();
+                maybeFinishProcessing();
+            };
+            return true;
+        }
+
+        function sendNextBatch() {
+            if (currentProcessingIndex < filesToProcess.length) {
+                // 每次发1个过去，防止大文件堆积卡死Worker和内存
+                myWorker.postMessage({ file: filesToProcess[currentProcessingIndex] });
+                currentProcessingIndex++;
+            }
+        }
+
+        function triggerWorker(files) {
+            filesToProcess = files;
+            currentProcessingIndex = 0;
+            
+            const ok = createWorker();
+            if (!ok) {
+                convertInMainThread(filesToProcess);
+                return;
+            }
+            
+            // 初始启动发送几个并行（比如 3 个），后续在 onmessage 里继续发送
+            let initialBatch = Math.min(3, files.length);
+            for (let i = 0; i < initialBatch; i++) {
+                sendNextBatch();
+            }
+        }
+
+        async function convertInMainThread(files) {
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                try {
+                    const text = await file.text();
+                    const c = getFirstJsonChar(text.slice(0, 4096));
+                    if (c !== '{' && c !== '[') throw new Error("文件内容不像 JSON（开头未发现 { 或 [）");
+                    const json = JSON.parse(text);
+                    const isIndestructible = (json && typeof json === 'object') && (
+                        json.combat_behavior !== undefined ||
+                        json.attributes !== undefined ||
+                        json.humanoid_weapon_motions !== undefined ||
+                        json.custom_guard_motion !== undefined ||
+                        json.stun_animations !== undefined ||
+                        json.default_livingmotions !== undefined
+                    );
+                    if (!isIndestructible) throw new Error("文件格式不匹配，未检测到 Indestructible 特有字段");
+                    const result = await convertIndestructibleToCE(json);
+                    const jsonStr = customStringify(result);
+                    processedCount++;
+                    updateProgress();
+                    downloadQueue.push({ success: true, fileName: file.name, jsonStr, originalFile: file });
+                    processDownloadQueue();
+                } catch (err) {
+                    processedCount++;
+                    updateProgress();
+                    failedFiles.push(file);
+                    log(`转换失败: ${file.name} (错误: ${err?.message || err})`, "error");
+                    document.getElementById('retryBtn').style.display = 'inline-block';
+                }
+            }
+            maybeFinishProcessing();
+        }
+
+        async function convertIndestructibleToCE(json) {
+            const CONDITION_MAP = {
+                "epicfight:within_distance": (cond) => ({ type: "combat_evolution:target_in_distance", min: cond.min || 0, max: cond.max || 0 }),
+                "epicfight:health": (cond) => {
+                    let comp = cond.comparator || "less_ratio";
+                    if (!["less_ratio", "greater_ratio", "less_absolute", "greater_absolute"].includes(comp)) comp = "less_ratio";
+                    return { type: "combat_evolution:health_check", health: cond.health || 0, comparator: comp };
+                },
+                "indestructible:stamina": (cond) => {
+                    let comp = cond.comparator || "less_ratio";
+                    if (!["less_ratio", "greater_ratio", "less_absolute", "greater_absolute"].includes(comp)) comp = "less_ratio";
+                    return { type: "combat_evolution:stamina_check", stamina: cond.stamina || 0, comparator: comp };
+                },
+                "indestructible:attack_level": (cond) => ({ type: "combat_evolution:attack_level", min: cond.min || 1, max: cond.max || 1 }),
+                "indestructible:phase": (cond) => ({ type: "combat_evolution:phase_between", min: cond.min || 0, max: cond.max || 0 }),
+                "indestructible:guard_break": (cond) => ({ type: "combat_evolution:target_guard_break" }),
+                "epicfight:within_angle": (cond) => ({ type: "combat_evolution:current_angle", side: "all", first: 0, second: cond.max || 180 }),
+                "epicfight:within_angle_horizontal": (cond) => ({ type: "combat_evolution:current_angle", side: "all", first: 0, second: cond.max || 180 }),
+                "epicfight:within_eye_height": (cond) => null
+            };
+
+            function convertConditions(conditions) {
+                if (!conditions) return [];
+                let newConds = [];
+                for (let cond of conditions) {
+                    let pred = cond.predicate;
+                    if (pred && !pred.includes(':')) {
+                        if (CONDITION_MAP["epicfight:" + pred]) pred = "epicfight:" + pred;
+                        else if (CONDITION_MAP["indestructible:" + pred]) pred = "indestructible:" + pred;
+                    }
+                    if (CONDITION_MAP[pred]) {
+                        let mapped = CONDITION_MAP[pred](cond);
+                        if (mapped !== null) newConds.push(mapped);
+                    } else {
+                        let unmapped = { type: pred, ...cond };
+                        delete unmapped.predicate;
+                        newConds.push(unmapped);
+                    }
+                }
+                return newConds;
+            }
+
+            function convertCommandList(cmdList) {
+                if (!cmdList) return [];
+                return cmdList.map(cmd => {
+                    let time = cmd.time || 0;
+                    let onTarget = cmd.execute_at_target || false;
+                    let command = cmd.command || "";
+                    if (!command.startsWith("/")) command = "/" + command;
+                    if (time > 0) return { type: "in_time", timeStart: time, onTarget: onTarget, command: command };
+                    else return { type: "tick", onTarget: onTarget, command: command };
+                });
+            }
+
+            function convertHitCommandList(cmdList) {
+                if (!cmdList) return [];
+                return cmdList.map(cmd => {
+                    let onTarget = cmd.execute_at_target || false;
+                    let command = cmd.command || "";
+                    if (!command.startsWith("/")) command = "/" + command;
+                    return { type: "success", phase: -1, onTarget: onTarget, command: command };
+                });
+            }
+
+            function convertBehavior(b) {
+                let outB = {};
+                if (b.conditions) {
+                    let conds = convertConditions(b.conditions);
+                    if (conds.length > 0) outB.conditions = conds;
+                }
+                if (b.animation) {
+                    outB.behaviorType = "action";
+                    outB.animation = b.animation;
+                    let params = {};
+                    if (b.convert_time !== undefined) params.transitionTime = b.convert_time;
+                    if (b.play_speed !== undefined) params.playSpeed = b.play_speed;
+                    if (Object.keys(params).length > 0) outB.animationParams = params;
+                    if (b.command_list) {
+                        let te = convertCommandList(b.command_list);
+                        if (te.length > 0) outB.timeEvents = te;
+                    }
+                    if (b.hit_command_list) {
+                        let he = convertHitCommandList(b.hit_command_list);
+                        if (he.length > 0) outB.hitEvents = he;
+                    }
+                    if (b.damage_modifier && typeof b.damage_modifier === 'object') {
+                        let phaseParam = { phase: -1 };
+                        let mod = b.damage_modifier;
+                        if (mod.damage !== undefined) phaseParam.damageMultiplier = mod.damage;
+                        if (mod.impact !== undefined) phaseParam.impactMultiplier = mod.impact;
+                        if (mod.armor_negation !== undefined) phaseParam.armorNegationMultiplier = mod.armor_negation;
+                        if (mod.stun_type !== undefined) phaseParam.stunType = mod.stun_type;
+                        if (Object.keys(phaseParam).length > 1) {
+                            outB.animationParams = outB.animationParams || {};
+                            outB.animationParams.phaseParams = [phaseParam];
+                        }
+                    }
+                    if (b.set_phase !== undefined) outB.setPhase = b.set_phase;
+                } else if (b.guard !== undefined) {
+                    outB.behaviorType = "guard";
+                    outB.guardTime = b.guard;
+                    if (b.counter) {
+                        outB.counterAnimation = b.counter;
+                        outB.counterType = "random";
+                        outB.counterChance = b.counter_chance || 0.3;
+                    }
+                } else if (b.wander !== undefined) {
+                    outB.behaviorType = "wander";
+                    outB.wanderTime = b.wander;
+                    if (b.x_axis !== undefined) outB.strafe = b.x_axis;
+                    if (b.z_axis !== undefined) outB.forward = b.z_axis;
+                }
+                if (b.stamina !== undefined && b.stamina > 0) outB.addStamina = -b.stamina;
+                return outB;
+            }
+
+            function convertData(data) {
+                let out = {
+                    faction: data.faction || "neutral",
+                    renderer: data.renderer || "skeleton",
+                    model: data.model || "skeleton",
+                    armature: data.armature || "epicfight:entity/biped",
+                    humanoid: data.isHumanoid !== undefined ? data.isHumanoid : true
+                };
+
+                if (data.attributes && typeof data.attributes === 'object') {
+                    let attrs = data.attributes;
+                    if (attrs.chasing_speed !== undefined) out.chasingSpeed = attrs.chasing_speed;
+                    if (attrs.scale !== undefined) out.scale = attrs.scale;
+                    if (attrs.stamina_regan_delay !== undefined) out.staminaRegenDelay = attrs.stamina_regan_delay;
+                    if (attrs.stamina_lose_multiply !== undefined) out.hurtImpact = attrs.stamina_lose_multiply;
+                    let outAttrs = [];
+                    if (attrs.max_stamina !== undefined) outAttrs.push({ attribute: "epicfight:staminar", value: attrs.max_stamina });
+                    if (attrs.stamina_regan_multiply !== undefined) outAttrs.push({ attribute: "epicfight:stamina_regen", value: attrs.stamina_regan_multiply });
+                    if (attrs.impact !== undefined) outAttrs.push({ attribute: "epicfight:impact", value: attrs.impact });
+                    if (attrs.armor_negation !== undefined) outAttrs.push({ attribute: "epicfight:armor_negation", value: attrs.armor_negation });
+                    if (outAttrs.length > 0) out.attributes = outAttrs;
+                }
+
+                if (data.stun_animations && Array.isArray(data.stun_animations)) out.stunAnimations = data.stun_animations;
+                let defaultMotions = (data.default_livingmotions && typeof data.default_livingmotions === 'object') ? data.default_livingmotions : {};
+                if (data.humanoid_weapon_motions && Array.isArray(data.humanoid_weapon_motions)) {
+                    out.weaponLivingMotions = [];
+                    for (let wm of data.humanoid_weapon_motions) {
+                        if (!wm || typeof wm !== 'object') continue;
+                        let combinedMotions = Object.assign({}, defaultMotions, (wm.livingmotions && typeof wm.livingmotions === 'object') ? wm.livingmotions : {});
+                        let wMotion = {
+                            weaponCategories: Array.isArray(wm.weapon_categories) ? wm.weapon_categories : [],
+                            style: wm.style || "common",
+                            livingMotions: combinedMotions
+                        };
+                        out.weaponLivingMotions.push(wMotion);
+                    }
+                } else if (Object.keys(defaultMotions).length > 0) {
+                    out.weaponLivingMotions = [{
+                        weaponCategories: [],
+                        style: "common",
+                        livingMotions: defaultMotions
+                    }];
+                }
+
+                if (data.custom_guard_motion && Array.isArray(data.custom_guard_motion)) {
+                    out.guardHitAnimation = [];
+                    for (let gm of data.custom_guard_motion) {
+                        if (!gm || typeof gm !== 'object') continue;
+                        let gHit = {
+                            weaponCategories: Array.isArray(gm.weapon_categories) ? gm.weapon_categories : [],
+                            style: gm.style || "common",
+                            animations: Array.isArray(gm.parry_animation) ? gm.parry_animation : []
+                        };
+                        if (gHit.animations.length === 0 && gm.guard) gHit.animations.push(gm.guard);
+                        if (gHit.animations.length > 0) out.guardHitAnimation.push(gHit);
+                    }
+                }
+
+                if (data.combat_behavior && Array.isArray(data.combat_behavior)) {
+                    let outCbs = [];
+                    for (let idxCb = 0; idxCb < data.combat_behavior.length; idxCb++) {
+                        let cb = data.combat_behavior[idxCb];
+                        let outCb = {
+                            weaponCategories: cb.weapon_categories || [],
+                            style: cb.style || "common",
+                            behaviorRoots: []
+                        };
+                        if (cb.behavior_series) {
+                            for (let idxS = 0; idxS < cb.behavior_series.length; idxS++) {
+                                let series = cb.behavior_series[idxS];
+                                let root = {
+                                    rootName: "BehaviorRoot_" + idxS,
+                                    weight: series.weight || 1.0,
+                                    maxCooldown: series.cooldown || 0,
+                                    firstBehaviors: []
+                                };
+                                if (series.behaviors && series.behaviors.length > 0) {
+                                    let first = convertBehavior(series.behaviors[0]);
+                                    first.behaviorName = "Action_" + idxS + "_0";
+                                    let current = first;
+                                    for (let i = 1; i < series.behaviors.length; i++) {
+                                        let next = convertBehavior(series.behaviors[i]);
+                                        next.behaviorName = "Action_" + idxS + "_" + i;
+                                        current.nextBehaviors = [next];
+                                        current = next;
+                                    }
+                                    root.firstBehaviors.push(first);
+                                }
+                                outCb.behaviorRoots.push(root);
+                            }
+                        }
+                        outCbs.push(outCb);
+                    }
+                    out.combatBehaviors = outCbs;
+                }
+                return out;
+            }
+
+            return convertData(json);
+        }
+
+        function maybeFinishProcessing() {
+            const allResultsReceived = totalCount > 0 && processedCount >= totalCount;
+            if (!allResultsReceived) return;
+            const noPendingDownloads = downloadQueue.length === 0 && !isDownloading;
+            if (!noPendingDownloads) return;
+            setProcessingState(false);
+            log(`处理完成：成功 ${totalCount - failedFiles.length} 个，失败 ${failedFiles.length} 个。`, failedFiles.length > 0 ? "error" : "success");
+        }
+
+        function processFiles() {
+            if (selectedFiles.length === 0) {
+                log("请先选择或拖放要转换的 JSON 文件！", "error");
                 return;
             }
 
-            log(`开始批量转换 ${files.length} 个文件 (启用 Web Worker 异步加速)...`, "info");
-            
-            if (!myWorker) {
-                const blob = new Blob([workerCode], { type: 'application/javascript' });
-                myWorker = new Worker(URL.createObjectURL(blob));
-                
-                myWorker.onmessage = function(e) {
-                    const result = e.data;
-                    if (result.success) {
-                        downloadQueue.push(result);
-                        processDownloadQueue();
-                    } else {
-                        log(`转换失败: ${result.fileName} (错误: ${result.error})`, "error");
-                    }
-                };
-                
-                myWorker.onerror = function(err) {
-                    log(`Worker 发生系统级错误: ${err.message}`, "error");
-                };
-            }
+            failedFiles = [];
+            document.getElementById('retryBtn').style.display = 'none';
+            totalCount = selectedFiles.length;
+            processedCount = 0;
+            updateProgress();
 
-            for (let i = 0; i < files.length; i++) {
-                myWorker.postMessage({ file: files[i] });
-            }
+            log(`开始批量转换 ${totalCount} 个文件 (启用异步加速)...`, "info");
+            setProcessingState(true);
+            triggerWorker(selectedFiles);
+        }
+
+        function retryFailed() {
+            if (failedFiles.length === 0) return;
+            const filesToRetry = [...failedFiles];
+            failedFiles = [];
+            document.getElementById('retryBtn').style.display = 'none';
+            
+            totalCount = filesToRetry.length;
+            processedCount = 0;
+            updateProgress();
+
+            log(`重试 ${totalCount} 个失败文件...`, "info");
+            setProcessingState(true);
+            triggerWorker(filesToRetry);
         }
     </script>
 </body>
