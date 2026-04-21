@@ -132,8 +132,15 @@
     <div class="panel editor">
         <div class="top">
             <div>
-                <h2>Indestructible 数据包可视化编辑器</h2>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <h2>Indestructible 数据包可视化编辑器</h2>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <a href="EpicFight_TrailVisualizer.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">Trail 调节器</a>
+                        <a href="CE_VisualEditor.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">CE 动作</a>
+                        <a href="CE_Converter.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">ID 转 CE 转换器</a>
+                    </div>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center; margin-top:10px;">
                     <button class="btn secondary" @click="toggleTheme" style="font-size:12px; padding:6px 12px;" title="切换深色/浅色模式">{{ isDarkMode ? '☀️ 浅色模式' : '🌙 深色模式' }}</button>
                     <p style="margin:0;">常用字段可视化编辑，`combat_behavior` 先保留为可校验/可格式化 JSON 区块。</p>
                 </div>

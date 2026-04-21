@@ -413,7 +413,14 @@
         <!-- 左侧编辑区 -->
         <div class="panel">
             <div class="top-bar">
-                <h2>CE 数据包可视化编辑器</h2>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <h2>CE 数据包可视化编辑器</h2>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <a href="EpicFight_TrailVisualizer.html" class="btn btn-secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">Trail 调节器</a>
+                        <a href="Indestructible_VisualEditor.html" class="btn btn-secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">Indestructible 编辑器</a>
+                        <a href="CE_Converter.html" class="btn btn-secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">ID 转 CE 转换器</a>
+                    </div>
+                </div>
                 <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                     <button class="btn btn-secondary" @click="toggleTheme" style="font-size:12px; padding:6px 12px;" title="切换深色/浅色模式">{{ isDarkMode ? '☀️ 浅色模式' : '🌙 深色模式' }}</button>
                     <div class="resource-import-box">

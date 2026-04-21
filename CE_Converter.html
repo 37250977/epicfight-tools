@@ -20,7 +20,14 @@
 </head>
 <body>
     <div class="container">
-        <h1>Indestructible -> CombatEvolution</h1>
+        <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:20px;">
+            <h1 style="margin:0;">Indestructible -> CombatEvolution</h1>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <a href="EpicFight_TrailVisualizer.html" class="btn" style="text-decoration:none; padding:6px 12px; font-size:14px; margin-top:0; background-color:#555;">Trail 调节器</a>
+                <a href="CE_VisualEditor.html" class="btn" style="text-decoration:none; padding:6px 12px; font-size:14px; margin-top:0; background-color:#555;">CE 动作</a>
+                <a href="Indestructible_VisualEditor.html" class="btn" style="text-decoration:none; padding:6px 12px; font-size:14px; margin-top:0; background-color:#555;">Indestructible 编辑器</a>
+            </div>
+        </div>
         <p>
             1. 点击下方按钮选择需要转换的 <b>Indestructible</b> 数据包 (.json)。<br>
             2. 点击“批量转换并下载”，浏览器会自动将它们转换为 <b>CombatEvolution</b> 格式并下载。<br>
@@ -135,8 +142,7 @@
                 }
                 
                 if (b.animation) {
-                    // 对于 CE 来说，如果是普通的攻击或技能动画，并不一定需要 actionType
-                    // CE 的规范是直接使用 "animation" 字段，并不需要 "animationId"
+                    outB.behaviorType = "action";
                     outB.animation = b.animation; 
                     
                     let params = {};

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -185,8 +185,15 @@
 <div id="app" class="container" :style="{ gridTemplateColumns: leftWidth + 'px 10px minmax(0, 1fr)' }">
     <!-- 左侧控制面板 -->
     <div class="panel">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-            <h2 style="margin:0; font-size:1.2em;">Trail (轨迹) 调节器</h2>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <h2 style="margin:0; font-size:1.2em;">Trail (轨迹) 调节器</h2>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <a href="CE_VisualEditor.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">CE 动作</a>
+                    <a href="Indestructible_VisualEditor.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">Indestructible 编辑器</a>
+                    <a href="CE_Converter.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">ID 转 CE 转换器</a>
+                </div>
+            </div>
             <div style="display:flex; gap:10px;">
                 <button class="btn secondary" @click="resetParams" style="padding:4px 8px; font-size:12px;">重置参数</button>
                 <button class="btn secondary" @click="toggleTheme" style="padding:4px 8px; font-size:12px;">{{ isDarkMode ? '☀️' : '🌙' }}</button>
@@ -2111,7 +2118,7 @@
                         if (tData && tData.display && tData.display.thirdperson_righthand) {
                             const tr = tData.display.thirdperson_righthand;
                             if (tr.translation) {
-                                
+                                // Minecraft translation is roughly in units of 1/16th of a block
                                 currentWeaponGroup.position.set(tr.translation[0] / 16, tr.translation[1] / 16, tr.translation[2] / 16);
                             }
                             if (tr.rotation) {
