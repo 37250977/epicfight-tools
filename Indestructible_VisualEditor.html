@@ -138,34 +138,39 @@
         <div class="top">
             <div>
                 <div style="display:flex; flex-direction:column; gap:10px;">
-                    <h2>Indestructible 数据包可视化编辑器</h2>
+                    <h2>{{ t('Indestructible 数据包可视化编辑器') }}</h2>
                     <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                        <a href="index.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">Trail 调节器</a>
-                        <a href="CE_VisualEditor.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">CE 动作</a>
-                        <a href="CE_Converter.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">ID 转 CE 转换器</a>
+                        <a href="index.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('Trail 调节器') }}</a>
+                        <a href="CE_VisualEditor.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('CE 动作') }}</a>
+                        <a href="CE_Converter.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('ID 转 CE 转换器') }}</a>
                     </div>
                 </div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center; margin-top:10px;">
-                    <button class="btn secondary" @click="toggleTheme" style="font-size:12px; padding:6px 12px;" title="切换深色/浅色模式">{{ isDarkMode ? '☀️ 浅色模式' : '🌙 深色模式' }}</button>
-                    <p style="margin:0;">常用字段可视化编辑，`combat_behavior` 先保留为可校验/可格式化 JSON 区块。</p>
+                    <button class="btn secondary" @click="toggleLang" style="padding:4px 8px; font-size:12px; font-weight:bold;">
+                        <span :style="{ fontWeight: lang === 'zh' ? '800' : '400' }">中文</span>
+                        <span style="opacity:.7"> / </span>
+                        <span :style="{ fontWeight: lang === 'en' ? '800' : '400' }">English</span>
+                    </button>
+                    <button class="btn secondary" @click="toggleTheme" style="font-size:12px; padding:6px 12px;" :title="t('切换深色/浅色模式')">{{ isDarkMode ? t('浅色模式') : t('深色模式') }}</button>
+                    <p style="margin:0;">{{ t('常用字段可视化编辑，`combat_behavior`先保留为可校验/可格式化 JSON 区块。') }}</p>
                 </div>
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
-                <button class="btn" @click="triggerImport">导入 JSON</button>
-                <button class="btn" @click="exportJSON">导出 JSON</button>
-                <button class="btn secondary" @click="copyJSON">复制 JSON</button>
+                <button class="btn" @click="triggerImport">{{ t('导入 JSON') }}</button>
+                <button class="btn" @click="exportJSON">{{ t('导出 JSON') }}</button>
+                <button class="btn secondary" @click="copyJSON">{{ t('复制') }} JSON</button>
             </div>
         </div>
 
         <div class="resource-box">
             <div class="section-head">
                 <div>
-                    <div style="font-size:12px;color:#2563eb;font-weight:700">动画资源索引</div>
-                    <div class="hint">导入资源目录后，动画路径输入框会出现分组联想和高亮匹配。</div>
+                    <div style="font-size:12px;color:#2563eb;font-weight:700">{{ t('动画资源索引') }}</div>
+                    <div class="hint">{{ t('导入资源目录后，动画路径输入框会出现分组联想和高亮匹配。') }}</div>
                 </div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap">
-                    <button class="btn mini" @click="openAssetFolderPicker">导入资源文件夹</button>
-                    <button class="btn secondary mini" @click="clearAnimationLibrary" :disabled="availableAnimations.length===0">清空索引</button>
+                    <button class="btn mini" @click="openAssetFolderPicker">{{ t('导入资源文件夹') }}</button>
+                    <button class="btn secondary mini" @click="clearAnimationLibrary" :disabled="availableAnimations.length===0">{{ t('清空索引') }}</button>
                 </div>
             </div>
             <div class="hint">{{ animationLibrarySummary }}</div>
@@ -174,11 +179,11 @@
             </div>
         </div>
 
-        <div class="info">推荐保存路径：`数据包名/data/生物所属modid/advanced_mobpatch/生物id.json`</div>
+        <div class="info">{{ t('推荐保存路径: `数据包名/data/生物所属modid/advanced_mobpatch/生物id.json`') }}</div>
 
         <div class="section">
             <div class="section-head" @click="toggleSection('basic')">
-                <h3 class="section-header">基础属性 <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['basic'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+                <h3 class="section-header">{{ t('基础属性') }} <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['basic'] ? ('▼ ' + t('展开')) : ('▲ ' + t('折叠')) }}</span></h3>
             </div>
             <div v-show="!collapsedSections['basic']">
                 <div class="grid2">
@@ -202,35 +207,35 @@
 
         <div class="section">
             <div class="section-head" @click="toggleSection('attributes')">
-                <h3 class="section-header">Attributes (属性配置) <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['attributes'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+                <h3 class="section-header">{{ t('Attributes (属性配置)') }} <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['attributes'] ? ('▼ ' + t('展开')) : ('▲ ' + t('折叠')) }}</span></h3>
             </div>
             <div v-show="!collapsedSections['attributes']">
-                <div style="margin-bottom:10px;"><button class="btn mini" @click="addObjectField(config.attributes,'new_attribute',0)">+ 添加属性</button></div>
+                <div style="margin-bottom:10px;"><button class="btn mini" @click="addObjectField(config.attributes,'new_attribute',0)">{{ t('+ 添加属性') }}</button></div>
                 <div class="row3" v-for="(value,key) in config.attributes" :key="'attr-'+key">
                     <input type="text" :value="key" @change="renameObjectKey(config.attributes,key,$event.target.value)">
                     <input type="number" step="0.1" v-model.number="config.attributes[key]">
-                    <button class="btn danger mini" @click="removeObjectField(config.attributes,key)">删除</button>
+                    <button class="btn danger mini" @click="removeObjectField(config.attributes,key)">{{ t('删除') }}</button>
                 </div>
             </div>
         </div>
 
         <div class="section">
             <div class="section-head" @click="toggleSection('defaultLiving')">
-                <h3 class="section-header">Default Living Motions (默认基础动作) <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['defaultLiving'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+                <h3 class="section-header">Default Living Motions (默认基础动作) <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['defaultLiving'] ? ('▼ ' + t('展开')) : ('▲ ' + t('折叠')) }}</span></h3>
             </div>
             <div v-show="!collapsedSections['defaultLiving']">
-                <div style="margin-bottom:10px;"><button class="btn mini" @click="addObjectField(config.default_livingmotions,'new_motion','')">+ 添加动作键</button></div>
+                <div style="margin-bottom:10px;"><button class="btn mini" @click="addObjectField(config.default_livingmotions,'new_motion','')">{{ t('+ 添加动作键') }}</button></div>
                 <div class="row3" v-for="(value,key) in config.default_livingmotions" :key="'motion-'+key">
                     <input type="text" :value="key" @change="renameObjectKey(config.default_livingmotions,key,$event.target.value)">
-                    <div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="config.default_livingmotions[key]"><button class="btn secondary mini" title="预览动画" @click="previewAnimation(config.default_livingmotions[key])">▶</button></div>
-                    <button class="btn danger mini" @click="removeObjectField(config.default_livingmotions,key)">删除</button>
+                    <div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="config.default_livingmotions[key]"><button class="btn secondary mini" :title="t('预览动画')" @click="previewAnimation(config.default_livingmotions[key])">▶</button></div>
+                    <button class="btn danger mini" @click="removeObjectField(config.default_livingmotions,key)">{{ t('删除') }}</button>
                 </div>
             </div>
         </div>
 
         <div class="section">
             <div class="section-head" @click="toggleSection('humanoidWeapon')">
-                <h3 class="section-header">Humanoid Weapon Motions (持武动作配置) <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['humanoidWeapon'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+                <h3 class="section-header">Humanoid Weapon Motions (持武动作配置) <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['humanoidWeapon'] ? ('▼ ' + t('展开')) : ('▲ ' + t('折叠')) }}</span></h3>
             </div>
             <div v-show="!collapsedSections['humanoidWeapon']">
                 <div style="margin-bottom:10px;"><button class="btn mini" @click="addWeaponMotion">+ 新增持武配置</button></div>
@@ -247,8 +252,8 @@
                         </div>
                         <div class="row3" v-for="(value,key) in wm.livingmotions" :key="'wm-'+index+'-'+key">
                             <input type="text" :value="key" @change="renameObjectKey(wm.livingmotions,key,$event.target.value)">
-                            <div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="wm.livingmotions[key]"><button class="btn secondary mini" title="预览动画" @click="previewAnimation(wm.livingmotions[key])">▶</button></div>
-                            <button class="btn danger mini" @click="removeObjectField(wm.livingmotions,key)">删除</button>
+                            <div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="wm.livingmotions[key]"><button class="btn secondary mini" :title="t('预览动画')" @click="previewAnimation(wm.livingmotions[key])">▶</button></div>
+                            <button class="btn danger mini" @click="removeObjectField(wm.livingmotions,key)">{{ t('删除') }}</button>
                         </div>
                     </div>
                 </div>
@@ -257,7 +262,7 @@
 
         <div class="section">
             <div class="section-head" @click="toggleSection('customGuard')">
-                <h3 class="section-header">Custom Guard Motion (自定义防御动作) <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['customGuard'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+                <h3 class="section-header">Custom Guard Motion (自定义防御动作) <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['customGuard'] ? ('▼ ' + t('展开')) : ('▲ ' + t('折叠')) }}</span></h3>
             </div>
             <div v-show="!collapsedSections['customGuard']">
                 <div style="margin-bottom:10px;"><button class="btn mini" @click="addGuardMotion">+ 新增防御配置</button></div>
@@ -266,7 +271,7 @@
                     <div class="grid2">
                     <div class="form-group"><label>Weapon Categories (武器分类)</label><input type="text" :value="joinList(gm.weapon_categories)" @input="gm.weapon_categories=parseCommaList($event.target.value)"></div>
                     <div class="form-group"><label>Style (持握姿势)</label><input type="text" v-model="gm.style"></div>
-                    <div class="form-group"><label>Guard Animation (防御动画)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="gm.guard"><button class="btn secondary mini" title="预览动画" @click="previewAnimation(gm.guard)">▶</button></div></div>
+                    <div class="form-group"><label>Guard Animation (防御动画)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="gm.guard"><button class="btn secondary mini" :title="t('预览动画')" @click="previewAnimation(gm.guard)">▶</button></div></div>
                     <div class="form-group"><label>Stamina Cost Multiply (耐力消耗倍率)</label><input type="number" step="0.1" v-model.number="gm.stamina_cost_multiply"></div>
                     <div class="form-group"><label>Parry Cost Multiply (招架耐力消耗倍率)</label><input type="number" step="0.1" v-model.number="gm.parry_cost_multiply"></div>
                     <div class="form-group"><label class="checkline" style="margin-top:18px;"><input type="checkbox" v-model="gm.can_block_projectile"> Can Block Projectile (能否格挡弹射物)</label></div>
@@ -277,9 +282,9 @@
                         <button class="btn mini" @click="addStringItem(gm.parry_animation)">新增动画</button>
                     </div>
                     <div class="row3" v-for="(anim,aIdx) in gm.parry_animation" :key="'parry-'+index+'-'+aIdx">
-                        <div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" :value="anim" @input="gm.parry_animation[aIdx]=$event.target.value"><button class="btn secondary mini" title="预览动画" @click="previewAnimation(gm.parry_animation[aIdx])">▶</button></div>
+                        <div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" :value="anim" @input="gm.parry_animation[aIdx]=$event.target.value"><button class="btn secondary mini" :title="t('预览动画')" @click="previewAnimation(gm.parry_animation[aIdx])">▶</button></div>
                         <div></div>
-                        <button class="btn danger mini" @click="gm.parry_animation.splice(aIdx,1)">删除</button>
+                        <button class="btn danger mini" @click="gm.parry_animation.splice(aIdx,1)">{{ t('删除') }}</button>
                     </div>
                 </div>
                 </div>
@@ -288,21 +293,21 @@
 
         <div class="section">
             <div class="section-head" @click="toggleSection('stunAnim')">
-                <h3 class="section-header">Stun Animations (受击硬直动画) <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['stunAnim'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+                <h3 class="section-header">Stun Animations (受击硬直动画) <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['stunAnim'] ? ('▼ ' + t('展开')) : ('▲ ' + t('折叠')) }}</span></h3>
             </div>
             <div v-show="!collapsedSections['stunAnim']">
-                <div style="margin-bottom:10px;"><button class="btn mini" @click="addObjectField(config.stun_animations,'new_stun','')">+ 添加硬直类型</button></div>
+                <div style="margin-bottom:10px;"><button class="btn mini" @click="addObjectField(config.stun_animations,'new_stun','')">{{ t('+ 添加硬直类型') }}</button></div>
                 <div class="row3" v-for="(value,key) in config.stun_animations" :key="'stun-'+key">
                     <input type="text" :value="key" @change="renameObjectKey(config.stun_animations,key,$event.target.value)">
-                    <div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="config.stun_animations[key]"><button class="btn secondary mini" title="预览动画" @click="previewAnimation(config.stun_animations[key])">▶</button></div>
-                    <button class="btn danger mini" @click="removeObjectField(config.stun_animations,key)">删除</button>
+                    <div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="config.stun_animations[key]"><button class="btn secondary mini" :title="t('预览动画')" @click="previewAnimation(config.stun_animations[key])">▶</button></div>
+                    <button class="btn danger mini" @click="removeObjectField(config.stun_animations,key)">{{ t('删除') }}</button>
                 </div>
             </div>
         </div>
 
         <div class="section">
             <div class="section-head" @click="toggleSection('stunCmd')">
-                <h3 class="section-header">Stun Command List (硬直触发指令列表) <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['stunCmd'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+                <h3 class="section-header">Stun Command List (硬直触发指令列表) <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['stunCmd'] ? ('▼ ' + t('展开')) : ('▲ ' + t('折叠')) }}</span></h3>
             </div>
             <div v-show="!collapsedSections['stunCmd']">
                 <div style="margin-bottom:10px;"><button class="btn mini" @click="addStunCommand">+ 新增硬直指令</button></div>
@@ -386,7 +391,7 @@
 
                                 <!-- Type: Animation -->
                                 <div v-if="bhv._type==='animation'" class="grid2" style="border-top:1px solid #e2e8f0;padding-top:10px;">
-                                    <div class="form-group"><label>Animation (动画路径)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="bhv.animation"><button class="btn secondary mini" title="预览动画" @click="previewAnimation(bhv.animation)">▶</button></div></div>
+                                    <div class="form-group"><label>Animation (动画路径)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="bhv.animation"><button class="btn secondary mini" :title="t('预览动画')" @click="previewAnimation(bhv.animation)">▶</button></div></div>
                                     <div class="form-group"><label>Play Speed (播放速度)</label><input type="number" step="0.1" v-model.number="bhv.play_speed"></div>
                                     <div class="form-group"><label>Stamina Cost (耐力消耗)</label><input type="number" v-model.number="bhv.stamina"></div>
                                     <div class="form-group"><label>Convert Time (前摇/过渡时间)</label><input type="number" v-model.number="bhv.convert_time"></div>
@@ -443,7 +448,7 @@
                                 <!-- Type: Guard -->
                                 <div v-if="bhv._type==='guard'" class="grid2" style="border-top:1px solid #e2e8f0;padding-top:10px;">
                                     <div class="form-group"><label>Guard (取消防御反应时间/tick)</label><input type="number" v-model.number="bhv.guard"></div>
-                                    <div class="form-group"><label class="checkline"><input type="checkbox" v-model="bhv._enable_counter"> Counter Animation (防反动画)</label><div v-if="bhv._enable_counter" style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="bhv.counter"><button class="btn secondary mini" title="预览动画" @click="previewAnimation(bhv.counter)">▶</button></div></div>
+                                    <div class="form-group"><label class="checkline"><input type="checkbox" v-model="bhv._enable_counter"> Counter Animation (防反动画)</label><div v-if="bhv._enable_counter" style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="bhv.counter"><button class="btn secondary mini" :title="t('预览动画')" @click="previewAnimation(bhv.counter)">▶</button></div></div>
                                     <div class="form-group" v-if="bhv._enable_counter"><label>Counter Chance (防反机率 0-1)</label><input type="number" step="0.1" v-model.number="bhv.counter_chance"></div>
                                     <div class="form-group" v-if="bhv._enable_counter"><label>Counter Cost (防反耐力消耗)</label><input type="number" v-model.number="bhv.counter_cost"></div>
                                     <div class="form-group" v-if="bhv._enable_counter"><label>Counter Speed (防反速度)</label><input type="number" step="0.1" v-model.number="bhv.counter_speed"></div>
@@ -456,7 +461,7 @@
                                 <div v-if="bhv._type==='guard'" style="margin-top:10px;">
                                     <label class="checkline" style="font-size:13px;font-weight:600;margin-bottom:8px;"><input type="checkbox" v-model="bhv._enable_specific_guard_motion"> Specific Guard Motion (独立防御动作配置)</label>
                                     <div class="grid2" v-if="bhv._enable_specific_guard_motion">
-                                        <div class="form-group"><label>Guard (防御动画)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="bhv.specific_guard_motion.guard"><button class="btn secondary mini" title="预览动画" @click="previewAnimation(bhv.specific_guard_motion.guard)">▶</button></div></div>
+                                        <div class="form-group"><label>Guard (防御动画)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="bhv.specific_guard_motion.guard"><button class="btn secondary mini" :title="t('预览动画')" @click="previewAnimation(bhv.specific_guard_motion.guard)">▶</button></div></div>
                                         <div class="form-group"><label>Stamina Cost Multiply</label><input type="number" step="0.1" v-model.number="bhv.specific_guard_motion.stamina_cost_multiply"></div>
                                         <div class="form-group"><label>Parry Cost Multiply</label><input type="number" step="0.1" v-model.number="bhv.specific_guard_motion.parry_cost_multiply"></div>
                                         <div class="form-group"><label class="checkline"><input type="checkbox" v-model="bhv.specific_guard_motion.can_block_projectile"> Can Block Projectile</label></div>
@@ -466,9 +471,9 @@
                                                 <button class="btn mini" @click="addStringItem(bhv.specific_guard_motion.parry_animation)">新增</button>
                                             </div>
                                             <div class="row3" v-for="(anim, aIdx) in bhv.specific_guard_motion.parry_animation" :key="'sgm-parry-'+aIdx">
-                                                <div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" :value="anim" @input="bhv.specific_guard_motion.parry_animation[aIdx]=$event.target.value"><button class="btn secondary mini" title="预览动画" @click="previewAnimation(bhv.specific_guard_motion.parry_animation[aIdx])">▶</button></div>
+                                                <div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" :value="anim" @input="bhv.specific_guard_motion.parry_animation[aIdx]=$event.target.value"><button class="btn secondary mini" :title="t('预览动画')" @click="previewAnimation(bhv.specific_guard_motion.parry_animation[aIdx])">▶</button></div>
                                                 <div></div>
-                                                <button class="btn danger mini" @click="bhv.specific_guard_motion.parry_animation.splice(aIdx,1)">删除</button>
+                                                <button class="btn danger mini" @click="bhv.specific_guard_motion.parry_animation.splice(aIdx,1)">{{ t('删除') }}</button>
                                             </div>
                                         </div>
                                     </div>
@@ -905,6 +910,112 @@ function createAnimationAutocomplete(getAnimOptions, getModelOptions) {
 
 let animationAutocompleteController=null;
 
+const messages = {
+    zh: {},
+    en: {
+        "Indestructible 数据包可视化编辑器": "Indestructible Datapack Visual Editor",
+        "Trail 调节器": "Trail Visualizer",
+        "CE 动作": "CE Action",
+        "ID 转 CE 转换器": "ID to CE Converter",
+        "切换深色/浅色模式": "Toggle Dark/Light Mode",
+        "浅色模式": "Light Mode",
+        "深色模式": "Dark Mode",
+        "动画资源索引": "Animation Resource Index",
+        "导入资源文件夹": "Import Resource Folder",
+        "导入多个文件": "Import Multiple Files",
+        "如果不兼容文件夹导入，点此多选文件": "If folder import fails, click here to select multiple files",
+        "清空索引": "Clear Index",
+        "支持选择资源包根目录、模组目录、`assets` 或 `data` 目录；导入后在动画输入框中输入关键字或按下方向键即可调出建议。": "Supports selecting resource pack root, mod directory, `assets`, or `data` directory; after import, type keywords or press arrow keys in animation inputs to get suggestions.",
+        "导入 JSON": "Import JSON",
+        "基础属性": "Basic Attributes",
+        "Armature (骨骼)": "Armature",
+        "Renderer (渲染器)": "Renderer",
+        "Faction (阵营)": "Faction",
+        "Hit Sound (受击音效)": "Hit Sound",
+        "Hit Particle (受击粒子)": "Hit Particle",
+        "Swing Sound (挥击音效)": "Swing Sound",
+        "isHumanoid (是否人形)": "isHumanoid",
+        "boss_bar (显示 Boss 血条)": "boss_bar",
+        "advanced (高级模式)": "advanced",
+        "Custom Texture (自定义血条贴图)": "Custom Texture",
+        "Custom Name (自定义血条名称)": "Custom Name",
+        "Model (模型)": "Model",
+        "Advanced Attributes (高级属性)": "Advanced Attributes",
+        "Scale (模型缩放倍率)": "Scale",
+        "Max Striker (最大受击人数)": "Max Striker",
+        "Armor Negation (护甲穿透/0到100)": "Armor Negation",
+        "Impact (冲击力/0到10)": "Impact",
+        "Stun Immunity Time (眩晕免疫时间/tick)": "Stun Immunity Time",
+        "Set Phase (设定阶段)": "Set Phase",
+        "Specific Guard Motion (独立防御动作配置)": "Specific Guard Motion",
+        "Guard (防御动画)": "Guard",
+        "Stamina Cost Multiply": "Stamina Cost Multiply",
+        "Parry Cost Multiply": "Parry Cost Multiply",
+        "Can Block Projectile": "Can Block Projectile",
+        "Parry Animations (派生动画)": "Parry Animations",
+        "Wander (游荡绝对时间/tick)": "Wander",
+        "Inaction Time (不作为时间)": "Inaction Time",
+        "X Axis (顺逆时针向量 -1到1)": "X Axis",
+        "Z Axis (前进后退向量 -1到1)": "Z Axis",
+        "Stun Command List (硬直触发指令列表)": "Stun Command List",
+        "Stun Type (硬直类型)": "Stun Type",
+        "Execute At Target (对目标执行)": "Execute At Target",
+        "Command (指令)": "Command",
+        "Combat Behavior (战斗行为)": "Combat Behavior",
+        "+ 新增 Combat Behavior": "+ Add Combat Behavior",
+        "Weight (权重)": "Weight",
+        "Conditions (执行条件)": "Conditions",
+        "+ 新增 Conditions": "+ Add Condition",
+        "Action/State (行为/状态)": "Action/State",
+        "Duration (持续时间)": "Duration",
+        "Animation (动画 ID)": "Animation",
+        "Stamina Cost (耐力消耗)": "Stamina Cost",
+        "Max Turn Angle (最大转向角度)": "Max Turn Angle",
+        "Hit Shield (击中盾牌)": "Hit Shield",
+        "Cooldown (冷却时间)": "Cooldown",
+        "Move (移动)": "Move",
+        "Type (行为类型)": "Type",
+        "chase (追逐)": "Chase",
+        "dodge (闪避)": "Dodge",
+        "circle (环绕)": "Circle",
+        "Speed Multiply (速度倍率)": "Speed Multiply",
+        "Direction (闪避/环绕方向)": "Direction",
+        "Left (左)": "Left",
+        "Right (右)": "Right",
+        "Back (后)": "Back",
+        "Distance (移动距离)": "Distance",
+        "Angle (角度/用于环绕)": "Angle",
+        "常用字段可视化编辑，`combat_behavior`先保留为可校验/可格式化 JSON 区块。": "Common fields visual editing, `combat_behavior` kept as validatable JSON block.",
+        "推荐保存路径: `数据包名/data/生物所属modid/advanced_mobpatch/生物id.json`": "Recommended save path: `datapack/data/modid/advanced_mobpatch/entity_id.json`",
+        "新增": "Add",
+        "删除": "Delete",
+        "导出预览": "Export Preview",
+        "右侧展示最终导出的纯 JSON；若 `combat_behavior` 不合法，这里会显示错误信息。": "Right side shows final JSON; if `combat_behavior` is invalid, errors will show here.",
+        "复制": "Copy",
+        "下载": "Download",
+        "导出 JSON": "Export JSON",
+        "导出 JSON 失败: combat_behavior 不是合法的 JSON。": "Export JSON failed: combat_behavior is not valid JSON.",
+        "已复制到剪贴板！": "Copied to clipboard!",
+        "JSON 错误:": "JSON Error:",
+        "JSON 解析失败:": "JSON Parsing Failed:",
+        "请输入导出的文件名称:": "Please enter export file name:",
+        "折叠": "Collapse",
+        "展开": "Expand",
+        "预览动画": "Preview Animation",
+        "键名已存在": "Key already exists",
+        "模板生成失败": "Template generation failed",
+        "复制失败:": "Copy failed:",
+        "导出失败:": "Export failed:",
+        "+ 添加动作键": "+ Add Motion Key",
+        "+ 添加硬直类型": "+ Add Stun Type",
+        "未在所选目录中找到可识别的动画或模型资源。": "No recognizable animation or model resources were found.",
+        "尚未导入动画资源索引。": "No animation resource index imported yet.",
+        "导入资源目录后，动画路径输入框会出现分组联想和高亮匹配。": "After importing resources, animation path inputs will show grouped suggestions and highlighted matches.",
+        "Attributes (属性配置)": "Attributes",
+        "combat_behavior 必须是数组": "combat_behavior must be an array"
+    }
+};
+
 createApp({
     data(){
         let savedConfig = null;
@@ -915,6 +1026,7 @@ createApp({
         
         return {
             isDarkMode: localStorage.getItem('ce_theme') === 'dark',
+            lang: localStorage.getItem('ce_lang') || (navigator.language.startsWith('zh') ? 'zh' : 'en'),
             leftWidth: 50,
             isDragging: false,
             collapsedSections: {},
@@ -935,13 +1047,34 @@ createApp({
                 } catch(e) { console.warn("Failed to autosave", e); }
             },
             deep: true
+        },
+        lang() {
+            document.documentElement.lang = this.lang === 'zh' ? 'zh-CN' : 'en';
+            document.title = this.t('Indestructible 数据包可视化编辑器');
         }
     },
     computed:{
-        animationLibrarySummary(){if(this.availableAnimations.length===0)return'尚未导入动画资源索引。';return`已索引 ${this.availableAnimations.length} 个动画，来自 ${this.loadedAnimationMods.length} 个命名空间，累计导入 ${this.animationImportBatches} 次，扫描 ${this.animationSourceFileCount} 个文件并命中 ${this.matchedAnimationFileCount} 个动画 JSON。`},
+        animationLibrarySummary(){
+            if(this.availableAnimations.length===0)return this.t('尚未导入动画资源索引。');
+            if (this.lang === 'zh') {
+                return `已索引 ${this.availableAnimations.length} 个动画，来自 ${this.loadedAnimationMods.length} 个命名空间，累计导入 ${this.animationImportBatches} 次，扫描 ${this.animationSourceFileCount} 个文件并命中 ${this.matchedAnimationFileCount} 个动画 JSON。`;
+            }
+            return `Indexed ${this.availableAnimations.length} animations from ${this.loadedAnimationMods.length} namespaces, imported ${this.animationImportBatches} times, scanned ${this.animationSourceFileCount} files and matched ${this.matchedAnimationFileCount} animation JSON files.`;
+        },
         generatedJSON(){try{return JSON.stringify(this.buildExportObject(),null,2)}catch(err){return`// combat_behavior 解析失败\n// ${err.message}`}}
     },
     methods:{
+        t(key) {
+            if (typeof messages !== 'undefined') {
+                return messages[this.lang] && messages[this.lang][key] ? messages[this.lang][key] : key;
+            }
+            return key;
+        },
+        toggleLang() {
+            this.lang = this.lang === 'zh' ? 'en' : 'zh';
+            localStorage.setItem('ce_lang', this.lang);
+            if (typeof animationAutocompleteController !== 'undefined' && animationAutocompleteController) animationAutocompleteController.refresh();
+        },
         toggleSection(sectionName) {
             this.collapsedSections[sectionName] = !this.collapsedSections[sectionName];
         },
@@ -990,13 +1123,13 @@ createApp({
             }
         },
         previewAnimation(animPath){if(!window.playAnimationPreview)return;let modelId=this.config.armature;if(modelId.includes(':entity/'))modelId=modelId.replace(':entity/',':');const wpn = document.getElementById("weapon-model-input").value.trim(); window.playAnimationPreview(modelId,animPath,wpn);},
-        buildExportObject(){const out=clone(this.config);if(!Array.isArray(out.combat_behavior))throw new Error('combat_behavior 必须是数组');out.combat_behavior=out.combat_behavior.map(cb=>({...cb,behavior_series:cb.behavior_series.map(s=>({...s,behaviors:s.behaviors.map(b=>finalizeBehavior(b))}))}));if(!out.boss_bar){delete out.custom_texture;delete out.custom_name}return cleanup(out)||{}},
+        buildExportObject(){const out=clone(this.config);if(!Array.isArray(out.combat_behavior))throw new Error(this.t('combat_behavior 必须是数组'));out.combat_behavior=out.combat_behavior.map(cb=>({...cb,behavior_series:cb.behavior_series.map(s=>({...s,behaviors:s.behaviors.map(b=>finalizeBehavior(b))}))}));if(!out.boss_bar){delete out.custom_texture;delete out.custom_name}return cleanup(out)||{}},
         triggerImport(){document.getElementById('jsonImportInput').click()},
         openAssetFolderPicker(){document.getElementById('assetFolderInput').click()},
         joinList(list){return Array.isArray(list)?list.join(', '):''},
         parseCommaList(value){return String(value||'').split(',').map(s=>s.trim()).filter(Boolean)},
         addObjectField(obj,base,value){obj[uniqueKey(obj,base)]=value},
-        renameObjectKey(obj,oldKey,newKey){const key=String(newKey||'').trim();if(!key||key===oldKey)return;if(Object.prototype.hasOwnProperty.call(obj,key)){alert('键名已存在');return}const val=obj[oldKey];delete obj[oldKey];obj[key]=val},
+        renameObjectKey(obj,oldKey,newKey){const key=String(newKey||'').trim();if(!key||key===oldKey)return;if(Object.prototype.hasOwnProperty.call(obj,key)){alert(this.t('键名已存在'));return}const val=obj[oldKey];delete obj[oldKey];obj[key]=val},
         removeObjectField(obj,key){delete obj[key]},
         addStringItem(list){if(Array.isArray(list))list.push('')},
         addWeaponMotion(){this.config.humanoid_weapon_motions.push({weapon_categories:['longsword'],style:'common',livingmotions:{chase:'epicfight:biped/living/hold_longsword'}})},
@@ -1009,10 +1142,10 @@ createApp({
         syncBehaviorType(bhv){if(bhv._type==='animation'){delete bhv.guard;delete bhv.counter;delete bhv.counter_chance;delete bhv.counter_cost;delete bhv.counter_speed;delete bhv.parry;delete bhv.wander;delete bhv.inaction_time;delete bhv.x_axis;delete bhv.z_axis;delete bhv.stun_immunity_time;delete bhv.specific_guard_motion;delete bhv.cancel_after_counter;delete bhv.parry_time;bhv._enable_damage_modifier=false;bhv.damage_modifier={damage:1,impact:1,armor_negation:1,stun_type:'short'};bhv.command_list=[];bhv.hit_command_list=[];bhv.blocked_command_list=[]}else if(bhv._type==='guard'){delete bhv.animation;delete bhv.play_speed;delete bhv.stamina;delete bhv.convert_time;delete bhv.damage_modifier;delete bhv.wander;delete bhv.inaction_time;delete bhv.x_axis;delete bhv.z_axis;delete bhv.command_list;delete bhv.hit_command_list;delete bhv.blocked_command_list;bhv.guard=60;bhv._enable_counter=false;bhv.counter='';bhv.counter_chance=0.3;bhv.counter_cost=3;bhv.counter_speed=1;bhv.cancel_after_counter=true;bhv.parry=false;bhv.parry_time=0;bhv._enable_stun_immunity_time=false;bhv.stun_immunity_time=30;bhv._enable_specific_guard_motion=false;bhv.specific_guard_motion={guard:'',stamina_cost_multiply:1,can_block_projectile:false,parry_cost_multiply:0.5,parry_animation:[]}}else if(bhv._type==='wander'){delete bhv.animation;delete bhv.play_speed;delete bhv.stamina;delete bhv.convert_time;delete bhv.damage_modifier;delete bhv.guard;delete bhv.counter;delete bhv.counter_chance;delete bhv.counter_cost;delete bhv.counter_speed;delete bhv.parry;delete bhv.stun_immunity_time;delete bhv.specific_guard_motion;delete bhv.cancel_after_counter;delete bhv.parry_time;delete bhv.command_list;delete bhv.hit_command_list;delete bhv.blocked_command_list;bhv.wander=300;bhv._enable_inaction_time=false;bhv.inaction_time=300;bhv._enable_x_axis=false;bhv.x_axis=1;bhv._enable_z_axis=false;bhv.z_axis=-1}},
         addCondition(bhv){bhv.conditions.push({predicate:'epicfight:within_distance'})},
         updateCondition(cond,valStr){try{const parsed=JSON.parse(valStr);Object.keys(cond).forEach(k=>delete cond[k]);Object.assign(cond,parsed)}catch(e){/* ignore empty or partial inputs */}},
-        generateTemplate(){try{this.config.combat_behavior=processCombatBehavior(JSON.parse(defaultCombatBehaviorText()))}catch(e){alert('模板生成失败')}},
-        copyJSON(){try{navigator.clipboard.writeText(JSON.stringify(this.buildExportObject(),null,2)).then(()=>alert('已复制到剪贴板！'))}catch(err){alert('复制失败: '+err.message)}},
+        generateTemplate(){try{this.config.combat_behavior=processCombatBehavior(JSON.parse(defaultCombatBehaviorText()))}catch(e){alert(this.t('模板生成失败'))}},
+        copyJSON(){try{navigator.clipboard.writeText(JSON.stringify(this.buildExportObject(),null,2)).then(()=>alert(this.t('已复制到剪贴板！')))}catch(err){alert(this.t('复制失败:')+' '+err.message)}},
         exportJSON(){try{
-            let filename = prompt("请输入导出的文件名称:", "indestructible_mobpatch.json");
+            let filename = prompt(this.t("请输入导出的文件名称:"), "indestructible_mobpatch.json");
             if (filename === null) return;
             if (!filename.trim().toLowerCase().endsWith('.json')) {
                 filename = filename.trim() + '.json';
@@ -1024,15 +1157,17 @@ createApp({
             a.download=filename;
             a.click();
             URL.revokeObjectURL(url)
-        }catch(err){alert('导出失败: '+err.message)}},
-        importJSON(event){const file=event.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>{try{const raw=parseJsonLoose(e.target.result);const base=defaultConfig();this.config={...base,...raw,attributes:raw.attributes&&typeof raw.attributes==='object'&&!Array.isArray(raw.attributes)?{...base.attributes,...raw.attributes}:{...base.attributes},default_livingmotions:raw.default_livingmotions&&typeof raw.default_livingmotions==='object'&&!Array.isArray(raw.default_livingmotions)?{...base.default_livingmotions,...raw.default_livingmotions}:{...base.default_livingmotions},stun_animations:raw.stun_animations&&typeof raw.stun_animations==='object'&&!Array.isArray(raw.stun_animations)?{...base.stun_animations,...raw.stun_animations}:{...base.stun_animations},humanoid_weapon_motions:Array.isArray(raw.humanoid_weapon_motions)?raw.humanoid_weapon_motions.map(item=>({weapon_categories:Array.isArray(item.weapon_categories)?item.weapon_categories:[],style:item.style||'common',livingmotions:item.livingmotions&&typeof item.livingmotions==='object'&&!Array.isArray(item.livingmotions)?item.livingmotions:{}})):base.humanoid_weapon_motions,custom_guard_motion:Array.isArray(raw.custom_guard_motion)?raw.custom_guard_motion.map(item=>({weapon_categories:Array.isArray(item.weapon_categories)?item.weapon_categories:[],style:item.style||'common',guard:item.guard||'',stamina_cost_multiply:item.stamina_cost_multiply??1,can_block_projectile:!!item.can_block_projectile,parry_cost_multiply:item.parry_cost_multiply??.5,parry_animation:Array.isArray(item.parry_animation)?item.parry_animation:[]})):base.custom_guard_motion,stun_command_list:Array.isArray(raw.stun_command_list)?raw.stun_command_list.map(item=>({command:item.command||'',stun_type:item.stun_type||'short',execute_at_target:!!item.execute_at_target})):base.stun_command_list,combat_behavior:processCombatBehavior(Array.isArray(raw.combat_behavior)?raw.combat_behavior:[])}}catch(err){alert('JSON 解析失败: '+err.message)}};reader.readAsText(file);event.target.value=''},
+        }catch(err){alert(this.t('导出失败:')+' '+err.message)}},
+        importJSON(event){const file=event.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>{try{const raw=parseJsonLoose(e.target.result);const base=defaultConfig();this.config={...base,...raw,attributes:raw.attributes&&typeof raw.attributes==='object'&&!Array.isArray(raw.attributes)?{...base.attributes,...raw.attributes}:{...base.attributes},default_livingmotions:raw.default_livingmotions&&typeof raw.default_livingmotions==='object'&&!Array.isArray(raw.default_livingmotions)?{...base.default_livingmotions,...raw.default_livingmotions}:{...base.default_livingmotions},stun_animations:raw.stun_animations&&typeof raw.stun_animations==='object'&&!Array.isArray(raw.stun_animations)?{...base.stun_animations,...raw.stun_animations}:{...base.stun_animations},humanoid_weapon_motions:Array.isArray(raw.humanoid_weapon_motions)?raw.humanoid_weapon_motions.map(item=>({weapon_categories:Array.isArray(item.weapon_categories)?item.weapon_categories:[],style:item.style||'common',livingmotions:item.livingmotions&&typeof item.livingmotions==='object'&&!Array.isArray(item.livingmotions)?item.livingmotions:{}})):base.humanoid_weapon_motions,custom_guard_motion:Array.isArray(raw.custom_guard_motion)?raw.custom_guard_motion.map(item=>({weapon_categories:Array.isArray(item.weapon_categories)?item.weapon_categories:[],style:item.style||'common',guard:item.guard||'',stamina_cost_multiply:item.stamina_cost_multiply??1,can_block_projectile:!!item.can_block_projectile,parry_cost_multiply:item.parry_cost_multiply??.5,parry_animation:Array.isArray(item.parry_animation)?item.parry_animation:[]})):base.custom_guard_motion,stun_command_list:Array.isArray(raw.stun_command_list)?raw.stun_command_list.map(item=>({command:item.command||'',stun_type:item.stun_type||'short',execute_at_target:!!item.execute_at_target})):base.stun_command_list,combat_behavior:processCombatBehavior(Array.isArray(raw.combat_behavior)?raw.combat_behavior:[])}}catch(err){alert(this.t('JSON 解析失败:')+' '+err.message)}};reader.readAsText(file);event.target.value=''},
         clearAnimationLibrary(){this.availableAnimations=[];this.availableModels=[];this.loadedAnimationMods=[];this.animationImportBatches=0;this.animationSourceFileCount=0;this.matchedAnimationFileCount=0;fileResourceMap.clear();if(animationAutocompleteController)animationAutocompleteController.refresh()},
         collectAnimationResources(files){const anims=new Set(),models=new Set(),modCounts=new Map();let matched=0;files.forEach(file=>{const d=extractAnimationDescriptor(file.webkitRelativePath||file.name, file);if(!d)return;if(d.type==='animation'){matched+=1;anims.add(d.id);modCounts.set(d.modId,(modCounts.get(d.modId)||0)+1)}else if(d.type==='model'||d.type==='texture'){models.add(d.id)}});return{animations:Array.from(anims).sort(),models:Array.from(models).sort(),modCounts:Array.from(modCounts.entries()).map(([modId,count])=>({modId,count})).sort((a,b)=>a.modId.localeCompare(b.modId)),matchedFileCount:matched}},
         mergeLoadedAnimationMods(nextMods){const merged=new Map(this.loadedAnimationMods.map(item=>[item.modId,item.count]));nextMods.forEach(item=>merged.set(item.modId,(merged.get(item.modId)||0)+item.count));this.loadedAnimationMods=Array.from(merged.entries()).map(([modId,count])=>({modId,count})).sort((a,b)=>a.modId.localeCompare(b.modId))},
-        importAnimationResources(event){const files=Array.from(event.target.files||[]);if(!files.length)return;const result=this.collectAnimationResources(files);if(result.animations.length===0&&result.models.length===0){alert('未在所选目录中找到可识别的动画或模型资源。');event.target.value='';return}const merged=new Set(this.availableAnimations);result.animations.forEach(id=>merged.add(id));this.availableAnimations=Array.from(merged).sort();const mergedModels=new Set(this.availableModels);result.models.forEach(id=>mergedModels.add(id));this.availableModels=Array.from(mergedModels).sort();this.mergeLoadedAnimationMods(result.modCounts);this.animationImportBatches+=1;this.animationSourceFileCount+=files.length;this.matchedAnimationFileCount+=result.matchedFileCount;if(animationAutocompleteController)animationAutocompleteController.refresh();event.target.value=''}
+        importAnimationResources(event){const files=Array.from(event.target.files||[]);if(!files.length)return;const result=this.collectAnimationResources(files);if(result.animations.length===0&&result.models.length===0){alert(this.t('未在所选目录中找到可识别的动画或模型资源。'));event.target.value='';return}const merged=new Set(this.availableAnimations);result.animations.forEach(id=>merged.add(id));this.availableAnimations=Array.from(merged).sort();const mergedModels=new Set(this.availableModels);result.models.forEach(id=>mergedModels.add(id));this.availableModels=Array.from(mergedModels).sort();this.mergeLoadedAnimationMods(result.modCounts);this.animationImportBatches+=1;this.animationSourceFileCount+=files.length;this.matchedAnimationFileCount+=result.matchedFileCount;if(animationAutocompleteController)animationAutocompleteController.refresh();event.target.value=''}
     },
     mounted(){
         if (this.isDarkMode) document.body.classList.add('dark-mode');
+        document.documentElement.lang = this.lang === 'zh' ? 'zh-CN' : 'en';
+        document.title = this.t('Indestructible 数据包可视化编辑器');
         window.addEventListener('keydown', this.handleKeydown);
         if(!animationAutocompleteController){animationAutocompleteController=createAnimationAutocomplete(()=>this.availableAnimations,()=>this.availableModels)}
     }

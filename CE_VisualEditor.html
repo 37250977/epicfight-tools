@@ -414,31 +414,36 @@
         <div class="panel">
             <div class="top-bar">
                 <div style="display:flex; flex-direction:column; gap:10px;">
-                    <h2>CE 数据包可视化编辑器</h2>
+                    <h2>{{ t('CE 数据包可视化编辑器') }}</h2>
                     <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                        <a href="index.html" class="btn btn-secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">Trail 调节器</a>
-                        <a href="Indestructible_VisualEditor.html" class="btn btn-secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">Indestructible 编辑器</a>
-                        <a href="CE_Converter.html" class="btn btn-secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">ID 转 CE 转换器</a>
+                        <a href="index.html" class="btn btn-secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('Trail 调节器') }}</a>
+                        <a href="Indestructible_VisualEditor.html" class="btn btn-secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('Indestructible 编辑器') }}</a>
+                        <a href="CE_Converter.html" class="btn btn-secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('ID 转 CE 转换器') }}</a>
                     </div>
                 </div>
                 <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                    <button class="btn btn-secondary" @click="toggleTheme" style="font-size:12px; padding:6px 12px;" title="切换深色/浅色模式">{{ isDarkMode ? '☀️ 浅色模式' : '🌙 深色模式' }}</button>
+                    <button class="btn btn-secondary" @click="toggleLang" style="padding:4px 8px; font-size:12px; font-weight:bold;">
+                        <span :style="{ fontWeight: lang === 'zh' ? '800' : '400' }">中文</span>
+                        <span style="opacity:.7"> / </span>
+                        <span :style="{ fontWeight: lang === 'en' ? '800' : '400' }">English</span>
+                    </button>
+                    <button class="btn btn-secondary" @click="toggleTheme" style="font-size:12px; padding:6px 12px;" :title="t('切换深色/浅色模式')">{{ isDarkMode ? t('浅色模式') : t('深色模式') }}</button>
                     <div class="resource-import-box">
                         <div class="resource-import-header">
-                            <div style="font-size:12px; color:#3b82f6; font-weight:bold;">动画资源索引</div>
+                            <div style="font-size:12px; color:#3b82f6; font-weight:bold;">{{ t('动画资源索引') }}</div>
                             <div class="resource-import-actions">
                                 <label class="btn" style="cursor:pointer; margin:0;">
-                                    导入资源文件夹
+                                    {{ t('导入资源文件夹') }}
                                     <input type="file" webkitdirectory directory multiple @change="importAnimationResources" style="display:none">
                                 </label>
-                                <label class="btn btn-secondary" style="cursor:pointer; margin:0;" title="如果不兼容文件夹导入，点此多选文件">
-                                    导入多个文件
+                                <label class="btn btn-secondary" style="cursor:pointer; margin:0;" :title="t('如果不兼容文件夹导入，点此多选文件')">
+                                    {{ t('导入多个文件') }}
                                     <input type="file" multiple accept=".json,.obj,.geo" @change="importAnimationResources" style="display:none">
                                 </label>
-                                <button class="btn btn-secondary" @click="clearAnimationLibrary" :disabled="availableAnimations.length === 0">清空索引</button>
+                                <button class="btn btn-secondary" @click="clearAnimationLibrary" :disabled="availableAnimations.length === 0">{{ t('清空索引') }}</button>
                             </div>
                         </div>
-                        <div class="tooltip">支持选择资源包根目录、模组目录、`assets` 或 `data` 目录；导入后在动画输入框中输入关键字或按下方向键即可调出建议。</div>
+                        <div class="tooltip">{{ t('支持选择资源包根目录、模组目录、`assets` 或 `data` 目录；导入后在动画输入框中输入关键字或按下方向键即可调出建议。') }}</div>
                         <div class="resource-import-summary">{{ animationLibrarySummary }}</div>
                         <div class="resource-import-tags" v-if="loadedAnimationMods.length > 0">
                             <span class="resource-tag" v-for="mod in loadedAnimationMods" :key="mod.modId">{{ mod.modId }} ({{ mod.count }})</span>
@@ -446,14 +451,14 @@
                         <input type="file" id="assetFolderInput" webkitdirectory directory multiple @change="importAnimationResources" style="display:none;">
                     </div>
                     <input type="file" id="importFile" @change="importJSON" style="display:none" accept=".json">
-                    <button class="btn" onclick="document.getElementById('importFile').click()">导入 JSON</button>
-                    <button class="btn" @click="exportJSON">导出 JSON</button>
+                    <button class="btn" @click="triggerImport">{{ t('导入 JSON') }}</button>
+                    <button class="btn" @click="exportJSON">{{ t('导出 JSON') }}</button>
                 </div>
             </div>
 
             <!-- 基础属性 -->
             <div class="section">
-                <h3 class="section-header" @click="toggleSection('basic')">基础属性 <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['basic'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+                <h3 class="section-header" @click="toggleSection('basic')">{{ t('基础属性') }} <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['basic'] ? ('▼ ' + t('展开')) : ('▲ ' + t('折叠')) }}</span></h3>
                 <div v-show="!collapsedSections['basic']">
                     <div class="form-group">
                         <label title="<必填> 阵营，用于防止攻击命中同阵营的实体">Faction (阵营)</label>
@@ -487,7 +492,7 @@
 
             <!-- 耐力系统 -->
             <div class="section">
-                <h3 class="section-header" @click="toggleSection('stamina')">耐力与破防 <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['stamina'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+                <h3 class="section-header" @click="toggleSection('stamina')">{{ t('耐力与破防') }} <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['stamina'] ? ('▼ ' + t('展开')) : ('▲ ' + t('折叠')) }}</span></h3>
                 <div v-show="!collapsedSections['stamina']">
                     <div class="form-group">
                         <label title="[可选] 耐力清空的破防持续时间（和动画无关）Tick">Break Time (破防持续时间 Tick)</label>
@@ -552,17 +557,17 @@
 
             <!-- Attributes -->
             <div class="section">
-                <h3 class="section-header" @click="toggleSection('attributes')">Attributes (属性) <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['attributes'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+                <h3 class="section-header" @click="toggleSection('attributes')">{{ t('Attributes (属性调节)') }} <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['attributes'] ? ('▼ ' + t('展开')) : ('▲ ' + t('折叠')) }}</span></h3>
                 <div v-show="!collapsedSections['attributes']">
-                    <div style="margin-bottom: 10px;"><button class="btn" @click="addAttribute" style="font-size:12px;padding:4px 8px">+ 添加属性</button></div>
+                    <div style="margin-bottom: 10px;"><button class="btn" @click="addAttribute" style="font-size:12px;padding:4px 8px">{{ t('+ 添加属性') }}</button></div>
                     <div v-for="(attr, index) in config.attributes" :key="index" class="array-item">
                         <button class="btn btn-danger remove-btn" @click="config.attributes.splice(index, 1)">X</button>
                         <div class="form-group">
-                            <label>属性名</label>
+                            <label>{{ t('属性名') }}</label>
                             <input type="text" v-model="attr.attribute">
                         </div>
                         <div class="form-group">
-                            <label>值</label>
+                            <label>{{ t('值') }}</label>
                             <input type="number" step="0.1" v-model.number="attr.value">
                         </div>
                     </div>
@@ -571,9 +576,9 @@
 
             <!-- 武器行为动画 (WeaponLivingMotions & GuardHitAnimation) -->
             <div class="section">
-                <h3 class="section-header" @click="toggleSection('weaponLiving')">Weapon Living Motions (武器特殊站立/移动动画) <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['weaponLiving'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+                <h3 class="section-header" @click="toggleSection('weaponLiving')">{{ t('Weapon Living Motions (武器特殊站立/移动动画)') }} <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['weaponLiving'] ? ('▼ ' + t('展开')) : ('▲ ' + t('折叠')) }}</span></h3>
                 <div v-show="!collapsedSections['weaponLiving']">
-                    <div style="margin-bottom: 10px;"><button class="btn" @click="addWeaponLivingMotion" style="font-size:12px;padding:4px 8px">+ 添加武器动画组</button></div>
+                    <div style="margin-bottom: 10px;"><button class="btn" @click="addWeaponLivingMotion" style="font-size:12px;padding:4px 8px">{{ t('+ 添加武器动画组') }}</button></div>
                     <div v-for="(wlm, index) in config.weaponLivingMotions" :key="'wlm'+index" class="array-item">
                         <button class="btn btn-danger remove-btn" @click="config.weaponLivingMotions.splice(index, 1)">X</button>
                         <div class="form-group">
@@ -585,19 +590,19 @@
                             <input type="text" v-model="wlm.style">
                         </div>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                            <div class="form-group"><label>idle (站立)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="wlm.livingMotions.idle"><button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" title="预览动画" @click="previewAnimation(wlm.livingMotions.idle)">▶</button></div></div>
-                            <div class="form-group"><label>walk (行走)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="wlm.livingMotions.walk"><button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" title="预览动画" @click="previewAnimation(wlm.livingMotions.walk)">▶</button></div></div>
-                            <div class="form-group"><label>run (奔跑)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="wlm.livingMotions.run"><button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" title="预览动画" @click="previewAnimation(wlm.livingMotions.run)">▶</button></div></div>
-                            <div class="form-group"><label>chase (追逐)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="wlm.livingMotions.chase"><button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" title="预览动画" @click="previewAnimation(wlm.livingMotions.chase)">▶</button></div></div>
-                            <div class="form-group"><label>death (死亡)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="wlm.livingMotions.death"><button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" title="预览动画" @click="previewAnimation(wlm.livingMotions.death)">▶</button></div></div>
-                            <div class="form-group"><label>block (防御)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="wlm.livingMotions.block"><button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" title="预览动画" @click="previewAnimation(wlm.livingMotions.block)">▶</button></div></div>
+                            <div class="form-group"><label>idle (站立)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="wlm.livingMotions.idle"><button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" :title="t('预览动画')" @click="previewAnimation(wlm.livingMotions.idle)">▶</button></div></div>
+                            <div class="form-group"><label>walk (行走)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="wlm.livingMotions.walk"><button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" :title="t('预览动画')" @click="previewAnimation(wlm.livingMotions.walk)">▶</button></div></div>
+                            <div class="form-group"><label>run (奔跑)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="wlm.livingMotions.run"><button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" :title="t('预览动画')" @click="previewAnimation(wlm.livingMotions.run)">▶</button></div></div>
+                            <div class="form-group"><label>chase (追逐)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="wlm.livingMotions.chase"><button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" :title="t('预览动画')" @click="previewAnimation(wlm.livingMotions.chase)">▶</button></div></div>
+                            <div class="form-group"><label>death (死亡)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="wlm.livingMotions.death"><button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" :title="t('预览动画')" @click="previewAnimation(wlm.livingMotions.death)">▶</button></div></div>
+                            <div class="form-group"><label>block (防御)</label><div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="wlm.livingMotions.block"><button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" :title="t('预览动画')" @click="previewAnimation(wlm.livingMotions.block)">▶</button></div></div>
                         </div>
                     </div>
                 </div>
 
-                <h3 class="section-header" style="margin-top:20px;" @click="toggleSection('guardHit')">Guard Hit Animations (防御受击动画) <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['guardHit'] ? '▼ 展开' : '▲ 折叠' }}</span></h3>
+                <h3 class="section-header" style="margin-top:20px;" @click="toggleSection('guardHit')">{{ t('Guard Hit Animations (防御受击动画)') }} <span style="font-size:12px;color:gray;font-weight:normal;">{{ collapsedSections['guardHit'] ? ('▼ ' + t('展开')) : ('▲ ' + t('折叠')) }}</span></h3>
                 <div v-show="!collapsedSections['guardHit']">
-                    <div style="margin-bottom: 10px;"><button class="btn" @click="addGuardHitAnimation" style="font-size:12px;padding:4px 8px">+ 添加防御受击组</button></div>
+                    <div style="margin-bottom: 10px;"><button class="btn" @click="addGuardHitAnimation" style="font-size:12px;padding:4px 8px">{{ t('+ 添加防御受击组') }}</button></div>
                     <div v-for="(gha, index) in config.guardHitAnimation" :key="'gha'+index" class="array-item">
                         <button class="btn btn-danger remove-btn" @click="config.guardHitAnimation.splice(index, 1)">X</button>
                         <div class="form-group">
@@ -612,7 +617,7 @@
                             <label>Animations (逐条输入) <button class="btn" style="padding:2px 6px;font-size:10px;" @click="addStringItem(gha.animations)">+</button></label>
                             <div v-for="(anim, aIdx) in gha.animations" :key="'ghaAnim'+index+'-'+aIdx" style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">
                                 <input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" :value="anim" @input="gha.animations[aIdx] = $event.target.value" placeholder="例如: epicfight:biped/skill/guard_longsword_hit_active1">
-                                <button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" title="预览动画" @click="previewAnimation(gha.animations[aIdx])">▶</button>
+                                <button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" :title="t('预览动画')" @click="previewAnimation(gha.animations[aIdx])">▶</button>
                                 <button class="btn btn-danger" style="padding:2px 6px;font-size:10px;" @click="removeStringItem(gha.animations, aIdx)">X</button>
                             </div>
                             <div class="tooltip" v-if="!gha.animations || gha.animations.length === 0">可逐条录入并直接使用导入后的动画提示。</div>
@@ -626,7 +631,7 @@
                 <h3>Stun Animations (眩晕动画)</h3>
                 <div class="form-group" v-for="key in ['short', 'long', 'hold', 'fall', 'knockdown', 'neutralize']" :key="key">
                     <label>{{ key }}</label>
-                    <div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="config.stunAnimations[key]"><button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" title="预览动画" @click="previewAnimation(config.stunAnimations[key])">▶</button></div>
+                    <div style="display:flex;gap:4px;"><input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="config.stunAnimations[key]"><button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" :title="t('预览动画')" @click="previewAnimation(config.stunAnimations[key])">▶</button></div>
                 </div>
             </div>
 
@@ -649,7 +654,7 @@
                     <div class="sub-panel">
                         <h5>
                             <span>Stun Events (眩晕触发事件)</span>
-                            <button class="btn" style="padding:2px 6px;font-size:12px;" @click="cb._showStunEvents = !cb._showStunEvents">{{ cb._showStunEvents ? '关闭' : '开启' }}</button>
+                            <button class="btn" style="padding:2px 6px;font-size:12px;" @click="cb._showStunEvents = !cb._showStunEvents">{{ cb._showStunEvents ? t('关闭') : t('开启') }}</button>
                         </h5>
                         <div v-if="cb._showStunEvents">
                             <div class="tooltip" style="margin-bottom:10px;">当实体处于特定眩晕状态时执行指令</div>
@@ -723,8 +728,8 @@
         <!-- 右侧预览 -->
         <div class="panel preview-panel">
             <div class="top-bar">
-                <h2>实时 JSON 预览</h2>
-                <button class="btn" @click="copyJSON">复制代码</button>
+                <h2>{{ t('实时 JSON 预览') }}</h2>
+                <button class="btn" @click="copyJSON">{{ t('复制代码') }}</button>
             </div>
             <div class="code-preview" style="height: calc(100vh - 120px); overflow-y: auto;">{{ jsonPreviewText }}</div>
         </div>
@@ -732,16 +737,16 @@
         <!-- 悬浮窗: 3D 动画预览 -->
         <div id="floating-3d-window" class="floating-window" style="display: none;">
             <div id="floating-3d-header" class="floating-header">
-                <span>3D 动画预览</span>
-                <button class="btn btn-secondary" style="padding:2px 6px; font-size:12px; margin-left: auto; cursor: pointer;" onclick="document.getElementById('floating-3d-window').style.display='none'">关闭</button>
+                <span>{{ t('3D 动画预览') }}</span>
+                <button class="btn btn-secondary" style="padding:2px 6px; font-size:12px; margin-left: auto; cursor: pointer;" onclick="document.getElementById('floating-3d-window').style.display='none'">{{ t('关闭') }}</button>
             </div>
             <div style="padding:10px; background:#fff; display:flex; flex-direction:column; flex:1; height: calc(100% - 40px);">
                 <div style="margin-bottom:10px; display:flex; align-items:center; gap:8px; flex-shrink:0;">
-                    <label style="font-size:13px; font-weight:bold; white-space:nowrap;">武器模型:</label>
-                    <input type="text" class="animation-path-input" style="flex:1;" v-model="previewWeaponModel" placeholder="例如: epicfight:weapon/greatsword">
+                    <label style="font-size:13px; font-weight:bold; white-space:nowrap;">{{ t('武器模型:') }}</label>
+                    <input type="text" class="animation-path-input" style="flex:1;" v-model="previewWeaponModel" :placeholder="t('例如: epicfight:weapon/greatsword')">
                 </div>
                 <div id="preview-container" class="preview-container-box" style="flex:1; margin-bottom:0; height: auto;">
-                    <div id="preview-msg" class="preview-overlay">点击动画输入框旁的“预览”按钮加载</div>
+                    <div id="preview-msg" class="preview-overlay">{{ t('点击动画输入框旁的“预览”按钮加载') }}</div>
                 </div>
             </div>
         </div>
@@ -1173,9 +1178,9 @@
                         <div>
                             <span :class="['node-type-badge', typeBadgeClass]">{{ nodeType }}</span>
                             <strong>{{ node.behaviorName || 'Unnamed Behavior' }}</strong>
-                            <button class="btn" @click="toggleExpand" style="font-size:12px;padding:2px 8px;margin-left:10px;">{{ expanded ? '折叠' : '展开' }}</button>
+                            <button class="btn" @click="toggleExpand" style="font-size:12px;padding:2px 8px;margin-left:10px;">{{ expanded ? $root.t('折叠') : $root.t('展开') }}</button>
                         </div>
-                        <button class="btn btn-danger" @click="$emit('remove')" style="font-size:12px;padding:2px 8px;">删除此节点</button>
+                        <button class="btn btn-danger" @click="$emit('remove')" style="font-size:12px;padding:2px 8px;">{{ $root.t('删除此节点') }}</button>
                     </div>
                     
                     <div v-if="expanded" style="margin-top:10px;">
@@ -1198,7 +1203,7 @@
                         <div class="sub-panel">
                             <h5>
                                 <span>节点高级属性 (Advanced Properties)</span>
-                                <button class="btn" style="padding:2px 6px;font-size:12px;" @click="toggleAdvanced">{{ hasAdvanced ? '关闭' : '开启' }}</button>
+                                <button class="btn" style="padding:2px 6px;font-size:12px;" @click="toggleAdvanced">{{ hasAdvanced ? $root.t('关闭') : $root.t('开启') }}</button>
                             </h5>
                             <div v-if="hasAdvanced" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
                                 <div class="form-group" style="margin:0;"><label title="[可选] 优先级，在有多个可用的子节点时，根据优先级选择，默认1">Priority (优先级)</label><input type="number" v-model.number="node.priority" placeholder="默认: 1"></div>
@@ -1235,7 +1240,7 @@
                         <div class="sub-panel">
                             <h5>
                                 <span>Conditions (执行条件)</span>
-                                <button class="btn" style="padding:2px 6px;font-size:12px;" @click="toggleConditions">{{ hasConditions ? '关闭' : '开启' }}</button>
+                                <button class="btn" style="padding:2px 6px;font-size:12px;" @click="toggleConditions">{{ hasConditions ? $root.t('关闭') : $root.t('开启') }}</button>
                             </h5>
                             <div v-if="hasConditions">
                                 <button class="btn" style="padding:2px 6px;font-size:10px;margin-bottom:10px;" @click="addCondition">添加条件</button>
@@ -1331,7 +1336,7 @@
                                 <label>Animation (动画路径)</label>
                                 <div style="display:flex;gap:4px;">
                                     <input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="node.animation" placeholder="epicfight:biped/combat/longsword_auto1">
-                                    <button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" title="预览动画" @click="window.playAnimationPreview ? window.playAnimationPreview(window.appConfig.armature, node.animation, previewWeaponModel) : alert('3D预览环境尚未加载完成')">▶</button>
+                                    <button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" :title="$root.t('预览动画')" @click="window.playAnimationPreview ? window.playAnimationPreview(window.appConfig.armature, node.animation, previewWeaponModel) : alert($root.t('3D预览环境尚未加载完成'))">▶</button>
                                 </div>
                             </div>
                             
@@ -1339,7 +1344,7 @@
                             <div class="sub-panel">
                                 <h5>
                                     <span>动画参数 (Animation Params)</span>
-                                    <button class="btn" style="padding:2px 6px;font-size:12px;" @click="toggleAnimParams">{{ hasAnimParams ? '关闭' : '开启' }}</button>
+                                    <button class="btn" style="padding:2px 6px;font-size:12px;" @click="toggleAnimParams">{{ hasAnimParams ? $root.t('关闭') : $root.t('开启') }}</button>
                                 </h5>
                                 <div v-if="hasAnimParams">
                                     <div class="form-group">
@@ -1448,7 +1453,7 @@
                                 <label>Counter Animation (反击动画)</label>
                                 <div style="display:flex;gap:4px;">
                                     <input type="text" class="animation-path-input" v-model="node.counterAnimation" autocomplete="off" spellcheck="false" placeholder="例如: combat_evolution:biped/skill/shield_counter/shield_counter">
-                                    <button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" title="预览动画" @click="window.playAnimationPreview ? window.playAnimationPreview(window.appConfig.armature, node.counterAnimation, previewWeaponModel) : alert('3D预览环境尚未加载完成')">▶</button>
+                                    <button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" :title="$root.t('预览动画')" @click="window.playAnimationPreview ? window.playAnimationPreview(window.appConfig.armature, node.counterAnimation, previewWeaponModel) : alert($root.t('3D预览环境尚未加载完成'))">▶</button>
                                 </div>
                             </div>
                             <div class="form-group">
@@ -1535,7 +1540,7 @@
                                 <label>Counter Animation (反击动画)</label>
                                 <div style="display:flex;gap:4px;">
                                     <input type="text" class="animation-path-input" v-model="node.counterAnimation" autocomplete="off" spellcheck="false" placeholder="例如: epicfight:biped/combat/tachi_auto3">
-                                    <button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" title="预览动画" @click="window.playAnimationPreview ? window.playAnimationPreview(window.appConfig.armature, node.counterAnimation, previewWeaponModel) : alert('3D预览环境尚未加载完成')">▶</button>
+                                    <button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" :title="$root.t('预览动画')" @click="window.playAnimationPreview ? window.playAnimationPreview(window.appConfig.armature, node.counterAnimation, previewWeaponModel) : alert($root.t('3D预览环境尚未加载完成'))">▶</button>
                                 </div>
                             </div>
                             <div class="form-group">
@@ -1815,6 +1820,125 @@
 
         let animationAutocompleteController = null;
 
+        const messages = {
+            zh: {},
+            en: {
+                "CE 数据包可视化编辑器": "CE Datapack Visual Editor",
+                "Trail 调节器": "Trail Visualizer",
+                "Indestructible 编辑器": "Indestructible Editor",
+                "ID 转 CE 转换器": "ID to CE Converter",
+                "切换深色/浅色模式": "Toggle Dark/Light Mode",
+                "浅色模式": "Light Mode",
+                "深色模式": "Dark Mode",
+                "动画资源索引": "Animation Resource Index",
+                "导入资源文件夹": "Import Resource Folder",
+                "导入多个文件": "Import Multiple Files",
+                "如果不兼容文件夹导入，点此多选文件": "If folder import fails, click here to select multiple files",
+                "清空索引": "Clear Index",
+                "支持选择资源包根目录、模组目录、`assets` 或 `data` 目录；导入后在动画输入框中输入关键字或按下方向键即可调出建议。": "Supports selecting resource pack root, mod directory, `assets`, or `data` directory; after import, type keywords or press arrow keys in animation inputs to get suggestions.",
+                "导入 JSON": "Import JSON",
+                "基础属性": "Basic Attributes",
+                "Armature (骨架)": "Armature",
+                "Renderer (渲染器)": "Renderer",
+                "Faction (阵营)": "Faction",
+                "Hit Sound (受击音效)": "Hit Sound",
+                "Hit Particle (受击粒子)": "Hit Particle",
+                "Swing Sound (挥击音效)": "Swing Sound",
+                "Stamina Cost Multiply (耐力消耗倍率)": "Stamina Cost Multiply",
+                "Max Striker (最大打击数)": "Max Striker",
+                "Armor Negation (护甲穿透)": "Armor Negation",
+                "Impact (冲击力)": "Impact",
+                "isHumanoid (是否人型)": "isHumanoid",
+                "canBlockProjectile (能否格挡投射物)": "canBlockProjectile",
+                "canBlockSword (能否格挡剑击)": "canBlockSword",
+                "Boss Bar (启用 Boss 血条)": "Boss Bar",
+                "Boss Music (启用 Boss 音乐)": "Boss Music",
+                "Boss 名称 (支持 JSON Component)": "Boss Name (Supports JSON Component)",
+                "Color (颜色)": "Color",
+                "Overlay (覆盖层)": "Overlay",
+                "音乐路径 (资源包内的声音 ID)": "Music Path (Sound ID in Resource Pack)",
+                "Stun Animations (受击动画覆盖)": "Stun Animations",
+                "+ 添加基础受击动画": "+ Add Basic Stun Animation",
+                "+ 添加防御受击组": "+ Add Guard Hit Group",
+                "Default (默认)": "Default",
+                "Short (短)": "Short",
+                "Long (长)": "Long",
+                "Hold (持续)": "Hold",
+                "Knock Down (击倒)": "Knock Down",
+                "Biped (双足类默认)": "Biped (Default)",
+                "Biped_Short (双足短受击)": "Biped_Short",
+                "Biped_Long (双足长受击)": "Biped_Long",
+                "Biped_Hold (双足持续受击)": "Biped_Hold",
+                "Biped_KnockDown (双足击倒)": "Biped_KnockDown",
+                "Custom (自定义)": "Custom",
+                "动画 ID": "Animation ID",
+                "Guard Hit Animations (防御受击动画)": "Guard Hit Animations",
+                "Guard Break Animations (破防动画)": "Guard Break Animations",
+                "武器类型 (如 epicfight:greatsword)": "Weapon Type (e.g. epicfight:greatsword)",
+                "Attributes (属性调节)": "Attributes",
+                "+ 添加属性": "+ Add Attribute",
+                "属性 ID": "Attribute ID",
+                "Base Value (基础值)": "Base Value",
+                "Combat Behaviors (战斗行为)": "Combat Behaviors",
+                "+ 添加 Combat Behavior": "+ Add Combat Behavior",
+                "+ 添加 Behavior Root": "+ Add Behavior Root",
+                "+ 添加 Conditions": "+ Add Condition",
+                "Health 之间 (health_between)": "Health Between",
+                "Phase 之间 (phase_between)": "Phase Between",
+                "动画序列 (Sequence)": "Animation Sequence",
+                "动画 ID (可多选)": "Animation ID (Multiple)",
+                "Weight (权重)": "Weight",
+                "Stamina Cost (耐力消耗)": "Stamina Cost",
+                "Global (全局行为)": "Global",
+                "chase (追逐)": "Chase",
+                "hit_shield (持盾受击)": "Hit Shield",
+                "dodge (闪避)": "Dodge",
+                "Chasing Speed (追逐速度倍率)": "Chasing Speed",
+                "关闭": "Close",
+                "开启": "Open",
+                "导出预览": "Export Preview",
+                "右侧展示最终导出的纯 JSON；若有任何格式错误，这里会显示提示信息。": "Right side shows final JSON; if any format errors occur, hints will be displayed here.",
+                "复制": "Copy",
+                "下载": "Download",
+                "全屏/退出": "Fullscreen/Exit",
+                "左键旋转 | 右键平移 | 滚轮缩放": "LMB: Rotate | RMB: Pan | Scroll: Zoom",
+                "骨架:": "Armature:",
+                "武器:": "Weapon:",
+                "未加载": "Not Loaded",
+                "返回父节点 (Back After Finished)": "Back After Finished",
+                "First Behaviors (子行为)": "First Behaviors",
+                "添加子行为": "Add First Behavior",
+                "实时 JSON 预览": "Real-time JSON Preview",
+                "复制代码": "Copy Code",
+                "3D 动画预览": "3D Animation Preview",
+                "武器模型:": "Weapon Model:",
+                "点击动画输入框旁的“预览”按钮加载": "Click the Preview button next to the animation input to load",
+                "导出 JSON": "Export JSON",
+                "例如: epicfight:weapon/greatsword": "e.g. epicfight:weapon/greatsword",
+                "当前角度 (current_angle)": "Current Angle",
+                "目标破防 (target_guard_break)": "Target Guard Break",
+                "目标距离 (target_in_distance)": "Target In Distance",
+                "耐力检查 (stamina_check)": "Stamina Check",
+                "实体标签 (entity_tag)": "Entity Tag",
+                "展开": "Expand",
+                "折叠": "Collapse",
+                "耐力与破防": "Stamina & Guard Break",
+                "Weapon Living Motions (武器特殊站立/移动动画)": "Weapon Living Motions",
+                "+ 添加武器动画组": "+ Add Weapon Motion Group",
+                "已复制到剪贴板！": "Copied to clipboard!",
+                "JSON 解析失败:": "JSON Parsing Failed:",
+                "请输入导出的文件名称:": "Please enter export file name:",
+                "预览动画": "Preview Animation",
+                "3D预览环境尚未加载完成": "3D preview is not ready yet.",
+                "未在所选目录中找到可识别的动画或模型资源。请确认目录内包含 animmodels 文件夹。": "No recognizable animation or model resources were found. Make sure the folder contains an animmodels directory.",
+                "发生错误:": "Error:",
+                "删除此节点": "Delete Node",
+                "尚未导入动画资源索引。": "No animation resource index imported yet.",
+                "属性名": "Attribute Name",
+                "值": "Value"
+            }
+        };
+
         const app = createApp({
             data() {
                 let savedConfig = null;
@@ -1825,6 +1949,7 @@
                 
                 return {
                     isDarkMode: localStorage.getItem('ce_theme') === 'dark',
+                    lang: localStorage.getItem('ce_lang') || (navigator.language.startsWith('zh') ? 'zh' : 'en'),
                     collapsedSections: {},
                     leftWidth: 50,
                     isDragging: false,
@@ -1845,10 +1970,13 @@
             computed: {
                 animationLibrarySummary() {
                     if (this.availableAnimations.length === 0) {
-                        return '尚未导入动画资源索引。';
+                        return this.t('尚未导入动画资源索引。');
                     }
 
-                    return `已索引 ${this.availableAnimations.length} 个动画，来自 ${this.loadedAnimationMods.length} 个命名空间，累计导入 ${this.animationImportBatches} 次，扫描 ${this.animationSourceFileCount} 个文件并命中 ${this.matchedAnimationFileCount} 个动画 JSON。`;
+                    if (this.lang === 'zh') {
+                        return `已索引 ${this.availableAnimations.length} 个动画，来自 ${this.loadedAnimationMods.length} 个命名空间，累计导入 ${this.animationImportBatches} 次，扫描 ${this.animationSourceFileCount} 个文件并命中 ${this.matchedAnimationFileCount} 个动画 JSON。`;
+                    }
+                    return `Indexed ${this.availableAnimations.length} animations from ${this.loadedAnimationMods.length} namespaces, imported ${this.animationImportBatches} times, scanned ${this.animationSourceFileCount} files and matched ${this.matchedAnimationFileCount} animation JSON files.`;
                 }
             },
             watch: {
@@ -1873,6 +2001,10 @@
                 },
                 hasBossMusic() {
                     if (this.debouncedUpdateJSON) this.debouncedUpdateJSON();
+                },
+                lang() {
+                    document.documentElement.lang = this.lang === 'zh' ? 'zh-CN' : 'en';
+                    document.title = this.t('CE 数据包可视化编辑器');
                 }
             },
             created() {
@@ -1886,6 +2018,22 @@
                 };
             },
             methods: {
+                t(key) {
+                    if (typeof messages !== 'undefined') {
+                        return messages[this.lang] && messages[this.lang][key] ? messages[this.lang][key] : key;
+                    }
+                    return key;
+                },
+                toggleLang() {
+                    this.lang = this.lang === 'zh' ? 'en' : 'zh';
+                    localStorage.setItem('ce_lang', this.lang);
+                    if (typeof animationAutocompleteController !== 'undefined' && animationAutocompleteController) animationAutocompleteController.refresh();
+                    if (typeof this.debouncedUpdateJSON === 'function') this.debouncedUpdateJSON();
+                },
+                triggerImport() {
+                    const input = document.getElementById('importFile');
+                    if (input) input.click();
+                },
                 toggleSection(sectionName) {
                     this.collapsedSections[sectionName] = !this.collapsedSections[sectionName];
                 },
@@ -2100,11 +2248,11 @@
                 },
                 copyJSON() {
                     navigator.clipboard.writeText(this.jsonPreviewText).then(() => {
-                        alert("已复制到剪贴板！");
+                        alert(this.t("已复制到剪贴板！"));
                     });
                 },
                 exportJSON() {
-                    let filename = prompt("请输入导出的文件名称:", "ce_mobpatch.json");
+                    let filename = prompt(this.t("请输入导出的文件名称:"), "ce_mobpatch.json");
                     if (filename === null) return; // User cancelled
                     if (!filename.trim().toLowerCase().endsWith('.json')) {
                         filename = filename.trim() + '.json';
@@ -2154,7 +2302,7 @@
                             
                             this.debouncedUpdateJSON();
                         } catch(err) {
-                            alert("JSON 解析失败: " + err.message);
+                            alert(this.t("JSON 解析失败:") + " " + err.message);
                         }
                     };
                     reader.readAsText(file);
@@ -2203,7 +2351,7 @@
                     }
 
                     if (animationSet.size === 0 && modelSet.size === 0) {
-                        alert("未在所选目录中找到可识别的动画或模型资源。请确认目录内包含 animmodels 文件夹。");
+                        alert(this.t("未在所选目录中找到可识别的动画或模型资源。请确认目录内包含 animmodels 文件夹。"));
                         event.target.value = '';
                         return;
                     }
@@ -2227,6 +2375,8 @@
                 if (this.isDarkMode) {
                     document.body.classList.add('dark-mode');
                 }
+                document.documentElement.lang = this.lang === 'zh' ? 'zh-CN' : 'en';
+                document.title = this.t('CE 数据包可视化编辑器');
                 window.addEventListener('keydown', this.handleKeydown);
                 window.appConfig = this.config;
                 if (!animationAutocompleteController) {
@@ -2238,7 +2388,12 @@
             }
         });
 
-        app.config.errorHandler = function(err) { console.error(err); alert("发生错误: " + err.message); };
+        app.config.errorHandler = function(err) {
+            console.error(err);
+            const lang = localStorage.getItem('ce_lang') || (navigator.language.startsWith('zh') ? 'zh' : 'en');
+            const prefix = lang === 'zh' ? '发生错误:' : 'Error:';
+            alert(prefix + ' ' + err.message);
+        };
         app.component('behavior-node', BehaviorNodeComponent);
         app.mount('#app');
     </script>

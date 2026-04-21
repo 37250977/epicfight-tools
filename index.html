@@ -191,47 +191,50 @@
     <div class="panel">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
             <div style="display:flex; flex-direction:column; gap:10px;">
-                <h2 style="margin:0; font-size:1.2em;">Trail (轨迹) 调节器</h2>
+                <h2 style="margin:0; font-size:1.2em;">{{ t('Trail (轨迹) 调节器') }}</h2>
                 <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                    <a href="CE_VisualEditor.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">CE 动作</a>
-                    <a href="Indestructible_VisualEditor.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">Indestructible 编辑器</a>
-                    <a href="CE_Converter.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">ID 转 CE 转换器</a>
+                    <a href="CE_VisualEditor.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('CE 动作') }}</a>
+                    <a href="Indestructible_VisualEditor.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('Indestructible 编辑器') }}</a>
+                    <a href="CE_Converter.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('ID 转 CE 转换器') }}</a>
                 </div>
             </div>
             <div style="display:flex; gap:10px;">
-                <button class="btn secondary" @click="resetParams" style="padding:4px 8px; font-size:12px;">重置参数</button>
+                <button class="btn secondary" @click="resetParams" style="padding:4px 8px; font-size:12px;">{{ t('重置参数') }}</button>
+                <button class="btn secondary" @click="toggleLang" style="padding:4px 8px; font-size:12px; font-weight:bold; font-family: 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif;">
+                    {{ lang === 'zh' ? '🇺🇸 English' : '🇨🇳 中文' }}
+                </button>
                 <button class="btn secondary" @click="toggleTheme" style="padding:4px 8px; font-size:12px;">{{ isDarkMode ? '☀️' : '🌙' }}</button>
             </div>
         </div>
 
         <div class="form-group" style="border:1px solid var(--border); padding:10px; border-radius:8px; margin-bottom:15px; background:var(--panel-bg);">
-            <div style="font-weight:bold; margin-bottom:10px;">动画资源导入与预览</div>
+            <div style="font-weight:bold; margin-bottom:10px;">{{ t('动画资源导入与预览') }}</div>
             <label class="btn" style="cursor:pointer; display:inline-block; margin-bottom:10px;">
-                导入资源文件夹 (包含 animmodels)
+                {{ t('导入资源文件夹 (包含 animmodels)') }}
                 <input type="file" webkitdirectory directory multiple @change="importAnimationResources" style="display:none">
             </label>
-            <div style="font-size:12px; color:#666; margin-bottom:10px;">已加载模型: {{availableModels.length}} 个 动画: {{availableAnimations.length}} 个</div>
+            <div style="font-size:12px; color:#666; margin-bottom:10px;">{{ t('已加载模型:') }} {{availableModels.length}} {{ lang === 'zh' ? '个 动画:' : 'Animations:' }} {{availableAnimations.length}}</div>
             
             <div class="form-group">
-                <label>Armature (骨架，默认 epicfight:entity/biped)</label>
+                <label>{{ t('Armature (骨架，默认 epicfight:entity/biped)') }}</label>
                 <input type="text" v-model="previewArmature" placeholder="epicfight:entity/biped" class="animation-path-input">
             </div>
             <div class="form-group">
-                <label>Model (人物模型，默认 epicfight:entity/biped)</label>
+                <label>{{ t('Model (人物模型，默认 epicfight:entity/biped)') }}</label>
                 <input type="text" v-model="previewModel" placeholder="epicfight:entity/biped" class="animation-path-input">
             </div>
             <div class="form-group">
-                <label>Weapon (武器模型, 可选)</label>
+                <label>{{ t('Weapon (武器模型, 可选)') }}</label>
                 <input type="text" v-model="previewWeapon" placeholder="epicfight:weapon/longsword" class="animation-path-input">
             </div>
             <div class="form-group">
-                <label>Animation (动画)</label>
+                <label>{{ t('Animation (动画)') }}</label>
                 <input type="text" v-model="previewAnimation" placeholder="epicfight:biped/combat/longsword_auto1" class="animation-path-input">
             </div>
-            <button class="btn primary" style="width:100%; margin-top:10px;" @click="playAnim">播放预览</button>
+            <button class="btn primary" style="width:100%; margin-top:10px;" @click="playAnim">{{ t('播放预览') }}</button>
         </div>
         <div class="xyz-group">
-            <h3 style="font-size:1em; border-bottom:1px solid var(--border); padding-bottom:5px;">全局滑块范围设置</h3>
+            <h3 style="font-size:1em; border-bottom:1px solid var(--border); padding-bottom:5px;">{{ t('全局滑块范围设置') }}</h3>
             <div class="slider-row">
                 <div class="slider-label">± Range</div>
                 <input type="number" min="1" step="1" v-model.number="sliderRange" @input="saveData">
@@ -239,7 +242,7 @@
         </div>
 
         <div class="xyz-group">
-            <h3 style="font-size:1em; border-bottom:1px solid var(--border); padding-bottom:5px;">Begin Pos (起始坐标点 / 刀格)</h3>
+            <h3 style="font-size:1em; border-bottom:1px solid var(--border); padding-bottom:5px;">{{ t('Begin Pos (起始坐标点 / 刀格)') }}</h3>
             <div class="slider-row">
                 <div class="slider-label">X</div>
                 <input type="range" :min="-sliderRange" :max="sliderRange" step="0.05" v-model.number="begin.x" @input="updateTrail">
@@ -258,7 +261,7 @@
         </div>
 
         <div class="xyz-group">
-            <h3 style="font-size:1em; border-bottom:1px solid var(--border); padding-bottom:5px;">End Pos (结束坐标点 / 刀尖)</h3>
+            <h3 style="font-size:1em; border-bottom:1px solid var(--border); padding-bottom:5px;">{{ t('End Pos (结束坐标点 / 刀尖)') }}</h3>
             <div class="slider-row">
                 <div class="slider-label">X</div>
                 <input type="range" :min="-sliderRange" :max="sliderRange" step="0.05" v-model.number="end.x" @input="updateTrail">
@@ -278,45 +281,45 @@
 
         <div class="xyz-group">
             <h3 style="font-size:1em; border-bottom:1px solid var(--border); padding-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
-                <span>可选设置</span>
-                <button class="btn secondary" @click="savePreset" style="padding:2px 6px; font-size:12px;">存为预设</button>
+                <span>{{ t('可选设置') }}</span>
+                <button class="btn secondary" @click="savePreset" style="padding:2px 6px; font-size:12px;">{{ t('存为预设') }}</button>
             </h3>
             <div class="form-group" v-if="presets.length > 0" style="margin-top: 10px;">
-                <label>快速预设</label>
+                <label>{{ t('快速预设') }}</label>
                 <div style="display:flex; gap:5px;">
                     <select v-model="selectedPreset" @change="loadPreset" style="flex:1; padding:4px;">
-                        <option value="-1">-- 选择预设 --</option>
+                        <option value="-1">{{ t('-- 选择预设 --') }}</option>
                         <option v-for="(p, i) in presets" :key="i" :value="i">{{ p.name }}</option>
                     </select>
-                    <button v-if="selectedPreset !== -1" class="btn" style="padding:4px; color:red; cursor:pointer;" @click="deletePreset">删除</button>
+                    <button v-if="selectedPreset !== -1" class="btn" style="padding:4px; color:red; cursor:pointer;" @click="deletePreset">{{ t('删除') }}</button>
                 </div>
             </div>
             <div class="form-group" style="margin-top: 10px;">
-                <label>绑定骨骼位置 (Joint) (如不填则默认绑定武器)</label>
-                <input type="text" v-model="joint" placeholder="例如: Hand_R" @input="saveData">
+                <label>{{ t('绑定骨骼位置 (Joint) (如不填则默认绑定武器)') }}</label>
+                <input type="text" v-model="joint" :placeholder="t('例如: Hand_R')" @input="saveData">
             </div>
             <div class="form-group" style="margin-top: 10px;">
-                <label>预览模式</label>
+                <label>{{ t('预览模式') }}</label>
                 <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                     <label style="display:flex; gap:6px; align-items:center; font-size:12px;">
                         <input type="checkbox" v-model="showStaticTrail" @change="updateTrail">
-                        静态两点一线
+                        {{ t('静态两点一线') }}
                     </label>
                     <label style="display:flex; gap:6px; align-items:center; font-size:12px;">
                         <input type="checkbox" v-model="showDynamicTrail" @change="updateTrail">
-                        动态贴图 Trail
+                        {{ t('动态贴图 Trail') }}
                     </label>
                 </div>
             </div>
             <div class="form-group" style="margin-top: 10px;" v-if="showStaticTrail">
-                <label>静态轨迹透明度 (Opacity)</label>
+                <label>{{ t('静态轨迹透明度 (Opacity)') }}</label>
                 <div style="display:flex; gap:10px; align-items:center;">
                     <input type="range" min="0" max="1" step="0.05" v-model.number="staticTrailOpacity" style="flex:1;">
                     <span style="font-size:12px; width:30px;">{{staticTrailOpacity.toFixed(2)}}</span>
                 </div>
             </div>
             <div class="form-group" style="margin-top: 10px;" v-if="showStaticTrail">
-                <label>静态轨迹粗细 (Thickness)</label>
+                <label>{{ t('静态轨迹粗细 (Thickness)') }}</label>
                 <div style="display:flex; gap:10px; align-items:center;">
                     <input type="range" min="0.01" max="0.5" step="0.01" v-model.number="staticTrailThickness" style="flex:1;">
                     <span style="font-size:12px; width:30px;">{{staticTrailThickness.toFixed(2)}}</span>
@@ -346,10 +349,10 @@
 
         <div style="margin-top: auto; padding-bottom:20px;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <label style="font-weight:bold; font-size:13px;">生成的 JSON 数据:</label>
+                <label style="font-weight:bold; font-size:13px;">{{ t('生成的 JSON 数据:') }}</label>
                 <div style="display:flex; gap:8px;">
-                    <button class="btn secondary" style="padding:4px 8px; font-size:12px;" @click="triggerImportJSON">导入</button>
-                    <button class="btn secondary" style="padding:4px 8px; font-size:12px;" @click="copyJSON">复制</button>
+                    <button class="btn secondary" style="padding:4px 8px; font-size:12px;" @click="triggerImportJSON">{{ t('导入') }}</button>
+                    <button class="btn secondary" style="padding:4px 8px; font-size:12px;" @click="copyJSON">{{ t('复制') }}</button>
                 </div>
                 <input type="file" id="importJsonInput" accept=".json" style="display:none" @change="importJSON">
             </div>
@@ -364,9 +367,9 @@
     <div class="panel" style="padding: 0; position: sticky; top: 20px; height: calc(100vh - 40px);" id="preview-panel">
         <div id="preview-container" style="height: 100%; border: none;">
             <div id="preview-overlay">
-                <span>左键旋转 | 右键平移 | 滚轮缩放</span><br>
-                <span style="color:#9cdcfe; font-size:11px;">骨骼: {{ joint || '默认 (武器根节点)' }} | 武器: {{ previewWeapon || '未加载' }}</span>
-                <button class="btn secondary" @click="toggleFullscreen" style="margin-left:15px; padding:2px 8px; font-size:12px; background:rgba(255,255,255,0.2); border:1px solid rgba(255,255,255,0.4); color:#fff; cursor:pointer;">全屏/退出</button>
+                <span>{{ t('左键旋转 | 右键平移 | 滚轮缩放') }}</span><br>
+                <span style="color:#9cdcfe; font-size:11px;">{{ t('骨骼: ') }}{{ joint || t('默认 (武器根节点)') }} | {{ t('武器: ') }}{{ previewWeapon || t('未加载') }}</span>
+                <button class="btn secondary" @click="toggleFullscreen" style="margin-left:15px; padding:2px 8px; font-size:12px; background:rgba(255,255,255,0.2); border:1px solid rgba(255,255,255,0.4); color:#fff; cursor:pointer;">{{ t('全屏/退出') }}</button>
             </div>
         </div>
     </div>
@@ -378,6 +381,47 @@
     import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 
     const { createApp } = Vue;
+
+    const messages = {
+        en: {
+            "Trail (轨迹) 调节器": "Trail Visualizer",
+            "CE 动作": "CE Action",
+            "Indestructible 编辑器": "Indestructible Editor",
+            "ID 转 CE 转换器": "ID to CE Converter",
+            "重置参数": "Reset Params",
+            "动画资源导入与预览": "Animation Resources Import & Preview",
+            "导入资源文件夹 (包含 animmodels)": "Import Resource Folder (contains animmodels)",
+            "Armature (骨架，默认 epicfight:entity/biped)": "Armature (default epicfight:entity/biped)",
+            "Model (人物模型，默认 epicfight:entity/biped)": "Model (default epicfight:entity/biped)",
+            "Weapon (武器模型, 可选)": "Weapon (Optional)",
+            "Animation (动画)": "Animation",
+            "播放预览": "Play Preview",
+            "全局滑块范围设置": "Global Slider Range",
+            "Begin Pos (起始坐标点 / 刀格)": "Begin Pos (Guard)",
+            "End Pos (结束坐标点 / 刀尖)": "End Pos (Tip)",
+            "可选设置": "Optional Settings",
+            "存为预设": "Save Preset",
+            "快速预设": "Quick Presets",
+            "-- 选择预设 --": "-- Select Preset --",
+            "删除": "Delete",
+            "绑定骨骼位置 (Joint) (如不填则默认绑定武器)": "Joint (Bind to weapon by default)",
+            "例如: Hand_R": "e.g., Hand_R",
+            "预览模式": "Preview Mode",
+            "静态两点一线": "Static Line",
+            "动态贴图 Trail": "Dynamic Trail",
+            "静态轨迹透明度 (Opacity)": "Static Trail Opacity",
+            "静态轨迹粗细 (Thickness)": "Static Trail Thickness",
+            "生成的 JSON 数据:": "Generated JSON:",
+            "导入": "Import",
+            "复制": "Copy",
+            "左键旋转 | 右键平移 | 滚轮缩放": "LMB: Rotate | RMB: Pan | Scroll: Zoom",
+            "骨骼: ": "Joint: ",
+            "默认 (武器根节点)": "Default (Weapon Root)",
+            "武器: ": "Weapon: ",
+            "未加载": "Not Loaded",
+            "全屏/退出": "Fullscreen/Exit"
+        }
+    };
 
     let animationAutocompleteController = null;
     const fileResourceMap = new Map();
@@ -2216,6 +2260,7 @@
 
             return {
                 isDarkMode: localStorage.getItem('ce_theme') === 'dark',
+                lang: localStorage.getItem('ce_lang') || (navigator.language.startsWith('zh') ? 'zh' : 'en'),
                 leftWidth: 400,
                 isDragging: false,
                                 availableModels: [],
@@ -2344,6 +2389,16 @@
             });
         },
         methods: {
+            t(key) {
+                return messages[this.lang] && messages[this.lang][key] ? messages[this.lang][key] : key;
+            },
+            toggleLang() {
+                this.lang = this.lang === 'zh' ? 'en' : 'zh';
+                localStorage.setItem('ce_lang', this.lang);
+                if (typeof animationAutocompleteController !== 'undefined' && animationAutocompleteController) {
+                    animationAutocompleteController.refresh();
+                }
+            },
             toggleTheme() {
                 this.isDarkMode = !this.isDarkMode;
                 if (this.isDarkMode) {

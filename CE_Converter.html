@@ -1,9 +1,151 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Indestructible 转 CombatEvolution 格式工具</title>
+    <title data-i18n="Indestructible 转 CombatEvolution 格式工具">Indestructible 转 CombatEvolution 格式工具</title>
+    <script>
+        const messages = {
+    "en":  {
+               "Indestructible 转 CombatEvolution 格式工具":  "Indestructible to CombatEvolution Converter",
+               "工具":  "Tools",
+               "Trail 调节器":  "Trail Visualizer",
+               "CE 动作":  "CE Action",
+               "Indestructible 编辑器":  "Indestructible Editor",
+               "ID 转 CE 转换器":  "ID to CE Converter",
+               "设置":  "Settings",
+               "切换主题":  "Toggle Theme",
+               "完成提示音":  "Completion Sound",
+               "语言":  "Language",
+               "点击或拖拽多个 JSON 文件到此处":  "Click or drag multiple JSON files here",
+               "统一前缀 (例如: epicfight:)":  "Prefix (e.g. epicfight:)",
+               "统一后缀 (例如: _ce)":  "Suffix (e.g. _ce)",
+               "仅导出包含动作的文件":  "Export only files with actions",
+               "开始转换 / 下载":  "Start Conversion / Download",
+               "一键清除":  "Clear All",
+               "处理中...":  "Processing...",
+               "已取消":  "Canceled",
+               "转换已取消！":  "Conversion Canceled!",
+               "取消":  "Cancel",
+               "重试失败文件":  "Retry Failed Files",
+               "清空日志":  "Clear Logs",
+               "日志已清空。":  "Logs cleared.",
+               "请先选择要转换的文件。":  "Please select files to convert first.",
+               "正在取消并清理未完成的任务...":  "Canceling and cleaning up unfinished tasks...",
+               "开始批量转换":  "Start batch conversion",
+               "个文件 (启用异步加速)...":  "files (async acceleration enabled)...",
+               "重试":  "Retry",
+               "个失败文件...":  "failed files...",
+               "已成功转换并打包为":  "Successfully converted and packed as",
+               "全部完成！成功:":  "All finished! Success:",
+               "失败:":  "Failed:",
+               "总耗时:":  "Total time:",
+               "秒":  "seconds",
+               "移除该文件":  "Remove File",
+               "清空列表":  "Clear List",
+               "包含超大文件，可能导致浏览器卡顿。":  "Contains extremely large files, which may cause browser lag.",
+               "格式错误":  "Format Error",
+               "处理中...禁止重复点击":  "Processing... please wait",
+               "暂无日志":  "No logs yet",
+               "加载完毕":  "Loaded",
+               "移除":  "Remove",
+               "清空":  "Clear",
+               "处理中": "Processing",
+               "成功": "Success",
+               "失败": "Failed",
+               "已选": "Selected",
+               "1. 点击下方按钮选择需要转换的 ": "1. Click the button below to select the ",
+               " 数据包 (.json)。": " datapack (.json).",
+               "2. 点击“批量转换并下载”，浏览器会自动将它们转换为 ": "2. Click “Batch Convert & Download”; the browser will convert them to ",
+               " 格式并下载。": " format and download.",
+               "准备就绪... 等待选择或拖放文件。": "Ready... waiting for file selection or drag & drop."
+           },
+    "zh":  {
+               "Indestructible 转 CombatEvolution 格式工具":  "Indestructible 转 CombatEvolution 格式工具",
+               "完成提示音":  "完成提示音",
+               "ID 转 CE 转换器":  "ID 转 CE 转换器",
+               "清空":  "清空",
+               "全部完成！成功:":  "全部完成！成功:",
+               "清空列表":  "清空列表",
+               "一键清除":  "一键清除",
+               "统一前缀 (例如: epicfight:)":  "统一前缀 (例如: epicfight:)",
+               "个失败文件...":  "个失败文件...",
+               "个文件 (启用异步加速)...":  "个文件 (启用异步加速)...",
+               "工具":  "工具",
+               "Indestructible 编辑器":  "Indestructible 编辑器",
+               "加载完毕":  "加载完毕",
+               "语言":  "语言",
+               "总耗时:":  "总耗时:",
+               "已成功转换并打包为":  "已成功转换并打包为",
+               "切换主题":  "切换主题",
+               "转换已取消！":  "转换已取消！",
+               "设置":  "设置",
+               "已取消":  "已取消",
+               "移除":  "移除",
+               "开始批量转换":  "开始批量转换",
+               "开始转换 / 下载":  "开始转换 / 下载",
+               "Trail 调节器":  "Trail 调节器",
+               "请先选择要转换的文件。":  "请先选择要转换的文件。",
+               "暂无日志":  "暂无日志",
+               "失败:":  "失败:",
+               "重试":  "重试",
+               "取消":  "取消",
+               "重试失败文件":  "重试失败文件",
+               "清空日志":  "清空日志",
+               "移除该文件":  "移除该文件",
+               "处理中...禁止重复点击":  "处理中...禁止重复点击",
+               "处理中...":  "处理中...",
+               "包含超大文件，可能导致浏览器卡顿。":  "包含超大文件，可能导致浏览器卡顿。",
+               "点击或拖拽多个 JSON 文件到此处":  "点击或拖拽多个 JSON 文件到此处",
+               "统一后缀 (例如: _ce)":  "统一后缀 (例如: _ce)",
+               "格式错误":  "格式错误",
+               "秒":  "秒",
+               "仅导出包含动作的文件":  "仅导出包含动作的文件",
+               "正在取消并清理未完成的任务...":  "正在取消并清理未完成的任务...",
+               "CE 动作":  "CE 动作"
+           }
+};
+        let lang = localStorage.getItem('ce_lang') || (navigator.language.startsWith('zh') ? 'zh' : 'en');
+        function t(key) { return messages[lang] && messages[lang][key] ? messages[lang][key] : key; }
+        
+        function toggleLang() {
+            lang = lang === 'zh' ? 'en' : 'zh';
+            localStorage.setItem('ce_lang', lang);
+            updateUIText();
+        }
+        
+        function updateUIText() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (el.tagName === 'INPUT' && el.type === 'text') {
+                    el.placeholder = t(key);
+                } else if (['TITLE', 'H1', 'H2', 'H3', 'SPAN', 'DIV', 'BUTTON', 'LABEL', 'A', 'OPTION'].includes(el.tagName)) {
+                    if (el.children.length === 0 || ['BUTTON', 'A', 'SPAN'].includes(el.tagName)) {
+                        el.textContent = t(key);
+                    } else {
+                        for(let child of el.childNodes) {
+                            if (child.nodeType === 3 && child.nodeValue.trim() !== '') {
+                                child.nodeValue = t(key);
+                                break;
+                            }
+                        }
+                    }
+                }
+            });
+            const langBtn = document.getElementById('langBtn');
+            if(langBtn) {
+                langBtn.textContent = '中文 / English';
+            }
+
+            document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+            const currentMode = localStorage.getItem('ce_converter_theme_mode') || 'auto';
+            updateThemeToggleLabel(currentMode);
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            updateUIText();
+        });
+    </script>
     <style>
         :root {
             --bg: #f6f7fb;
@@ -179,49 +321,54 @@
         <div class="topbar">
             <div class="title-row">
                 <h1>Indestructible -> CombatEvolution</h1>
-                <button class="btn btn-secondary btn-sm" id="themeToggle" type="button" onclick="toggleTheme()">主题: 自动</button>
+                <div>
+                    <button class="btn btn-secondary btn-sm" onclick="toggleLang()" id="langBtn" style="font-weight:bold;">
+                        中文 / English
+                    </button>
+                    <button class="btn btn-secondary btn-sm" id="themeToggle" type="button" onclick="toggleTheme()">主题: 自动</button>
+                </div>
             </div>
             <div class="nav">
                 <div class="nav-group">
-                    <span class="nav-label">工具</span>
-                    <a href="index.html" class="btn btn-secondary btn-sm">Trail 调节器</a>
-                    <a href="CE_VisualEditor.html" class="btn btn-secondary btn-sm">CE 动作</a>
-                    <a href="Indestructible_VisualEditor.html" class="btn btn-secondary btn-sm">Indestructible 编辑器</a>
+                    <span class="nav-label" data-i18n="工具">工具</span>
+                    <a href="index.html" class="btn btn-secondary btn-sm" data-i18n="Trail 调节器">Trail 调节器</a>
+                    <a href="CE_VisualEditor.html" class="btn btn-secondary btn-sm" data-i18n="CE 动作">CE 动作</a>
+                    <a href="Indestructible_VisualEditor.html" class="btn btn-secondary btn-sm" data-i18n="Indestructible 编辑器">Indestructible 编辑器</a>
                 </div>
             </div>
         </div>
         <p>
-            1. 点击下方按钮选择需要转换的 <b>Indestructible</b> 数据包 (.json)。<br>
-            2. 点击“批量转换并下载”，浏览器会自动将它们转换为 <b>CombatEvolution</b> 格式并下载。
+            <span data-i18n="1. 点击下方按钮选择需要转换的 ">1. 点击下方按钮选择需要转换的 </span><b>Indestructible</b><span data-i18n=" 数据包 (.json)。"> 数据包 (.json)。</span><br>
+            <span data-i18n="2. 点击“批量转换并下载”，浏览器会自动将它们转换为 ">2. 点击“批量转换并下载”，浏览器会自动将它们转换为 </span><b>CombatEvolution</b><span data-i18n=" 格式并下载。"> 格式并下载。</span>
         </p>
         
         <div class="prefix-suffix-group">
-            <label style="font-size:14px;">输出前缀: <input type="text" id="prefixInput" value=""></label>
-            <label style="font-size:14px;">输出后缀: <input type="text" id="suffixInput" value="_ce"></label>
+            <label style="font-size:14px;"><span data-i18n="统一前缀 (例如: epicfight:)">统一前缀 (例如: epicfight:)</span> <input type="text" id="prefixInput" value=""></label>
+            <label style="font-size:14px;"><span data-i18n="统一后缀 (例如: _ce)">统一后缀 (例如: _ce)</span> <input type="text" id="suffixInput" value="_ce"></label>
         </div>
         
         <div id="dropZone">
             <div style="font-size: 24px; margin-bottom: 10px;">📁</div>
-            点击选择文件，或将 JSON 文件拖放到此处
+            <div data-i18n="点击或拖拽多个 JSON 文件到此处">点击或拖拽多个 JSON 文件到此处</div>
             <input type="file" id="fileInput" accept=".json" multiple style="display: none;">
         </div>
         
         <div id="fileList"></div>
 
         <div id="contextMenu" class="context-menu" style="display:none;">
-            <button type="button" id="ctxRemove">移除该文件</button>
-            <button type="button" id="ctxClear">清空列表</button>
+            <button type="button" id="ctxRemove" data-i18n="移除该文件">移除该文件</button>
+            <button type="button" id="ctxClear" data-i18n="清空列表">清空列表</button>
         </div>
         
         <div class="button-group">
-            <button class="btn" id="convertBtn" onclick="processFiles()">批量转换并下载</button>
-            <button class="btn btn-warn" id="retryBtn" onclick="retryFailed()" style="display: none;">重试失败文件</button>
-            <button class="btn btn-secondary" id="clearLogBtn" onclick="clearLog()">清空日志</button>
-            <label class="option"><input type="checkbox" id="soundToggle">完成提示音</label>
+            <button class="btn" id="convertBtn" onclick="processFiles()" data-i18n="开始转换 / 下载">开始转换 / 下载</button>
+            <button class="btn btn-warn" id="retryBtn" onclick="retryFailed()" style="display: none;" data-i18n="重试失败文件">重试失败文件</button>
+            <button class="btn btn-secondary" id="clearLogBtn" onclick="clearLog()" data-i18n="清空日志">清空日志</button>
+            <label class="option"><input type="checkbox" id="soundToggle" data-i18n="完成提示音">完成提示音</label>
             <span id="progressText" class="progress-text"></span>
         </div>
         
-        <div id="log"><span class="log-line info"><span class="log-icon">•</span><span class="log-text">准备就绪... 等待选择或拖放文件。</span></span></div>
+        <div id="log"><span class="log-line info"><span class="log-icon">•</span><span class="log-text" data-i18n="准备就绪... 等待选择或拖放文件。">准备就绪... 等待选择或拖放文件。</span></span></div>
     </div>
 
     <script>
@@ -360,7 +507,7 @@
             list.innerHTML = '';
             selectedFiles.forEach((file, index) => {
                 const st = getFileStatus(file);
-                const tagText = st.status === 'processing' ? '处理中' : (st.status === 'success' ? '成功' : (st.status === 'failed' ? '失败' : (st.status === 'canceled' ? '已取消' : '已选')));
+                const tagText = st.status === 'processing' ? t('处理中') : (st.status === 'success' ? t('成功') : (st.status === 'failed' ? t('失败') : (st.status === 'canceled' ? t('已取消') : t('已选'))));
                 const tagClass = st.status === 'processing' ? 'tag-processing' : (st.status === 'success' ? 'tag-success' : (st.status === 'failed' ? 'tag-failed' : (st.status === 'canceled' ? 'tag-canceled' : 'tag-selected')));
                 const canRemove = !isProcessing && st.status !== 'processing';
                 const div = document.createElement('div');
@@ -374,7 +521,7 @@
                         <span class="tag ${tagClass}">${tagText}</span>
                         <span class="file-name">📄 ${file.name} <span class="muted" style="font-size:12px;">(${(file.size/1024).toFixed(1)} KB)</span></span>
                     </span>
-                    <button class="file-remove" onclick="removeFile(${index}, event)" title="移除" ${canRemove ? '' : 'disabled'} style="${canRemove ? '' : 'opacity:0.5; cursor:not-allowed;'}">✖</button>
+                    <button class="file-remove" onclick="removeFile(${index}, event)" title="${t('移除')}" ${canRemove ? '' : 'disabled'} style="${canRemove ? '' : 'opacity:0.5; cursor:not-allowed;'}">✖</button>
                 `;
                 list.appendChild(div);
             });
@@ -390,7 +537,7 @@
         }
 
         function clearLog() {
-            document.getElementById('log').innerHTML = '<span class="log-line info"><span class="log-icon">•</span><span class="log-text">日志已清空。</span></span>';
+            document.getElementById('log').innerHTML = `<span class="log-line info"><span class="log-icon">•</span><span class="log-text">${t('日志已清空。')}</span></span>`;
             document.getElementById('progressText').textContent = '';
             processedCount = 0;
             totalCount = 0;
@@ -524,8 +671,10 @@
         function updateThemeToggleLabel(mode) {
             const btn = document.getElementById('themeToggle');
             if (!btn) return;
-            const label = mode === 'dark' ? '深色' : (mode === 'light' ? '浅色' : '自动');
-            btn.textContent = `主题: ${label}`;
+            const label = lang === 'zh'
+                ? (mode === 'dark' ? '深色' : (mode === 'light' ? '浅色' : '自动'))
+                : (mode === 'dark' ? 'Dark' : (mode === 'light' ? 'Light' : 'Auto'));
+            btn.textContent = (lang === 'zh' ? '主题: ' : 'Theme: ') + label;
         }
 
         function applyThemeMode(mode) {
@@ -1590,19 +1739,19 @@
             cleanupAfterRun();
             setProcessingState(false);
             const summaryType = failedFiles.length > 0 ? "error" : "success";
-            const timeText = duration > 0 ? ` 用时 ${formatDuration(duration)}` : '';
-            log(`处理完成：成功 ${totalCount - failedFiles.length} 个，失败 ${failedFiles.length} 个。${timeText}`, summaryType);
+            const timeText = duration > 0 ? ` ${t('总耗时:')} ${formatDuration(duration)}` : '';
+            log(`${t('全部完成！成功:')} ${totalCount - failedFiles.length} ${t('失败:')} ${failedFiles.length}${timeText}`, summaryType);
             playDoneSound();
             updateProgress();
         }
 
         function processFiles() {
             if (isProcessing) {
-                log("正在处理中，请勿重复触发。", "info");
+                log(t("处理中...禁止重复点击"), "info");
                 return;
             }
             if (selectedFiles.length === 0) {
-                log("请先选择或拖放要转换的 JSON 文件！", "error");
+                log(t("请先选择要转换的文件。"), "error");
                 return;
             }
 
@@ -1616,14 +1765,14 @@
             for (const f of selectedFiles) setFileStatus(f, 'processing');
             renderFileList();
 
-            log(`开始批量转换 ${totalCount} 个文件 (启用异步加速)...`, "info");
+            log(`${t('开始批量转换')} ${totalCount} ${t('个文件 (启用异步加速)...')}`, "info");
             setProcessingState(true);
             triggerWorker(selectedFiles);
         }
 
         function retryFailed() {
             if (isProcessing) {
-                log("正在处理中，请勿重复触发。", "info");
+                log(t("处理中...禁止重复点击"), "info");
                 return;
             }
             if (failedFiles.length === 0) return;
@@ -1639,7 +1788,7 @@
             for (const f of filesToRetry) setFileStatus(f, 'processing');
             renderFileList();
 
-            log(`重试 ${totalCount} 个失败文件...`, "info");
+            log(`${t('重试')} ${totalCount} ${t('个失败文件...')}`, "info");
             setProcessingState(true);
             triggerWorker(filesToRetry);
         }
