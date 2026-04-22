@@ -1,0 +1,3442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invincible 数据包可视化编辑器</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --border: #e2e8f0;
+            --text: #1e293b;
+            --input-bg: #ffffff;
+            --hover-btn: #2563eb;
+            --sec-bg: #64748b;
+            --sec-hover: #475569;
+            --danger-bg: #ef4444;
+            --danger-hover: #dc2626;
+            --panel-bg: #f1f5f9;
+        }
+        body.dark-mode {
+            --primary: #3b82f6;
+            --bg: #0f172a;
+            --card: #1e293b;
+            --border: #334155;
+            --text: #f8fafc;
+            --input-bg: #0f172a;
+            --hover-btn: #60a5fa;
+            --sec-bg: #475569;
+            --sec-hover: #64748b;
+            --danger-bg: #dc2626;
+            --danger-hover: #ef4444;
+            --panel-bg: #334155;
+        }
+        body{margin:0;padding:20px;background:var(--bg);color:var(--text);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;transition: background-color 0.3s, color 0.3s;}
+        *{box-sizing:border-box}
+        .container{max-width:1800px;margin:0 auto;display:grid;grid-template-columns:minmax(720px,1fr) 10px minmax(420px,1fr);gap:15px}
+        @media (max-width:900px){
+            body { padding: 10px; }
+            .container{grid-template-columns:1fr !important; display:flex; flex-direction:column;}
+            .resizer{display:none;}
+            input[type="text"],input[type="number"],textarea,select{font-size: 16px;}
+            .panel { padding: 12px; }
+        }
+        .mobile-dropdown { display: none; position: relative; }
+        .desktop-tools { display: flex; gap: 8px; flex-wrap: wrap; }
+        .dropdown-menu { position: absolute; top: 100%; right: 0; background: var(--card); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100; min-width: 180px; padding: 4px 0; margin-top: 4px; }
+        .dropdown-item { display: block; padding: 8px 16px; color: var(--text); text-decoration: none; transition: background 0.2s; }
+        .dropdown-item:hover { background: var(--panel-bg); }
+        @media (max-width: 900px) {
+            .desktop-tools { display: none; }
+            .mobile-dropdown { display: block; }
+        }
+        .resizer { width: 10px; cursor: col-resize; background: transparent; transition: background 0.2s; border-radius: 4px; touch-action: none; }
+        .resizer:hover, .resizer.dragging { background: var(--primary); }
+        .panel{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.1);transition: background-color 0.3s, border-color 0.3s;}
+        .editor{max-height:calc(100vh - 40px);overflow-y:auto}
+        .preview{position:sticky;top:20px;max-height:calc(100vh - 40px);display:flex;flex-direction:column}
+        h2,h3,h4{margin:0 0 12px;color:var(--text)}
+        .top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+        .hint{margin:0;color:var(--text);font-size:12px;opacity:0.8}
+        .section{border-top:2px solid var(--border);margin-top:20px;padding-top:20px}
+        .section-head{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+        .grid2,.grid3{display:grid;gap:12px}
+        .grid2{grid-template-columns:repeat(2,minmax(0,1fr))}
+        .grid3{grid-template-columns:repeat(3,minmax(0,1fr))}
+        @media (max-width:860px){.grid2,.grid3{grid-template-columns:1fr}}
+        .form-group{margin-bottom:12px}
+        .form-group label{display:block;font-weight:600;font-size:13px;margin-bottom:5px}
+        input[type="text"],input[type="number"],textarea,select{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg);color:var(--text);transition:all 0.2s ease;}
+        input[type="text"]:focus,input[type="number"]:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 2px rgba(59,130,246,0.2);outline:none;}
+        textarea{min-height:100px;resize:vertical}
+        .btn{border:none;border-radius:6px;background:var(--primary);color:#fff;padding:8px 14px;cursor:pointer;transition:all 0.2s ease;}
+        .btn:hover{background:var(--hover-btn);transform:translateY(-1px);box-shadow:0 2px 4px rgba(0,0,0,0.1);}
+        .btn:active{transform:scale(0.98);}
+        .btn.secondary{background:var(--sec-bg)}
+        .btn.secondary:hover{background:var(--sec-hover)}
+        .btn.danger{background:var(--danger-bg)}
+        .btn.danger:hover{background:var(--danger-hover)}
+        .btn.mini{padding:2px 8px;font-size:12px}
+        .array-item,.sub-panel{position:relative;border:1px solid var(--border);border-radius:8px;background:var(--panel-bg);padding:12px;margin-bottom:12px}
+        .sub-panel{background:var(--card)}
+        .remove-btn{position:absolute;top:8px;right:8px}
+        .toolbar{display:flex;gap:8px;flex-wrap:wrap}
+        .code{margin-top:12px;background:#0f172a;color:#d4d4d4;border-radius:8px;padding:16px;white-space:pre;overflow:auto;font:13px/1.5 Consolas,"Courier New",monospace;flex:1}
+        body.dark-mode .code{background:#020617}
+        .inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+        .pill{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;background:var(--panel-bg);color:var(--primary);font-size:12px;border:1px solid var(--border)}
+        .node-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+        .node-title{font-weight:700}
+        .node-children{margin-left:14px;padding-left:10px;border-left:2px dashed var(--border)}
+        .tools{display:flex;gap:8px;flex-wrap:wrap}
+        a.btn{display:inline-block;text-decoration:none}
+        .toggle{min-width:96px;text-align:center}
+        .field-help{margin-top:4px;font-size:12px;opacity:0.75}
+        .resource-box{border:1px dashed #cbd5e1;background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:12px}
+        body.dark-mode .resource-box{background:var(--panel-bg);border-color:var(--border)}
+        .pill-list{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+        .animation-path-input{width:100%}
+        .animation-autocomplete-panel{position:fixed;z-index:9999;min-width:260px;max-width:520px;max-height:280px;overflow-y:auto;background:#fff;border:1px solid #cbd5e1;border-radius:6px;box-shadow:0 10px 30px rgba(15,23,42,.18);display:none}
+        body.dark-mode .animation-autocomplete-panel{background:#0b1220;border-color:#334155}
+        .animation-autocomplete-item{padding:8px 10px;cursor:pointer;border-bottom:1px solid #eef2f7;font-size:13px;line-height:1.4;word-break:break-all}
+        body.dark-mode .animation-autocomplete-item{border-bottom-color:#1f2937}
+        .animation-autocomplete-item:last-child{border-bottom:none}
+        .animation-autocomplete-item:hover,.animation-autocomplete-item.active{background:#eff6ff;color:#1d4ed8}
+        body.dark-mode .animation-autocomplete-item:hover,body.dark-mode .animation-autocomplete-item.active{background:#0b2b55;color:#93c5fd}
+        .animation-autocomplete-group{border-bottom:1px solid #e2e8f0}
+        body.dark-mode .animation-autocomplete-group{border-bottom-color:#334155}
+        .animation-autocomplete-group:last-child{border-bottom:none}
+        .animation-autocomplete-group-title{position:sticky;top:0;z-index:1;padding:6px 10px;background:#f8fafc;color:#475569;font-size:12px;font-weight:600;border-bottom:1px solid #e2e8f0}
+        body.dark-mode .animation-autocomplete-group-title{background:#0b1220;color:#94a3b8;border-bottom-color:#334155}
+        .animation-autocomplete-highlight{background:#fef3c7;color:#92400e;font-weight:700;border-radius:2px;padding:0 1px}
+        .animation-autocomplete-empty{padding:8px 10px;color:#64748b;font-size:12px}
+        body.dark-mode .animation-autocomplete-empty{color:#94a3b8}
+        .floating-window{position:fixed;right:20px;bottom:20px;width:420px;height:520px;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.15);z-index:1000;display:flex;flex-direction:column;resize:both;overflow:hidden}
+        .floating-header{padding:10px;background:var(--panel-bg);border-bottom:1px solid var(--border);cursor:move;display:flex;align-items:center;font-weight:700;user-select:none;color:var(--text);touch-action:none}
+    </style>
+</head>
+<body>
+    <div id="app" class="container" :style="{ gridTemplateColumns: leftWidth + 'px 10px minmax(0, 1fr)' }">
+        <div class="panel editor">
+            <div class="top">
+                <div>
+                    <h2>{{ t('Invincible 数据包可视化编辑器') }}</h2>
+                    <p class="hint">{{ t('用于创建/编辑 invincible 连段技能数据包（支持 JSON 注释导入）。') }}</p>
+                </div>
+                <div class="toolbar">
+                    <div class="mobile-dropdown" @mouseleave="dropdownOpen = false">
+                        <button class="btn secondary" @click="dropdownOpen = !dropdownOpen">{{ t('更多工具') }} ▼</button>
+                        <div class="dropdown-menu" v-show="dropdownOpen">
+                            <a href="index.html" class="dropdown-item">{{ t('Trail 调节器') }}</a>
+                            <a href="CE_VisualEditor.html" class="dropdown-item">{{ t('CE 动作') }}</a>
+                            <a href="Indestructible_VisualEditor.html" class="dropdown-item">{{ t('Indestructible 编辑器') }}</a>
+                            <a href="CE_Converter.html" class="dropdown-item">{{ t('ID 转 CE 转换器') }}</a>
+                            <a href="Invincible_VisualEditor.html" class="dropdown-item">{{ t('Invincible 编辑器') }}</a>
+                        </div>
+                    </div>
+                    <div class="desktop-tools">
+                        <a href="index.html" class="btn secondary">{{ t('Trail 调节器') }}</a>
+                        <a href="CE_VisualEditor.html" class="btn secondary">{{ t('CE 动作') }}</a>
+                        <a href="Indestructible_VisualEditor.html" class="btn secondary">{{ t('Indestructible 编辑器') }}</a>
+                        <a href="CE_Converter.html" class="btn secondary">{{ t('ID 转 CE 转换器') }}</a>
+                        <a href="Invincible_VisualEditor.html" class="btn secondary">{{ t('Invincible 编辑器') }}</a>
+                    </div>
+                    <button class="btn secondary toggle" @click="toggleTheme">{{ themeLabel }}</button>
+                    <button class="btn secondary toggle" @click="toggleLang">{{ langLabel }}</button>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-head">
+                    <h3>{{ t('导入 / 导出') }}</h3>
+                    <div class="tools">
+                        <input ref="fileInput" type="file" accept=".json" style="display:none" @change="importJSON">
+                        <button class="btn" @click="$refs.fileInput.click()">{{ t('导入 JSON') }}</button>
+                        <button class="btn secondary" @click="copyJSON">{{ t('复制 JSON') }}</button>
+                        <button class="btn secondary" @click="exportJSON">{{ t('导出 JSON') }}</button>
+                        <button class="btn danger" @click="resetAll">{{ t('重置') }}</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="resource-box">
+                <div class="section-head" style="margin-bottom:0;">
+                    <div>
+                        <div style="font-size:12px;color:#2563eb;font-weight:700">{{ t('动画资源索引') }}</div>
+                        <div class="hint">{{ t('导入资源目录后，动画路径输入框会出现分组联想和高亮匹配。') }}</div>
+                    </div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <button class="btn mini" type="button" @click="openAssetFolderPicker">{{ t('导入资源文件夹') }}</button>
+                        <button class="btn mini" type="button" @click="openAssetZipPicker">{{ t('导入 ZIP/JAR') }}</button>
+                        <button class="btn secondary mini" type="button" @click="clearAnimationLibrary" :disabled="availableAnimations.length===0 && availableModels.length===0">{{ t('清空索引') }}</button>
+                    </div>
+                </div>
+                <div class="hint">{{ animationLibrarySummary }}</div>
+                <div class="pill-list" v-if="loadedAnimationMods.length">
+                    <span class="pill" v-for="mod in loadedAnimationMods" :key="mod.modId">{{ mod.modId }} ({{ mod.count }})</span>
+                </div>
+                <input id="assetFolderInput" type="file" webkitdirectory directory multiple @change="importAnimationResources" style="display:none" aria-label="导入资源文件夹">
+                <input id="assetFolderInputFallback" type="file" multiple @change="importAnimationResources" style="display:none" aria-label="导入多个资源文件 (兜底)">
+                <input id="assetZipInput" type="file" accept=".zip,.jar" multiple @change="importZipResources" style="display:none" aria-label="导入 ZIP/JAR 文件">
+            </div>
+
+            <div class="section">
+                <div class="section-head">
+                    <h3>{{ t('基础信息') }}</h3>
+                    <span class="pill">{{ t('skill') }}</span>
+                </div>
+                <div class="grid2">
+                    <div class="form-group">
+                        <label :title="h('mod_id')">{{ t('mod_id') }}</label>
+                        <input type="text" v-model="config.mod_id">
+                    </div>
+                    <div class="form-group">
+                        <label :title="h('name')">{{ t('name') }}</label>
+                        <input type="text" v-model="config.name">
+                    </div>
+                </div>
+                <div class="grid3">
+                    <div class="form-group">
+                        <label :title="h('consumption')">{{ t('consumption') }}</label>
+                        <input type="number" step="1" v-model.number="config.consumption">
+                    </div>
+                    <div class="form-group">
+                        <label :title="h('max_stacks')">{{ t('max_stacks') }}</label>
+                        <input type="number" step="1" v-model.number="config.max_stacks">
+                    </div>
+                    <div class="form-group">
+                        <label :title="h('drawSkillIcon')">{{ t('drawSkillIcon') }}</label>
+                        <div class="inline">
+                            <input type="checkbox" v-model="config.drawSkillIcon">
+                            <span>{{ config.drawSkillIcon ? t('是') : t('否') }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-head">
+                    <h3>{{ t('translationKeys') }}</h3>
+                    <button class="btn mini" @click="addTranslationKey">{{ t('+ 添加') }}</button>
+                </div>
+                <div class="hint">{{ h('translationKeys') }}</div>
+                <div v-for="(k, idx) in config.translationKeys" :key="idx" class="array-item">
+                    <button class="btn danger mini remove-btn" @click="removeTranslationKey(idx)">{{ t('删除') }}</button>
+                    <div class="form-group">
+                        <label>{{ t('键/文本') }} #{{ idx + 1 }}</label>
+                        <input type="text" v-model="config.translationKeys[idx]">
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-head">
+                    <h3>{{ t('combos') }}</h3>
+                    <button class="btn mini" @click="addRootCombo">{{ t('+ 添加根节点') }}</button>
+                    <button class="btn mini secondary" @click="addRootComboWithConditionAnimations">{{ t('+ 添加根节点(条件动画)') }}</button>
+                </div>
+                <div class="hint">{{ h('combos') }}</div>
+                <combo-node-editor
+                    v-for="(node, idx) in config.combos"
+                    :key="idx"
+                    :node="node"
+                    :depth="0"
+                    :key-optional="false"
+                    :is-condition-animation="false"
+                    :index="idx"
+                    :parent-list="config.combos"
+                    @remove="removeRootCombo(idx)"
+                ></combo-node-editor>
+            </div>
+
+            <div class="section">
+                <div class="section-head">
+                    <h3>{{ t('根 condition_animations') }}</h3>
+                    <button class="btn mini" @click="addRootConditionAnimation">{{ t('+ 添加条件动画') }}</button>
+                </div>
+                <div class="hint">{{ h('root_condition_animations') }}</div>
+                <combo-node-editor
+                    v-for="(node, idx) in config.condition_animations"
+                    :key="idx"
+                    :node="node"
+                    :depth="0"
+                    :key-optional="true"
+                    :is-condition-animation="true"
+                    :index="idx"
+                    :parent-list="config.condition_animations"
+                    @remove="removeAt(config.condition_animations, idx)"
+                ></combo-node-editor>
+            </div>
+        </div>
+
+        <div class="resizer" @mousedown="startResize" @touchstart="startResize"></div>
+
+        <div class="panel preview">
+            <div class="top">
+                <div>
+                    <h3>{{ t('JSON 预览') }}</h3>
+                    <p class="hint">{{ t('导出时会自动清理空字段与临时字段。') }}</p>
+                </div>
+                <div class="toolbar">
+                    <button class="btn secondary" @click="copyJSON">{{ t('复制 JSON') }}</button>
+                </div>
+            </div>
+            <div class="code">{{ prettyJSON }}</div>
+        </div>
+
+        <div id="floating-3d-window" class="floating-window" style="display:none;">
+            <div id="floating-3d-header" class="floating-header">
+                <span>{{ t('3D 动画预览') }}</span>
+                <button class="btn secondary mini" type="button" style="margin-left:auto;" @click="closePreviewWindow">{{ t('关闭') }}</button>
+            </div>
+            <div style="padding:15px;display:flex;flex-direction:column;flex:1;gap:12px;">
+                <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
+                    <label style="font-size:13px;font-weight:700;white-space:nowrap;min-width:64px;text-align:right;">{{ t('模型/骨骼') }}:</label>
+                    <input id="preview-model-input" type="text" class="animation-path-input" autocomplete="off" spellcheck="false" placeholder="epicfight:entity/biped" value="epicfight:entity/biped" style="flex:1;">
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
+                    <label style="font-size:13px;font-weight:700;white-space:nowrap;min-width:64px;text-align:right;">{{ t('物品模型') }}:</label>
+                    <input id="preview-weapon-input" type="text" class="animation-path-input" autocomplete="off" spellcheck="false" placeholder="epicfight:item/dagger" style="flex:1;">
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
+                    <label style="font-size:13px;font-weight:700;white-space:nowrap;min-width:64px;text-align:right;" title="{{ t('选择武器模型要绑定的骨骼位置') }}">{{ t('挂载点') }}:</label>
+                    <select id="preview-attach-bone" style="background:#2a2a2a;color:#eee;border:1px solid #555;padding:6px 10px;border-radius:4px;font-size:13px;outline:none;flex:1;cursor:pointer;">
+                        <option value="Tool_R">Tool_R ({{ t('主手') }})</option>
+                        <option value="Tool_L">Tool_L ({{ t('副手') }})</option>
+                        <option value="Head">Head ({{ t('头部') }})</option>
+                    </select>
+                </div>
+                <div id="preview-container" style="flex:1;background:#1e1e1e;border-radius:8px;position:relative;overflow:hidden;">
+                    <div id="preview-overlay" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#aaa;font-size:13px;text-align:center;pointer-events:none;">
+                        <div id="preview-msg">{{ t('点击预览按钮加载') }}</div>
+                    </div>
+                </div>
+            </div>
+            <div id="floating-resizer" style="position:absolute;right:0;bottom:0;width:20px;height:20px;cursor:nwse-resize;z-index:10;touch-action:none;"></div>
+        </div>
+    </div>
+
+    <script>
+        const messages = {
+            en: {
+                "Invincible 数据包可视化编辑器": "Invincible Datapack Visual Editor",
+                "用于创建/编辑 invincible 连段技能数据包（支持 JSON 注释导入）。": "Create/edit invincible combo skill datapacks (supports JSON with comments).",
+                "Trail 调节器": "Trail Visualizer",
+                "CE 动作": "CE Action",
+                "Indestructible 编辑器": "Indestructible Editor",
+                "ID 转 CE 转换器": "ID to CE Converter",
+                "Invincible 编辑器": "Invincible Editor",
+                "导入 / 导出": "Import / Export",
+                "导入 JSON": "Import JSON",
+                "导出 JSON": "Export JSON",
+                "复制 JSON": "Copy JSON",
+                "重置": "Reset",
+                "动画资源索引": "Animation Library",
+                "导入资源目录后，动画路径输入框会出现分组联想和高亮匹配。": "After importing assets, animation inputs show grouped autocomplete suggestions.",
+                "导入资源文件夹": "Import Folder",
+                "导入 ZIP/JAR": "Import ZIP/JAR",
+                "清空索引": "Clear Index",
+                "尚未导入动画资源索引。": "No animation library imported yet.",
+                "未在所选目录中找到可识别的动画或模型资源。": "No recognizable animation/model resources found in the selected folder/file.",
+                "预览动画": "Preview",
+                "3D预览环境尚未加载完成": "3D preview is not ready yet",
+                "JSZip 库未加载，无法解析 ZIP/JAR。": "JSZip library is not loaded, unable to parse ZIP/JAR.",
+                "解析文件失败:": "Failed to parse file:",
+                "3D 动画预览": "3D Animation Preview",
+                "关闭": "Close",
+                "模型/骨骼": "Model/Armature",
+                "物品模型": "Item Model",
+                "挂载点": "Attach Bone",
+                "选择武器模型要绑定的骨骼位置": "Select the bone to which the weapon model will be attached",
+                "主手": "Main Hand",
+                "副手": "Off Hand",
+                "头部": "Head",
+                "点击预览按钮加载": "Click preview button to load",
+                "基础信息": "Basic",
+                "translationKeys": "translationKeys",
+                "combos": "combos",
+                "+ 添加": "+ Add",
+                "+ 添加根节点": "+ Add Root",
+                "+ 添加根节点(条件动画)": "+ Add Root (Condition Animations)",
+                "清除": "Clear",
+                "（不填）": "(Empty)",
+                "删除": "Delete",
+                "键/文本": "Key/Text",
+                "可用于 Shift 描述或提示文本。": "Used for Shift tooltip lines or hints.",
+                "提示：combos 为空时不会有任何连段效果。": "Tip: empty combos means no combo behavior.",
+                "根 condition_animations": "Root condition_animations",
+                "提示：根 condition_animations 可用于“无按键”的条件触发。": "Tip: root condition_animations can be used for conditional triggers without a key.",
+                "当存在 condition_animations 时，同级除按键与 combos 外参数会被忽略。": "When condition_animations exists, sibling fields except key/combos are ignored.",
+                "JSON 预览": "JSON Preview",
+                "导出时会自动清理空字段与临时字段。": "Export cleans empty and temporary fields.",
+                "mod_id": "mod_id",
+                "name": "name",
+                "consumption": "consumption",
+                "max_stacks": "max_stacks",
+                "drawSkillIcon": "drawSkillIcon",
+                "是": "Yes",
+                "否": "No",
+                "节点": "Node",
+                "按键": "Key",
+                "动画": "Animation",
+                "常用参数": "Common Params",
+                "speed_multiplier": "speed_multiplier",
+                "convert_time": "convert_time",
+                "cooldown": "cooldown",
+                "not_charge": "not_charge",
+                "can_be_interrupt": "can_be_interrupt",
+                "hurt_damage_multiplier": "hurt_damage_multiplier",
+                "impact_multiplier": "impact_multiplier",
+                "armor_negation": "armor_negation",
+                "stun_type": "stun_type",
+                "set_phase": "set_phase",
+                "damage_multiplier": "damage_multiplier",
+                "模式": "Mode",
+                "数值": "Value",
+                "无": "None",
+                "multiplier": "multiplier",
+                "adder": "adder",
+                "setter": "setter",
+                "条件": "Conditions",
+                "+ 添加条件": "+ Add Condition",
+                "条件 JSON": "Condition JSON",
+                "条件类型": "Predicate",
+                "predicate": "predicate",
+                "表单": "Form",
+                "高级 JSON": "Advanced JSON",
+                "应用": "Apply",
+                "字段名": "Field",
+                "字段值": "Value",
+                "+ 添加字段": "+ Add Field",
+                "condition_animations": "condition_animations",
+                "+ 添加条件动画": "+ Add Condition Animation",
+                "priority": "priority",
+                "time_command_list": "time_command_list",
+                "hit_command_list": "hit_command_list",
+                "hurt_command_list": "hurt_command_list",
+                "dodge_success_command_list": "dodge_success_command_list",
+                "+ 添加命令": "+ Add Command",
+                "time": "time",
+                "command": "command",
+                "execute_at_target": "execute_at_target",
+                "+ 添加子节点": "+ Add Child",
+                "折叠": "Collapse",
+                "展开": "Expand",
+                "主题: 亮色": "Theme: Light",
+                "主题: 暗色": "Theme: Dark",
+                "中文": "中文",
+                "English": "English",
+                "已复制到剪贴板": "Copied to clipboard",
+                "复制失败": "Copy failed",
+                "JSON 解析失败:": "JSON parse failed:",
+                "已导入": "Imported",
+                "已导出": "Exported"
+            },
+            zh: {
+                "Invincible 数据包可视化编辑器": "Invincible 数据包可视化编辑器",
+                "用于创建/编辑 invincible 连段技能数据包（支持 JSON 注释导入）。": "用于创建/编辑 invincible 连段技能数据包（支持 JSON 注释导入）。",
+                "Trail 调节器": "Trail 调节器",
+                "CE 动作": "CE 动作",
+                "Indestructible 编辑器": "Indestructible 编辑器",
+                "ID 转 CE 转换器": "ID 转 CE 转换器",
+                "Invincible 编辑器": "Invincible 编辑器",
+                "导入 / 导出": "导入 / 导出",
+                "导入 JSON": "导入 JSON",
+                "导出 JSON": "导出 JSON",
+                "复制 JSON": "复制 JSON",
+                "重置": "重置",
+                "动画资源索引": "动画资源索引",
+                "导入资源目录后，动画路径输入框会出现分组联想和高亮匹配。": "导入资源目录后，动画路径输入框会出现分组联想和高亮匹配。",
+                "导入资源文件夹": "导入资源文件夹",
+                "清空索引": "清空索引",
+                "尚未导入动画资源索引。": "尚未导入动画资源索引。",
+                "未在所选目录中找到可识别的动画或模型资源。": "未在所选目录中找到可识别的动画或模型资源。",
+                "预览动画": "预览动画",
+                "3D预览环境尚未加载完成": "3D预览环境尚未加载完成",
+                "3D 动画预览": "3D 动画预览",
+                "关闭": "关闭",
+                "模型/骨骼": "模型/骨骼",
+                "物品模型": "物品模型",
+                "点击预览按钮加载": "点击预览按钮加载",
+                "基础信息": "基础信息",
+                "translationKeys": "translationKeys",
+                "combos": "combos",
+                "+ 添加": "+ 添加",
+                "+ 添加根节点": "+ 添加根节点",
+                "+ 添加根节点(条件动画)": "+ 添加根节点(条件动画)",
+                "清除": "清除",
+                "（不填）": "（不填）",
+                "删除": "删除",
+                "键/文本": "键/文本",
+                "可用于 Shift 描述或提示文本。": "可用于 Shift 描述或提示文本。",
+                "提示：combos 为空时不会有任何连段效果。": "提示：combos 为空时不会有任何连段效果。",
+                "根 condition_animations": "根 condition_animations",
+                "提示：根 condition_animations 可用于“无按键”的条件触发。": "提示：根 condition_animations 可用于“无按键”的条件触发。",
+                "当存在 condition_animations 时，同级除按键与 combos 外参数会被忽略。": "当存在 condition_animations 时，同级除按键与 combos 外参数会被忽略。",
+                "JSON 预览": "JSON 预览",
+                "导出时会自动清理空字段与临时字段。": "导出时会自动清理空字段与临时字段。",
+                "mod_id": "mod_id",
+                "name": "name",
+                "consumption": "consumption",
+                "max_stacks": "max_stacks",
+                "drawSkillIcon": "drawSkillIcon",
+                "是": "是",
+                "否": "否",
+                "节点": "节点",
+                "按键": "按键",
+                "动画": "动画",
+                "常用参数": "常用参数",
+                "speed_multiplier": "speed_multiplier",
+                "convert_time": "convert_time",
+                "cooldown": "cooldown",
+                "not_charge": "not_charge",
+                "can_be_interrupt": "can_be_interrupt",
+                "hurt_damage_multiplier": "hurt_damage_multiplier",
+                "impact_multiplier": "impact_multiplier",
+                "armor_negation": "armor_negation",
+                "stun_type": "stun_type",
+                "set_phase": "set_phase",
+                "damage_multiplier": "damage_multiplier",
+                "模式": "模式",
+                "数值": "数值",
+                "无": "无",
+                "multiplier": "multiplier",
+                "adder": "adder",
+                "setter": "setter",
+                "条件": "条件",
+                "+ 添加条件": "+ 添加条件",
+                "条件 JSON": "条件 JSON",
+                "条件类型": "条件类型",
+                "predicate": "predicate",
+                "表单": "表单",
+                "高级 JSON": "高级 JSON",
+                "应用": "应用",
+                "字段名": "字段名",
+                "字段值": "字段值",
+                "+ 添加字段": "+ 添加字段",
+                "condition_animations": "condition_animations",
+                "+ 添加条件动画": "+ 添加条件动画",
+                "priority": "priority",
+                "time_command_list": "time_command_list",
+                "hit_command_list": "hit_command_list",
+                "hurt_command_list": "hurt_command_list",
+                "dodge_success_command_list": "dodge_success_command_list",
+                "+ 添加命令": "+ 添加命令",
+                "time": "time",
+                "command": "command",
+                "execute_at_target": "execute_at_target",
+                "+ 添加子节点": "+ 添加子节点",
+                "折叠": "折叠",
+                "展开": "展开",
+                "主题: 亮色": "主题: 亮色",
+                "主题: 暗色": "主题: 暗色",
+                "中文": "中文",
+                "English": "English",
+                "已复制到剪贴板": "已复制到剪贴板",
+                "复制失败": "复制失败",
+                "JSON 解析失败:": "JSON 解析失败:",
+                "已导入": "已导入",
+                "已导出": "已导出"
+            }
+        };
+
+        const helpMessages = {
+            en: {
+                "mod_id": "Namespace of the skill. Exported filename also uses it.",
+                "name": "Skill id. In weapon config innate_skills use: mod_id:name",
+                "consumption": "Max consumption (energy/charge cap).",
+                "max_stacks": "Max stacks.",
+                "drawSkillIcon": "Whether to render the skill icon on HUD.",
+                "translationKeys": "Shift tooltip lines. Each entry is one line.",
+                "combos": "Main combo tree. Each node is triggered by a key, and its combos are next steps.",
+                "root_condition_animations": "Root condition_animations: conditional triggers without a key (key can be empty).",
+                "key": "Key id. KEY_1=left click, KEY_2=right click... KEY_1_2 means pressed together.",
+                "animation": "EpicFight animation resource path.",
+                "priority": "Only for condition_animations items. Higher value is checked first.",
+                "conditions": "All conditions must pass for the node to be valid.",
+                "condition_animations": "Multiple conditional animations for the same key. When present, sibling params (except key/combos) are ignored.",
+                "speed_multiplier": "Animation speed multiplier.",
+                "convert_time": "Transition time between animations.",
+                "cooldown": "Cooldown in ticks after using this node.",
+                "not_charge": "If true, this action will not charge. If false, it can charge. Empty uses default.",
+                "can_be_interrupt": "If false, cannot be interrupted (super armor). If true, can be interrupted.",
+                "set_phase": "Set custom phase used by invincible:phase predicate.",
+                "hurt_damage_multiplier": "Damage taken multiplier while the animation is playing.",
+                "impact_multiplier": "Impact multiplier applied to the animation.",
+                "armor_negation": "Armor negation applied to the animation.",
+                "stun_type": "Stun type override for this attack.",
+                "damage_multiplier": "Damage multiplier override (adder/multiplier/setter).",
+                "time_command_list": "Commands executed at specific times since the animation starts.",
+                "hit_command_list": "Commands executed when this attack hits.",
+                "hurt_command_list": "Commands executed when you get hurt during this action.",
+                "dodge_success_command_list": "Commands executed after a successful dodge window.",
+                "time": "Time offset since animation starts.",
+                "command": "Minecraft command string.",
+                "execute_at_target": "If true, execute at target. If false, execute at self.",
+                "predicate": "Predicate id. You can also type any custom predicate directly.",
+                "predicate.epicfight:within_distance": "Target distance must be within [min, max].",
+                "predicate.epicfight:within_eye_height": "Target is within attacker's eye height (vertical check).",
+                "predicate.epicfight:within_angle": "Angle between attacker and target within [min, max].",
+                "predicate.epicfight:within_angle_horizontal": "Horizontal angle within [min, max].",
+                "predicate.epicfight:health": "Health check using comparator.",
+                "predicate.epicfight:random_chance": "Random chance check.",
+                "predicate.indestructible:guard_break": "Indestructible: target is guard-broken (invert to negate).",
+                "predicate.indestructible:knock_down": "Indestructible: target is knocked down (invert to negate).",
+                "predicate.indestructible:attack_level": "Indestructible: attack level within [min, max] (0-3).",
+                "predicate.indestructible:stamina": "Indestructible: stamina check using comparator.",
+                "predicate.indestructible:using_item": "Indestructible: target is using an item (edible filters food/potion)."
+            },
+            zh: {
+                "mod_id": "技能命名空间。导出文件名也会使用它。",
+                "name": "技能 id。武器配置 innate_skills 里要填：mod_id:name",
+                "consumption": "充能上限（能量/充能值的最大值）。",
+                "max_stacks": "叠层上限。",
+                "drawSkillIcon": "是否在 HUD 显示技能图标。",
+                "translationKeys": "Shift 提示/描述文本。每一项是一行。",
+                "combos": "主连段树：按键触发节点，节点的 combos 是下一段。",
+                "root_condition_animations": "根 condition_animations：用于“无按键”的条件触发入口（key 可为空）。",
+                "key": "按键编号。KEY_1=左键，KEY_2=右键... KEY_1_2 表示同时按下。",
+                "animation": "EpicFight 动画资源路径。",
+                "priority": "仅用于 condition_animations 内的条目。数字越大越先检测。",
+                "conditions": "触发条件列表：所有条件都满足才会生效。",
+                "condition_animations": "同一按键在不同条件下触发不同动画。存在时同级除 key/combos 外参数会被忽略。",
+                "speed_multiplier": "动画速度倍率。",
+                "convert_time": "动画过渡时间。",
+                "cooldown": "使用后冷却时间（tick）。",
+                "not_charge": "true=本次不充能；false=可充能；无=默认。",
+                "can_be_interrupt": "false=不可被打断（霸体）；true=可被打断；无=默认。",
+                "set_phase": "设置自定义阶段（phase），供 invincible:phase 条件使用。",
+                "hurt_damage_multiplier": "播放动画期间受到伤害的倍率。",
+                "impact_multiplier": "冲击倍率（在动画原有基础上修改）。",
+                "armor_negation": "破甲数值（在动画原有基础上修改）。",
+                "stun_type": "硬直类型覆盖。",
+                "damage_multiplier": "伤害倍率覆盖（adder/multiplier/setter）。",
+                "time_command_list": "时间指令：从动画开始计时，到指定 time 执行命令。",
+                "hit_command_list": "命中指令：成功命中后执行。",
+                "hurt_command_list": "受击指令：动作期间被打中后执行。",
+                "dodge_success_command_list": "闪避成功后执行的指令。",
+                "time": "相对动画开始的时间偏移。",
+                "command": "Minecraft 指令字符串。",
+                "execute_at_target": "true=对目标执行；false=对自身执行。",
+                "predicate": "条件类型 id。也可以直接手动输入任意 predicate。",
+                "predicate.epicfight:within_distance": "距离条件：目标距离在 [min, max] 内。",
+                "predicate.epicfight:within_eye_height": "高度条件：目标与攻击者的高度差在眼睛高度内。",
+                "predicate.epicfight:within_angle": "角度条件：与目标夹角在 [min, max] 内。",
+                "predicate.epicfight:within_angle_horizontal": "水平角度条件：水平夹角在 [min, max] 内。",
+                "predicate.epicfight:health": "生命条件：按 comparator 对 health 进行比较。",
+                "predicate.epicfight:random_chance": "随机条件：按 chance 判定。",
+                "predicate.indestructible:guard_break": "坚不可摧：目标是否处于破防状态（invert 取反）。",
+                "predicate.indestructible:knock_down": "坚不可摧：目标是否处于倒地状态（invert 取反）。",
+                "predicate.indestructible:attack_level": "坚不可摧：目标攻击阶段在 [min, max]（0-3）。",
+                "predicate.indestructible:stamina": "坚不可摧：耐力值条件（comparator）。",
+                "predicate.indestructible:using_item": "坚不可摧：目标是否在使用物品（edible 过滤食物/药水）。"
+            }
+        };
+
+        function stripJsonComments(source){let r='',s=false,q='',e=false,l=false,b=false;for(let i=0;i<source.length;i+=1){const c=source[i],n=source[i+1];if(l){if(c==='\n'){l=false;r+=c}continue}if(b){if(c==='*'&&n=== '/'){b=false;i+=1}continue}if(s){r+=c;if(e)e=false;else if(c==='\\')e=true;else if(c===q){s=false;q=''}continue}if(c==='"'||c==="'"){s=true;q=c;r+=c;continue}if(c==='/'&&n==='/'){l=true;i+=1;continue}if(c==='/'&&n==='*'){b=true;i+=1;continue}r+=c}return r}
+        function parseJsonLoose(text){return JSON.parse(stripJsonComments(text))}
+        function cleanup(v){if(Array.isArray(v)){const arr=v.map(cleanup).filter(x=>x!==undefined);return arr.length?arr:undefined}if(v&&typeof v==='object'){const out={};Object.keys(v).forEach(k=>{if(k.startsWith('_'))return;const x=cleanup(v[k]);if(x!==undefined)out[k]=x});return Object.keys(out).length?out:undefined}if(typeof v==='string'){const t=v.trim();return t===''?undefined:t}if(v===undefined||v===null)return undefined;return v}
+
+        function normalizeAnimationResourcePath(path){return String(path||'').replace(/\\/g,'/').replace(/^\/+/,'')}
+        var fileResourceMap = new Map();
+        function extractAnimationDescriptor(path, fileObj) {
+            const p = normalizeAnimationResourcePath(path);
+            const lowerP = p ? p.toLowerCase() : '';
+            if (!p || (!lowerP.endsWith('.json') && !lowerP.endsWith('.obj') && !lowerP.endsWith('.png') && !lowerP.endsWith('.geo'))) return null;
+            const parts = p.split('/').filter(Boolean);
+            let isModel = false;
+            let idx = parts.findIndex((part, i) => part === 'animmodels' && parts[i+1] === 'animations');
+            let off = 2;
+            if (idx === -1) {
+                idx = parts.indexOf('animmodels');
+                if (idx !== -1 && idx + 1 < parts.length) {
+                    isModel = true;
+                    off = 1;
+                } else {
+                    idx = parts.indexOf('models');
+                    if (idx !== -1 && idx + 1 < parts.length) { isModel = true; off = 1; }
+                    else {
+                        idx = parts.indexOf('textures');
+                        if (idx !== -1 && idx + 1 < parts.length) { isModel = true; off = 1; }
+                        else {
+                            idx = parts.indexOf('geo');
+                            if (idx !== -1 && idx + 1 < parts.length) { isModel = true; off = 1; }
+                            else { idx = parts.indexOf('animations'); off = 1; if (idx === -1) return null; }
+                        }
+                    }
+                }
+            }
+            let modId = null;
+            const assetsIndex = parts.indexOf('assets');
+            const dataIndex = parts.indexOf('data');
+            if (assetsIndex !== -1 && assetsIndex + 1 < parts.length) modId = parts[assetsIndex + 1];
+            else if (dataIndex !== -1 && dataIndex + 1 < parts.length) modId = parts[dataIndex + 1];
+            else if (idx > 0) modId = parts[idx - 1];
+            let rel = parts.slice(idx + off).join('/');
+            if (lowerP.endsWith('.json')) rel = rel.replace(/\.json$/i, '');
+            else if (lowerP.endsWith('.png')) rel = rel.replace(/\.png$/i, '');
+            if (!modId || !rel) return null;
+            let id = `${modId}:${rel}`;
+            if (lowerP.endsWith('.obj') && !id.toLowerCase().endsWith('.obj')) id += '.obj';
+            else if (lowerP.endsWith('.png') && !id.toLowerCase().endsWith('.png')) id += '.png';
+            else if (lowerP.endsWith('.geo') && !id.toLowerCase().endsWith('.geo')) id += '.geo';
+            if (fileObj) fileResourceMap.set(id, fileObj);
+            const type = lowerP.endsWith('.png') ? 'texture' : ((lowerP.endsWith('.obj') || lowerP.endsWith('.geo')) ? 'model' : (isModel ? 'model' : 'animation'));
+            return { type, modId, id };
+        }
+
+        let animationAutocompleteController = null;
+        function getRecentAnimations() {
+            try { return JSON.parse(localStorage.getItem('invincible_recent_animations') || '[]'); } catch (e) { return []; }
+        }
+        function addRecentAnimation(id) {
+            let recent = getRecentAnimations();
+            recent = recent.filter(x => x !== id);
+            recent.unshift(id);
+            if (recent.length > 5) recent = recent.slice(0, 5);
+            localStorage.setItem('invincible_recent_animations', JSON.stringify(recent));
+        }
+
+        function createAnimationAutocomplete(getAnimOptions, getModelOptions) {
+            const panel = document.createElement('div');
+            panel.className = 'animation-autocomplete-panel';
+            document.body.appendChild(panel);
+            let activeInput = null;
+            let activeItems = [];
+            let activeIdx = -1;
+            let isModelInput = false;
+            function escapeHtml(s){return String(s).replace(/[&<>"']/g,(c)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]))}
+            function normalizeKey(s){return String(s||'').toLowerCase()}
+            function splitTokens(q){return normalizeKey(q).split(/\s+/).filter(Boolean)}
+            function buildHighlighted(text, tokens){
+                let html = escapeHtml(text);
+                tokens.forEach(t=>{
+                    if(!t) return;
+                    const re = new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'ig');
+                    html = html.replace(re, (m)=>`<span class="animation-autocomplete-highlight">${escapeHtml(m)}</span>`);
+                });
+                return html;
+            }
+            function groupByNamespace(list){
+                const map = new Map();
+                list.forEach(id=>{
+                    const ns = String(id).includes(':') ? String(id).split(':')[0] : '';
+                    if(!map.has(ns)) map.set(ns, []);
+                    map.get(ns).push(id);
+                });
+                const groups = Array.from(map.entries()).map(([ns, items])=>({ ns, items: items.sort((a,b)=>a.localeCompare(b)) }));
+                groups.sort((a,b)=>a.ns.localeCompare(b.ns));
+                return groups;
+            }
+            function computeMatches(list, q){
+                const tokens = splitTokens(q);
+                if(tokens.length===0) return list.slice(0, 200);
+                const scored = [];
+                const qn = normalizeKey(q);
+                for(const id of list){
+                    const key = normalizeKey(id);
+                    let ok = true;
+                    for(const t of tokens){ if(!key.includes(t)) { ok=false; break; } }
+                    if(!ok) continue;
+                    let score = 0;
+                    if(key.startsWith(qn)) score += 10;
+                    score += Math.max(0, 6 - key.indexOf(tokens[0]));
+                    scored.push({ id, score });
+                }
+                scored.sort((a,b)=>b.score-a.score || a.id.localeCompare(b.id));
+                return scored.slice(0, 200).map(x=>x.id);
+            }
+            function render(){
+                if(!activeInput){ panel.style.display='none'; return; }
+                const rect = activeInput.getBoundingClientRect();
+                panel.style.left = rect.left + 'px';
+                panel.style.top = (rect.bottom + 4) + 'px';
+                panel.style.minWidth = Math.min(Math.max(rect.width, 260), 520) + 'px';
+                const q = activeInput.value || '';
+                const list = isModelInput ? (getModelOptions ? getModelOptions() : []) : (getAnimOptions ? getAnimOptions() : []);
+                const matches = computeMatches(list || [], q);
+                panel.innerHTML = '';
+                activeItems = [];
+                activeIdx = -1;
+                
+                if(!q && !isModelInput) {
+                    const recents = getRecentAnimations();
+                    if(recents.length > 0) {
+                        const rGroupEl = document.createElement('div');
+                        rGroupEl.className = 'animation-autocomplete-group';
+                        const rTitle = document.createElement('div');
+                        rTitle.className = 'animation-autocomplete-group-title';
+                        rTitle.textContent = '最近使用 (Recent)';
+                        rTitle.style.color = '#3b82f6';
+                        rGroupEl.appendChild(rTitle);
+                        recents.forEach(id => {
+                            const item = document.createElement('div');
+                            item.className = 'animation-autocomplete-item';
+                            item.textContent = id;
+                            item.addEventListener('mousedown', (e)=>{ e.preventDefault(); select(id); });
+                            rGroupEl.appendChild(item);
+                            activeItems.push({ id, el: item });
+                        });
+                        panel.appendChild(rGroupEl);
+                    }
+                }
+
+                if(!matches.length && (!q || isModelInput || getRecentAnimations().length === 0)){
+                    const empty = document.createElement('div');
+                    empty.className = 'animation-autocomplete-empty';
+                    empty.textContent = '无匹配结果';
+                    panel.appendChild(empty);
+                    panel.style.display='block';
+                    return;
+                }
+                const tokens = splitTokens(q);
+                const groups = groupByNamespace(matches);
+                groups.forEach(g=>{
+                    const groupEl = document.createElement('div');
+                    groupEl.className = 'animation-autocomplete-group';
+                    const title = document.createElement('div');
+                    title.className = 'animation-autocomplete-group-title';
+                    title.textContent = g.ns || '(no namespace)';
+                    groupEl.appendChild(title);
+                    g.items.forEach(id=>{
+                        const item = document.createElement('div');
+                        item.className = 'animation-autocomplete-item';
+                        item.innerHTML = buildHighlighted(id, tokens);
+                        item.addEventListener('mousedown', (e)=>{ e.preventDefault(); select(id); });
+                        groupEl.appendChild(item);
+                        activeItems.push({ id, el: item });
+                    });
+                    panel.appendChild(groupEl);
+                });
+                panel.style.display='block';
+            }
+            function setActive(i){
+                if(activeItems.length===0) return;
+                if(activeIdx>=0 && activeIdx<activeItems.length) activeItems[activeIdx].el.classList.remove('active');
+                activeIdx = (i + activeItems.length) % activeItems.length;
+                activeItems[activeIdx].el.classList.add('active');
+                const el = activeItems[activeIdx].el;
+                const pr = panel.getBoundingClientRect();
+                const er = el.getBoundingClientRect();
+                if(er.top < pr.top) panel.scrollTop -= (pr.top - er.top) + 6;
+                else if(er.bottom > pr.bottom) panel.scrollTop += (er.bottom - pr.bottom) + 6;
+            }
+            function select(id){
+                if(!activeInput) return;
+                activeInput.value = id;
+                activeInput.dispatchEvent(new Event('input', { bubbles: true }));
+                if(!isModelInput) addRecentAnimation(id);
+                panel.style.display = 'none';
+            }
+            function onFocus(e){
+                const el = e.target;
+                if(!el || !el.classList || !el.classList.contains('animation-path-input')) return;
+                activeInput = el;
+                isModelInput = el.id === 'preview-model-input' || el.id === 'preview-weapon-input';
+                render();
+            }
+            function onInput(e){
+                if(e.target !== activeInput) return;
+                render();
+            }
+            function onBlur(){
+                setTimeout(()=>{ panel.style.display='none'; activeInput=null; }, 120);
+            }
+            function onKeydown(e){
+                if(!activeInput || panel.style.display==='none') return;
+                if(e.key==='ArrowDown'){ e.preventDefault(); setActive(activeIdx+1); }
+                else if(e.key==='ArrowUp'){ e.preventDefault(); setActive(activeIdx-1); }
+                else if(e.key==='Enter'){ if(activeIdx>=0 && activeIdx<activeItems.length){ e.preventDefault(); select(activeItems[activeIdx].id); } }
+                else if(e.key==='Escape'){ panel.style.display='none'; }
+            }
+            document.addEventListener('focusin', onFocus);
+            document.addEventListener('input', onInput, true);
+            document.addEventListener('keydown', onKeydown);
+            document.addEventListener('focusout', onBlur, true);
+            return { refresh(){ if(activeInput) render(); } };
+        }
+
+        function customStringify(obj, indentLevel = 0) {
+            const indent = "\t".repeat(indentLevel);
+            const nextIndent = "\t".repeat(indentLevel + 1);
+
+            if (Array.isArray(obj)) {
+                if (obj.length === 0) return "[]";
+                const allSimple = obj.every((item) => typeof item !== 'object' || item === null);
+                if (allSimple) {
+                    return "[" + obj.map((item) => JSON.stringify(item)).join(", ") + "]";
+                }
+                let str = "[\n";
+                for (let i = 0; i < obj.length; i++) {
+                    str += nextIndent + customStringify(obj[i], indentLevel + 1);
+                    if (i < obj.length - 1) str += ",";
+                    str += "\n";
+                }
+                str += indent + "]";
+                return str;
+            }
+            if (typeof obj === 'object' && obj !== null) {
+                const keys = Object.keys(obj);
+                if (keys.length === 0) return "{}";
+                const allSimpleVals = keys.every((key) => typeof obj[key] !== 'object' || obj[key] === null || (Array.isArray(obj[key]) && obj[key].every((v) => typeof v !== 'object')));
+                if (allSimpleVals && keys.length <= 4 && indentLevel > 1) {
+                    const props = keys.map((key) => `"${key}": ${customStringify(obj[key], indentLevel + 1)}`).join(", ");
+                    return `{ ${props} }`;
+                }
+                if (allSimpleVals && Object.prototype.hasOwnProperty.call(obj, "predicate") && indentLevel > 1) {
+                    const props = keys.map((key) => `"${key}": ${customStringify(obj[key], indentLevel + 1)}`).join(", ");
+                    return `{ ${props} }`;
+                }
+                let str = "{\n";
+                for (let i = 0; i < keys.length; i++) {
+                    const key = keys[i];
+                    str += nextIndent + `"${key}": ` + customStringify(obj[key], indentLevel + 1);
+                    if (i < keys.length - 1) str += ",";
+                    str += "\n";
+                }
+                str += indent + "}";
+                return str;
+            }
+            return JSON.stringify(obj);
+        }
+
+        function defaultComboNode() {
+            return {
+                key: "KEY_1",
+                animation: "",
+                priority: undefined,
+                speed_multiplier: undefined,
+                convert_time: undefined,
+                damage_multiplier: undefined,
+                hurt_damage_multiplier: undefined,
+                impact_multiplier: undefined,
+                armor_negation: undefined,
+                stun_type: undefined,
+                can_be_interrupt: undefined,
+                not_charge: undefined,
+                cooldown: undefined,
+                set_phase: undefined,
+                conditions: [],
+                condition_animations: [],
+                time_command_list: [],
+                hit_command_list: [],
+                hurt_command_list: [],
+                dodge_success_command_list: [],
+                combos: []
+            };
+        }
+
+        function defaultCondition() {
+            return { predicate: "" };
+        }
+
+        function knownPredicateDefaults(predicate) {
+            const p = String(predicate || '').trim();
+            if (p === 'epicfight:within_distance') return { predicate: p, min: 0.0, max: 1.0 };
+            if (p === 'epicfight:within_eye_height') return { predicate: p };
+            if (p === 'epicfight:within_angle') return { predicate: p, min: 0.0, max: 180.0 };
+            if (p === 'epicfight:within_angle_horizontal') return { predicate: p, min: 0.0, max: 180.0 };
+            if (p === 'epicfight:health') return { predicate: p, health: 1.0, comparator: 'greater_ratio' };
+            if (p === 'epicfight:random_chance') return { predicate: p, chance: 1.0 };
+            if (p === 'invincible:phase') return { predicate: p, min: 1.0, max: 1.0 };
+            if (p === 'invincible:stack_count') return { predicate: p, min: 1.0, max: 999.0 };
+            if (p === 'invincible:cooldown') return { predicate: p, in_cooldown: false };
+            if (p === 'invincible:target_blocking') return { predicate: p, is_parry: false };
+            if (p === 'indestructible:guard_break') return { predicate: p, invert: false };
+            if (p === 'indestructible:knock_down') return { predicate: p, invert: false };
+            if (p === 'indestructible:attack_level') return { predicate: p, min: 0.0, max: 3.0 };
+            if (p === 'indestructible:stamina') return { predicate: p, stamina: 30.0, comparator: 'greater_ratio' };
+            if (p === 'indestructible:using_item') return { predicate: p, edible: true };
+            if (p === 'indestructible:phase') return { predicate: p, min: 1.0, max: 1.0 };
+            if (p === 'invincible:jumping') return { predicate: p };
+            if (p === 'invincible:sprinting') return { predicate: p };
+            if (p === 'invincible:dodge_success') return { predicate: p };
+            if (p === 'invincible:parry_success') return { predicate: p };
+            if (p === 'invincible:up') return { predicate: p };
+            if (p === 'invincible:down') return { predicate: p };
+            if (p === 'invincible:left') return { predicate: p };
+            if (p === 'invincible:right') return { predicate: p };
+            if (p === 'invincible:blocking') return { predicate: p };
+            if (p === 'invincible:enchantment') return { predicate: p, is_main_hand: true, enchantment: '', min: 1.0, max: 1.0 };
+            if (p === 'invincible:mob_effect') return { predicate: p, is_target: false, effect: '', min: 0.0, max: 0.0 };
+            if (p === 'invincible:press_time_condition') return { predicate: p, min: 0.0, max: 999.0 };
+            return { predicate: p };
+        }
+
+        function defaultCommandItem(includeTime) {
+            const base = { command: "", execute_at_target: false };
+            if (includeTime) base.time = 0;
+            return base;
+        }
+
+        function normalizeCommandList(list, includeTime) {
+            if (!Array.isArray(list)) return [];
+            return list.map((item) => {
+                const obj = item && typeof item === 'object' ? item : {};
+                const out = {
+                    command: typeof obj.command === 'string' ? obj.command : '',
+                    execute_at_target: !!obj.execute_at_target
+                };
+                if (includeTime) out.time = Number.isFinite(Number(obj.time)) ? Number(obj.time) : 0;
+                return out;
+            });
+        }
+
+        function normalizeConditionList(list) {
+            if (!Array.isArray(list)) return [];
+            return list.map((item) => normalizeCondition(item));
+        }
+
+        function normalizeCondition(cond) {
+            const obj = cond && typeof cond === 'object' ? cond : defaultCondition();
+            const predicate = typeof obj.predicate === 'string' ? obj.predicate : '';
+            const out = { ...obj, predicate };
+
+            if (Object.prototype.hasOwnProperty.call(out, 'inCooldown') && !Object.prototype.hasOwnProperty.call(out, 'in_cooldown')) {
+                out.in_cooldown = !!out.inCooldown;
+                delete out.inCooldown;
+            }
+            if (Object.prototype.hasOwnProperty.call(out, 'isParry') && !Object.prototype.hasOwnProperty.call(out, 'is_parry')) {
+                out.is_parry = !!out.isParry;
+                delete out.isParry;
+            }
+            if (Object.prototype.hasOwnProperty.call(out, 'isMainHand') && !Object.prototype.hasOwnProperty.call(out, 'is_main_hand')) {
+                out.is_main_hand = !!out.isMainHand;
+                delete out.isMainHand;
+            }
+            if (Object.prototype.hasOwnProperty.call(out, 'isTarget') && !Object.prototype.hasOwnProperty.call(out, 'is_target')) {
+                out.is_target = !!out.isTarget;
+                delete out.isTarget;
+            }
+
+            if (
+                predicate === 'epicfight:within_distance' ||
+                predicate === 'epicfight:within_angle' ||
+                predicate === 'epicfight:within_angle_horizontal' ||
+                predicate === 'invincible:phase' ||
+                predicate === 'invincible:stack_count' ||
+                predicate === 'invincible:press_time_condition' ||
+                predicate === 'indestructible:attack_level' ||
+                predicate === 'indestructible:phase'
+            ) {
+                out.min = Number.isFinite(Number(out.min)) ? Number(out.min) : 0.0;
+                out.max = Number.isFinite(Number(out.max)) ? Number(out.max) : 0.0;
+            }
+            if (predicate === 'invincible:cooldown') {
+                out.in_cooldown = !!out.in_cooldown;
+            }
+            if (predicate === 'invincible:target_blocking') {
+                out.is_parry = !!out.is_parry;
+            }
+            if (predicate === 'indestructible:guard_break') {
+                out.invert = !!out.invert;
+            }
+            if (predicate === 'indestructible:knock_down') {
+                out.invert = !!out.invert;
+            }
+            if (predicate === 'indestructible:using_item') {
+                out.edible = !!out.edible;
+            }
+            if (predicate === 'indestructible:stamina') {
+                out.stamina = Number.isFinite(Number(out.stamina)) ? Number(out.stamina) : 0.0;
+                out.comparator = typeof out.comparator === 'string' ? out.comparator : 'greater_ratio';
+            }
+            if (predicate === 'epicfight:health') {
+                out.health = Number.isFinite(Number(out.health)) ? Number(out.health) : 0.0;
+                out.comparator = typeof out.comparator === 'string' ? out.comparator : 'greater_ratio';
+            }
+            if (predicate === 'epicfight:random_chance') {
+                out.chance = Number.isFinite(Number(out.chance)) ? Number(out.chance) : 0.0;
+            }
+            if (predicate === 'invincible:enchantment') {
+                out.is_main_hand = !!out.is_main_hand;
+                out.enchantment = typeof out.enchantment === 'string' ? out.enchantment : '';
+                out.min = Number.isFinite(Number(out.min)) ? Number(out.min) : 0.0;
+                out.max = Number.isFinite(Number(out.max)) ? Number(out.max) : 0.0;
+            }
+            if (predicate === 'invincible:mob_effect') {
+                out.is_target = !!out.is_target;
+                out.effect = typeof out.effect === 'string' ? out.effect : '';
+                out.min = Number.isFinite(Number(out.min)) ? Number(out.min) : 0.0;
+                out.max = Number.isFinite(Number(out.max)) ? Number(out.max) : 0.0;
+            }
+
+            return out;
+        }
+
+        function normalizeComboNode(node, opts) {
+            const options = opts && typeof opts === 'object' ? opts : {};
+            const keyOptional = !!options.keyOptional;
+            const obj = node && typeof node === 'object' ? node : defaultComboNode();
+            if (!keyOptional) {
+                if (typeof obj.key !== 'string' || !obj.key) obj.key = "KEY_1";
+            } else {
+                if (typeof obj.key !== 'string' || !obj.key) delete obj.key;
+            }
+            if (typeof obj.animation !== 'string') obj.animation = "";
+            if (!keyOptional) {
+                if (Object.prototype.hasOwnProperty.call(obj, 'priority')) delete obj.priority;
+            } else {
+                if (Object.prototype.hasOwnProperty.call(obj, 'priority')) {
+                    const pri = Number(obj.priority);
+                    obj.priority = Number.isFinite(pri) ? pri : 0;
+                }
+            }
+            obj.conditions = normalizeConditionList(obj.conditions);
+            obj.condition_animations = Array.isArray(obj.condition_animations) ? obj.condition_animations : [];
+            obj.condition_animations = obj.condition_animations.map((n) => normalizeComboNode(n, { keyOptional: true }));
+            obj.time_command_list = normalizeCommandList(obj.time_command_list, true);
+            obj.hit_command_list = normalizeCommandList(obj.hit_command_list, false);
+            obj.hurt_command_list = normalizeCommandList(obj.hurt_command_list, false);
+            obj.dodge_success_command_list = normalizeCommandList(obj.dodge_success_command_list, false);
+            obj.combos = Array.isArray(obj.combos) ? obj.combos : [];
+            obj.combos = obj.combos.map((n) => normalizeComboNode(n, { keyOptional: false }));
+            return obj;
+        }
+
+        function defaultConfig() {
+            return {
+                mod_id: "invincible",
+                name: "datapack_demo",
+                consumption: 5,
+                max_stacks: 2,
+                drawSkillIcon: true,
+                translationKeys: [],
+                combos: [],
+                condition_animations: []
+            };
+        }
+
+        function collectPredicatesFromConfig(cfg) {
+            const set = new Set();
+            const walk = (v) => {
+                if (!v) return;
+                if (Array.isArray(v)) {
+                    v.forEach(walk);
+                    return;
+                }
+                if (typeof v !== 'object') return;
+                const p = typeof v.predicate === 'string' ? v.predicate.trim() : '';
+                if (p) set.add(p);
+                Object.values(v).forEach(walk);
+            };
+            walk(cfg);
+            return Array.from(set).sort();
+        }
+
+        const ComboNodeEditor = {
+            name: 'ComboNodeEditor',
+            components: {
+                ConditionEditor: {
+                    name: 'ConditionEditor',
+                    props: { cond: { type: Object, required: true } },
+                    data() {
+                        return {
+                            mode: 'form',
+                            jsonDraft: '',
+                            newFieldKey: '',
+                            newFieldValue: ''
+                        };
+                    },
+                    computed: {
+                        predicateOptions() {
+                            const builtIn = [
+                                'epicfight:within_distance',
+                                'epicfight:within_eye_height',
+                                'epicfight:within_angle',
+                                'epicfight:within_angle_horizontal',
+                                'epicfight:health',
+                                'epicfight:random_chance',
+                                'invincible:jumping',
+                                'invincible:sprinting',
+                                'invincible:dodge_success',
+                                'invincible:parry_success',
+                                'invincible:up',
+                                'invincible:down',
+                                'invincible:left',
+                                'invincible:right',
+                                'invincible:blocking',
+                                'invincible:phase',
+                                'invincible:stack_count',
+                                'invincible:cooldown',
+                                'invincible:target_blocking',
+                                'invincible:enchantment',
+                                'invincible:mob_effect',
+                                'invincible:press_time_condition',
+                                'indestructible:guard_break',
+                                'indestructible:knock_down',
+                                'indestructible:attack_level',
+                                'indestructible:stamina',
+                                'indestructible:using_item',
+                                'indestructible:phase'
+                            ];
+                            const builtSet = new Set(builtIn);
+                            const extra = this.$root && this.$root.config ? collectPredicatesFromConfig(this.$root.config) : [];
+                            const merged = builtIn.concat(extra.filter((p) => !builtSet.has(p)));
+                            return merged.map((p) => ({ value: p, label: p }));
+                        },
+                        predicate() {
+                            return typeof this.cond.predicate === 'string' ? this.cond.predicate : '';
+                        },
+                        knownFields() {
+                            const p = this.predicate;
+                            if (p === 'epicfight:within_distance') return ['min', 'max'];
+                            if (p === 'epicfight:within_angle') return ['min', 'max'];
+                            if (p === 'epicfight:within_angle_horizontal') return ['min', 'max'];
+                            if (p === 'epicfight:health') return ['health', 'comparator'];
+                            if (p === 'epicfight:random_chance') return ['chance'];
+                            if (p === 'invincible:phase') return ['min', 'max'];
+                            if (p === 'invincible:stack_count') return ['min', 'max'];
+                            if (p === 'invincible:cooldown') return ['in_cooldown'];
+                            if (p === 'invincible:target_blocking') return ['is_parry'];
+                            if (p === 'invincible:enchantment') return ['is_main_hand', 'enchantment', 'min', 'max'];
+                            if (p === 'invincible:mob_effect') return ['is_target', 'effect', 'min', 'max'];
+                            if (p === 'invincible:press_time_condition') return ['min', 'max'];
+                            if (p === 'indestructible:guard_break') return ['invert'];
+                            if (p === 'indestructible:knock_down') return ['invert'];
+                            if (p === 'indestructible:attack_level') return ['min', 'max'];
+                            if (p === 'indestructible:stamina') return ['stamina', 'comparator'];
+                            if (p === 'indestructible:using_item') return ['edible'];
+                            if (p === 'indestructible:phase') return ['min', 'max'];
+                            return [];
+                        },
+                        extraKeys() {
+                            const keys = Object.keys(this.cond || {});
+                            return keys.filter((k) => k !== 'predicate' && !this.knownFields.includes(k));
+                        },
+                        predicateHelp() {
+                            const p = this.predicate;
+                            if (!p) return '';
+                            return this.h(`predicate.${p}`);
+                        }
+                    },
+                    mounted() {
+                        this.syncJsonDraft();
+                    },
+                    methods: {
+                        t(key) {
+                            const lang = this.$root.lang;
+                            return messages[lang] && messages[lang][key] ? messages[lang][key] : key;
+                        },
+                        h(key) {
+                            const lang = this.$root.lang;
+                            return helpMessages[lang] && helpMessages[lang][key] ? helpMessages[lang][key] : '';
+                        },
+                        syncJsonDraft() {
+                            try { this.jsonDraft = customStringify(this.cond); } catch (e) { this.jsonDraft = ''; }
+                        },
+                        switchMode(next) {
+                            this.mode = next;
+                            if (next === 'json') this.syncJsonDraft();
+                        },
+                        setPredicate(p) {
+                            const defaults = knownPredicateDefaults(p);
+                            Object.keys(this.cond).forEach((k) => delete this.cond[k]);
+                            Object.assign(this.cond, defaults);
+                            this.syncJsonDraft();
+                        },
+                        setPredicateOnly(p) {
+                            const pStr = String(p || '').trim();
+                            this.cond.predicate = pStr;
+                            const defaults = knownPredicateDefaults(pStr);
+                            Object.keys(defaults).forEach((k) => {
+                                if (k === 'predicate') return;
+                                if (!Object.prototype.hasOwnProperty.call(this.cond, k)) this.cond[k] = defaults[k];
+                            });
+                            this.syncJsonDraft();
+                        },
+                        setField(key, value) {
+                            if (!key) return;
+                            this.cond[key] = value;
+                            this.syncJsonDraft();
+                        },
+                        removeField(key) {
+                            if (!key) return;
+                            delete this.cond[key];
+                            this.syncJsonDraft();
+                        },
+                        addExtraField() {
+                            const key = String(this.newFieldKey || '').trim();
+                            if (!key || key === 'predicate') return;
+                            let val;
+                            const raw = String(this.newFieldValue || '').trim();
+                            if (raw === '') {
+                                val = '';
+                            } else {
+                                try { val = JSON.parse(raw); } catch (e) { val = this.newFieldValue; }
+                            }
+                            this.cond[key] = val;
+                            this.newFieldKey = '';
+                            this.newFieldValue = '';
+                            this.syncJsonDraft();
+                        },
+                        applyJson() {
+                            try {
+                                const parsed = JSON.parse(this.jsonDraft);
+                                const normalized = normalizeCondition(parsed);
+                                Object.keys(this.cond).forEach((k) => delete this.cond[k]);
+                                Object.assign(this.cond, normalized);
+                            } catch (e) {}
+                        }
+                    },
+                    template: `
+                        <div>
+                            <div class="section-head" style="margin-bottom:8px;">
+                                <div class="inline">
+                                    <span class="pill">{{ t('条件类型') }}</span>
+                                </div>
+                                <div class="inline">
+                                    <button class="btn secondary mini" type="button" @click="switchMode('form')">{{ t('表单') }}</button>
+                                    <button class="btn secondary mini" type="button" @click="switchMode('json')">{{ t('高级 JSON') }}</button>
+                                </div>
+                            </div>
+
+                            <div v-if="mode === 'form'">
+                                <div class="grid2">
+                                    <div class="form-group">
+                                        <label :title="h('predicate')">{{ t('条件类型') }}</label>
+                                        <select :value="predicate" @change="setPredicate($event.target.value)">
+                                            <option value=""></option>
+                                            <option v-for="p in predicateOptions" :key="p.value" :value="p.value">{{ p.label }}</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label :title="h('predicate')">{{ t('predicate') }}</label>
+                                        <input type="text" :value="predicate" @input="setPredicateOnly($event.target.value)">
+                                    </div>
+                                </div>
+                                <div v-if="predicateHelp" class="field-help">{{ predicateHelp }}</div>
+
+                                <div class="grid3" v-if="predicate === 'epicfight:within_distance' || predicate === 'epicfight:within_angle' || predicate === 'epicfight:within_angle_horizontal' || predicate === 'invincible:phase' || predicate === 'invincible:stack_count' || predicate === 'invincible:press_time_condition' || predicate === 'indestructible:attack_level' || predicate === 'indestructible:phase'">
+                                    <div class="form-group">
+                                        <label>min</label>
+                                        <input type="number" step="0.01" :value="cond.min" @input="setField('min', Number($event.target.value))">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>max</label>
+                                        <input type="number" step="0.01" :value="cond.max" @input="setField('max', Number($event.target.value))">
+                                    </div>
+                                </div>
+                                <div class="grid3" v-if="predicate === 'invincible:cooldown'">
+                                    <div class="form-group">
+                                        <label>in_cooldown</label>
+                                        <select :value="String(!!cond.in_cooldown)" @change="setField('in_cooldown', $event.target.value === 'true')">
+                                            <option value="false">false</option>
+                                            <option value="true">true</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="grid3" v-if="predicate === 'invincible:target_blocking'">
+                                    <div class="form-group">
+                                        <label>is_parry</label>
+                                        <select :value="String(!!cond.is_parry)" @change="setField('is_parry', $event.target.value === 'true')">
+                                            <option value="false">false</option>
+                                            <option value="true">true</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="grid3" v-if="predicate === 'indestructible:guard_break' || predicate === 'indestructible:knock_down'">
+                                    <div class="form-group">
+                                        <label>invert</label>
+                                        <select :value="String(!!cond.invert)" @change="setField('invert', $event.target.value === 'true')">
+                                            <option value="false">false</option>
+                                            <option value="true">true</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div v-if="predicate === 'epicfight:health'">
+                                    <div class="grid2">
+                                        <div class="form-group">
+                                            <label>health</label>
+                                            <input type="number" step="0.01" :value="cond.health" @input="setField('health', Number($event.target.value))">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>comparator</label>
+                                            <select :value="cond.comparator" @change="setField('comparator', $event.target.value)">
+                                                <option value="greater_ratio">greater_ratio</option>
+                                                <option value="less_ratio">less_ratio</option>
+                                                <option value="greater_absolute">greater_absolute</option>
+                                                <option value="less_absolute">less_absolute</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="grid3" v-if="predicate === 'epicfight:random_chance'">
+                                    <div class="form-group">
+                                        <label>chance</label>
+                                        <input type="number" step="0.01" :value="cond.chance" @input="setField('chance', Number($event.target.value))">
+                                    </div>
+                                </div>
+                                <div v-if="predicate === 'indestructible:stamina'">
+                                    <div class="grid2">
+                                        <div class="form-group">
+                                            <label>stamina</label>
+                                            <input type="number" step="0.01" :value="cond.stamina" @input="setField('stamina', Number($event.target.value))">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>comparator</label>
+                                            <select :value="cond.comparator" @change="setField('comparator', $event.target.value)">
+                                                <option value="greater_ratio">greater_ratio</option>
+                                                <option value="less_ratio">less_ratio</option>
+                                                <option value="greater_absolute">greater_absolute</option>
+                                                <option value="less_absolute">less_absolute</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="grid3" v-if="predicate === 'indestructible:using_item'">
+                                    <div class="form-group">
+                                        <label>edible</label>
+                                        <select :value="String(!!cond.edible)" @change="setField('edible', $event.target.value === 'true')">
+                                            <option value="false">false</option>
+                                            <option value="true">true</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div v-if="predicate === 'invincible:enchantment'">
+                                    <div class="grid2">
+                                        <div class="form-group">
+                                            <label>is_main_hand</label>
+                                            <select :value="String(!!cond.is_main_hand)" @change="setField('is_main_hand', $event.target.value === 'true')">
+                                                <option value="false">false</option>
+                                                <option value="true">true</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>enchantment</label>
+                                            <input type="text" :value="cond.enchantment" @input="setField('enchantment', $event.target.value)">
+                                        </div>
+                                    </div>
+                                    <div class="grid3">
+                                        <div class="form-group">
+                                            <label>min</label>
+                                            <input type="number" step="1" :value="cond.min" @input="setField('min', Number($event.target.value))">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>max</label>
+                                            <input type="number" step="1" :value="cond.max" @input="setField('max', Number($event.target.value))">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div v-if="predicate === 'invincible:mob_effect'">
+                                    <div class="grid2">
+                                        <div class="form-group">
+                                            <label>is_target</label>
+                                            <select :value="String(!!cond.is_target)" @change="setField('is_target', $event.target.value === 'true')">
+                                                <option value="false">false</option>
+                                                <option value="true">true</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>effect</label>
+                                            <input type="text" :value="cond.effect" @input="setField('effect', $event.target.value)">
+                                        </div>
+                                    </div>
+                                    <div class="grid3">
+                                        <div class="form-group">
+                                            <label>min</label>
+                                            <input type="number" step="1" :value="cond.min" @input="setField('min', Number($event.target.value))">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>max</label>
+                                            <input type="number" step="1" :value="cond.max" @input="setField('max', Number($event.target.value))">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="section-head" style="margin-top:10px;">
+                                    <h4 style="margin:0;">{{ t('字段名') }} / {{ t('字段值') }}</h4>
+                                </div>
+                                <div v-for="k in extraKeys" :key="k" class="grid2" style="align-items:end;">
+                                    <div class="form-group">
+                                        <label>{{ t('字段名') }}</label>
+                                        <input type="text" :value="k" disabled>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>{{ t('字段值') }}</label>
+                                        <div class="inline" style="width:100%;">
+                                            <input type="text" style="flex:1" :value="String(cond[k])" @input="setField(k, $event.target.value)">
+                                            <button class="btn danger mini" type="button" @click="removeField(k)">{{ t('删除') }}</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="grid2" style="align-items:end;">
+                                    <div class="form-group">
+                                        <label>{{ t('字段名') }}</label>
+                                        <input type="text" v-model="newFieldKey">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>{{ t('字段值') }}</label>
+                                        <div class="inline" style="width:100%;">
+                                            <input type="text" style="flex:1" v-model="newFieldValue">
+                                            <button class="btn mini" type="button" @click="addExtraField">{{ t('+ 添加字段') }}</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div v-else>
+                                <div class="form-group">
+                                    <label>{{ t('条件 JSON') }}</label>
+                                    <textarea v-model="jsonDraft"></textarea>
+                                    <div class="inline" style="justify-content:flex-end;">
+                                        <button class="btn mini" type="button" @click="applyJson">{{ t('应用') }}</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `
+                }
+            },
+            props: {
+                node: { type: Object, required: true },
+                depth: { type: Number, required: true },
+                keyOptional: { type: Boolean, default: false },
+                isConditionAnimation: { type: Boolean, default: false },
+                index: { type: Number, default: -1 },
+                parentList: { type: Array, default: null }
+            },
+            emits: ['remove'],
+            data() {
+                return {
+                    collapsed: false
+                };
+            },
+            computed: {
+                keyOptions() {
+                    return [
+                        "KEY_1", "KEY_2", "KEY_3", "KEY_4",
+                        "KEY_1_2", "KEY_1_3", "KEY_1_4",
+                        "KEY_2_3", "KEY_2_4", "KEY_3_4"
+                    ];
+                },
+                keyModel: {
+                    get() {
+                        if (this.keyOptional) return typeof this.node.key === 'string' ? this.node.key : '';
+                        return this.node.key;
+                    },
+                    set(v) {
+                        if (!this.keyOptional) {
+                            this.node.key = v;
+                            return;
+                        }
+                        const s = String(v || '');
+                        if (s === '') {
+                            delete this.node.key;
+                            return;
+                        }
+                        this.node.key = s;
+                    }
+                },
+                stunOptions() {
+                    return ["NONE", "SHORT", "LONG", "HOLD", "KNOCKDOWN", "NEUTRALIZE", "FALL"];
+                },
+                damageMode: {
+                    get() {
+                        const dm = this.node.damage_multiplier;
+                        if (!dm || typeof dm !== 'object') return 'none';
+                        if (Object.prototype.hasOwnProperty.call(dm, 'multiplier')) return 'multiplier';
+                        if (Object.prototype.hasOwnProperty.call(dm, 'adder')) return 'adder';
+                        if (Object.prototype.hasOwnProperty.call(dm, 'setter')) return 'setter';
+                        return 'none';
+                    },
+                    set(mode) {
+                        if (mode === 'none') {
+                            delete this.node.damage_multiplier;
+                            return;
+                        }
+                        const current = this.damageValue;
+                        this.node.damage_multiplier = { [mode]: Number.isFinite(current) ? current : 1.0 };
+                    }
+                },
+                damageValue: {
+                    get() {
+                        const dm = this.node.damage_multiplier;
+                        if (!dm || typeof dm !== 'object') return 1.0;
+                        const v = dm.multiplier ?? dm.adder ?? dm.setter;
+                        const n = Number(v);
+                        return Number.isFinite(n) ? n : 1.0;
+                    },
+                    set(v) {
+                        const mode = this.damageMode;
+                        if (mode === 'none') return;
+                        if (!this.node.damage_multiplier || typeof this.node.damage_multiplier !== 'object') this.node.damage_multiplier = {};
+                        this.node.damage_multiplier = { [mode]: Number(v) };
+                    }
+                },
+                conditionAnimationsActive() {
+                    return Array.isArray(this.node.condition_animations) && this.node.condition_animations.length > 0;
+                }
+            },
+            methods: {
+                t(key) {
+                    const lang = this.$root.lang;
+                    return messages[lang] && messages[lang][key] ? messages[lang][key] : key;
+                },
+                h(key) {
+                    const lang = this.$root.lang;
+                    return helpMessages[lang] && helpMessages[lang][key] ? helpMessages[lang][key] : '';
+                },
+                toggleCollapsed() {
+                    this.collapsed = !this.collapsed;
+                },
+                addChild() {
+                    if (!Array.isArray(this.node.combos)) this.node.combos = [];
+                    this.node.combos.push(defaultComboNode());
+                },
+                removeSelf() {
+                    this.$emit('remove');
+                },
+                addCondition(list) {
+                    if (!Array.isArray(list)) return;
+                    list.push(defaultCondition());
+                },
+                removeAt(list, idx) {
+                    if (!Array.isArray(list)) return;
+                    list.splice(idx, 1);
+                },
+                addConditionAnimation() {
+                    if (!Array.isArray(this.node.condition_animations)) this.node.condition_animations = [];
+                    const alt = defaultComboNode();
+                    delete alt.key;
+                    alt.priority = 0;
+                    this.node.condition_animations.push(alt);
+                },
+                addComboTo(target) {
+                    if (!Array.isArray(target)) return;
+                    target.push(defaultComboNode());
+                },
+                addCommand(list, includeTime) {
+                    if (!Array.isArray(list)) return;
+                    list.push(defaultCommandItem(includeTime));
+                },
+                copySelf() {
+                    if (!this.parentList || this.index < 0) return;
+                    const cloned = JSON.parse(JSON.stringify(this.node));
+                    this.parentList.splice(this.index + 1, 0, cloned);
+                },
+                onDragStart(e) {
+                    if (!this.parentList) return;
+                    e.stopPropagation();
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', this.index);
+                    this.$root.draggedList = this.parentList;
+                    this.$root.draggedIndex = this.index;
+                    setTimeout(() => e.target.style.opacity = '0.5', 0);
+                },
+                onDragEnd(e) {
+                    e.target.style.opacity = '1';
+                    this.$root.draggedList = null;
+                    this.$root.draggedIndex = null;
+                },
+                onDragOver(e) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                },
+                onDrop(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (this.$root.draggedList === this.parentList && this.$root.draggedIndex !== null && this.$root.draggedIndex !== this.index) {
+                        const item = this.parentList.splice(this.$root.draggedIndex, 1)[0];
+                        this.parentList.splice(this.index, 0, item);
+                    }
+                    this.$root.draggedList = null;
+                    this.$root.draggedIndex = null;
+                }
+            },
+            template: `
+                <div class="array-item"
+                     :draggable="parentList !== null"
+                     @dragstart="onDragStart"
+                     @dragend="onDragEnd"
+                     @dragover="onDragOver"
+                     @dragenter.prevent
+                     @drop="onDrop">
+                    <button class="btn danger mini remove-btn" @click="removeSelf">{{ t('删除') }}</button>
+                    <button v-if="parentList" class="btn secondary mini" style="position:absolute; right: 60px; top: 12px;" @click="copySelf">{{ t('复制节点') }}</button>
+                    <div class="node-head" style="cursor: move;">
+                        <span class="node-title">☰ {{ t('节点') }}</span>
+                        <button class="btn secondary mini" @click="toggleCollapsed">{{ collapsed ? t('展开') : t('折叠') }}</button>
+                    </div>
+
+                    <div :class="isConditionAnimation ? 'grid3' : 'grid2'">
+                        <div class="form-group">
+                            <label :title="h('key')">{{ t('按键') }}</label>
+                            <div class="inline" style="width:100%;">
+                                <select style="flex:1" v-model="keyModel">
+                                    <option v-if="keyOptional" value="">{{ t('无') }}</option>
+                                    <option v-for="k in keyOptions" :key="k" :value="k">{{ k }}</option>
+                                </select>
+                                <button v-if="keyOptional" class="btn secondary mini" type="button" @click="keyModel = ''">{{ t('清除') }}</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label :title="h('animation')">{{ t('动画') }}</label>
+                            <div class="inline" style="width:100%;">
+                                <input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="node.animation" :disabled="conditionAnimationsActive" style="flex:1">
+                                <button class="btn secondary mini" type="button" :title="$root.t('预览动画')" @click="$root.previewAnimation(node.animation)" :disabled="conditionAnimationsActive || !node.animation">▶</button>
+                            </div>
+                        </div>
+                        <div class="form-group" v-if="isConditionAnimation">
+                            <label :title="h('priority')">{{ t('priority') }}</label>
+                            <input type="number" step="1" v-model.number="node.priority" :disabled="conditionAnimationsActive">
+                        </div>
+                    </div>
+
+                    <div v-show="!collapsed">
+                        <div v-if="conditionAnimationsActive" class="hint">{{ t('当存在 condition_animations 时，同级除按键与 combos 外参数会被忽略。') }}</div>
+
+                        <div class="sub-panel" v-if="!conditionAnimationsActive">
+                            <h4>{{ t('常用参数') }}</h4>
+                            <div class="grid3">
+                                <div class="form-group">
+                                    <label :title="h('speed_multiplier')">{{ t('speed_multiplier') }}</label>
+                                    <input type="number" step="0.01" v-model.number="node.speed_multiplier">
+                                </div>
+                                <div class="form-group">
+                                    <label :title="h('convert_time')">{{ t('convert_time') }}</label>
+                                    <input type="number" step="0.01" v-model.number="node.convert_time">
+                                </div>
+                                <div class="form-group">
+                                    <label :title="h('cooldown')">{{ t('cooldown') }}</label>
+                                    <input type="number" step="1" v-model.number="node.cooldown">
+                                </div>
+                            </div>
+                            <div class="grid3">
+                                <div class="form-group">
+                                    <label :title="h('not_charge')">{{ t('not_charge') }}</label>
+                                    <select v-model="node.not_charge">
+                                        <option :value="undefined">{{ t('无') }}</option>
+                                        <option :value="true">true</option>
+                                        <option :value="false">false</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label :title="h('can_be_interrupt')">{{ t('can_be_interrupt') }}</label>
+                                    <select v-model="node.can_be_interrupt">
+                                        <option :value="undefined">{{ t('无') }}</option>
+                                        <option :value="true">true</option>
+                                        <option :value="false">false</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label :title="h('set_phase')">{{ t('set_phase') }}</label>
+                                    <input type="number" step="1" v-model.number="node.set_phase">
+                                </div>
+                            </div>
+                            <div class="grid3">
+                                <div class="form-group">
+                                    <label :title="h('hurt_damage_multiplier')">{{ t('hurt_damage_multiplier') }}</label>
+                                    <input type="number" step="0.01" v-model.number="node.hurt_damage_multiplier">
+                                </div>
+                                <div class="form-group">
+                                    <label :title="h('impact_multiplier')">{{ t('impact_multiplier') }}</label>
+                                    <input type="number" step="0.01" v-model.number="node.impact_multiplier">
+                                </div>
+                                <div class="form-group">
+                                    <label :title="h('armor_negation')">{{ t('armor_negation') }}</label>
+                                    <input type="number" step="0.01" v-model.number="node.armor_negation">
+                                </div>
+                            </div>
+                            <div class="grid3">
+                                <div class="form-group">
+                                    <label :title="h('stun_type')">{{ t('stun_type') }}</label>
+                                    <select v-model="node.stun_type">
+                                        <option :value="undefined">{{ t('无') }}</option>
+                                        <option v-for="s in stunOptions" :key="s" :value="s">{{ s }}</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label :title="h('damage_multiplier')">{{ t('damage_multiplier') }} - {{ t('模式') }}</label>
+                                    <select v-model="damageMode">
+                                        <option value="none">{{ t('无') }}</option>
+                                        <option value="multiplier">{{ t('multiplier') }}</option>
+                                        <option value="adder">{{ t('adder') }}</option>
+                                        <option value="setter">{{ t('setter') }}</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label :title="h('damage_multiplier')">{{ t('damage_multiplier') }} - {{ t('数值') }}</label>
+                                    <input type="number" step="0.01" v-model.number="damageValue" :disabled="damageMode==='none'">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="sub-panel" v-if="!conditionAnimationsActive">
+                            <div class="section-head">
+                                <h4 :title="h('conditions')">{{ t('条件') }}</h4>
+                                <button class="btn mini" @click="addCondition(node.conditions)">{{ t('+ 添加条件') }}</button>
+                            </div>
+                            <div v-for="(cond, cIdx) in node.conditions" :key="cIdx" class="array-item">
+                                <button class="btn danger mini remove-btn" @click="removeAt(node.conditions, cIdx)">{{ t('删除') }}</button>
+                                <condition-editor :cond="cond"></condition-editor>
+                            </div>
+                        </div>
+
+                        <div class="sub-panel">
+                            <div class="section-head">
+                                <h4 :title="h('condition_animations')">{{ t('condition_animations') }}</h4>
+                                <button class="btn mini" @click="addConditionAnimation">{{ t('+ 添加条件动画') }}</button>
+                            </div>
+                            <div class="node-children">
+                                <combo-node-editor
+                                    v-for="(child, idx) in node.condition_animations"
+                                    :key="idx"
+                                    :node="child"
+                                    :depth="depth + 1"
+                                    :key-optional="true"
+                                    :is-condition-animation="true"
+                                    :index="idx"
+                                    :parent-list="node.condition_animations"
+                                    @remove="removeAt(node.condition_animations, idx)"
+                                ></combo-node-editor>
+                            </div>
+                        </div>
+
+                        <div class="sub-panel" v-if="!conditionAnimationsActive">
+                            <div class="section-head">
+                                <h4 :title="h('time_command_list')">{{ t('time_command_list') }}</h4>
+                                <button class="btn mini" @click="addCommand(node.time_command_list, true)">{{ t('+ 添加命令') }}</button>
+                            </div>
+                            <div v-for="(cmd, xIdx) in node.time_command_list" :key="xIdx" class="array-item">
+                                <button class="btn danger mini remove-btn" @click="removeAt(node.time_command_list, xIdx)">{{ t('删除') }}</button>
+                                <div class="grid3">
+                                    <div class="form-group">
+                                        <label :title="h('time')">{{ t('time') }}</label>
+                                        <input type="number" step="0.01" v-model.number="cmd.time">
+                                    </div>
+                                    <div class="form-group">
+                                        <label :title="h('command')">{{ t('command') }}</label>
+                                        <input type="text" v-model="cmd.command">
+                                    </div>
+                                    <div class="form-group">
+                                        <label :title="h('execute_at_target')">{{ t('execute_at_target') }}</label>
+                                        <select v-model="cmd.execute_at_target">
+                                            <option :value="false">false</option>
+                                            <option :value="true">true</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="sub-panel" v-if="!conditionAnimationsActive">
+                            <div class="section-head">
+                                <h4 :title="h('hit_command_list')">{{ t('hit_command_list') }}</h4>
+                                <button class="btn mini" @click="addCommand(node.hit_command_list, false)">{{ t('+ 添加命令') }}</button>
+                            </div>
+                            <div v-for="(cmd, xIdx) in node.hit_command_list" :key="xIdx" class="array-item">
+                                <button class="btn danger mini remove-btn" @click="removeAt(node.hit_command_list, xIdx)">{{ t('删除') }}</button>
+                                <div class="grid2">
+                                    <div class="form-group">
+                                        <label :title="h('command')">{{ t('command') }}</label>
+                                        <input type="text" v-model="cmd.command">
+                                    </div>
+                                    <div class="form-group">
+                                        <label :title="h('execute_at_target')">{{ t('execute_at_target') }}</label>
+                                        <select v-model="cmd.execute_at_target">
+                                            <option :value="false">false</option>
+                                            <option :value="true">true</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="sub-panel" v-if="!conditionAnimationsActive">
+                            <div class="section-head">
+                                <h4 :title="h('hurt_command_list')">{{ t('hurt_command_list') }}</h4>
+                                <button class="btn mini" @click="addCommand(node.hurt_command_list, false)">{{ t('+ 添加命令') }}</button>
+                            </div>
+                            <div v-for="(cmd, xIdx) in node.hurt_command_list" :key="xIdx" class="array-item">
+                                <button class="btn danger mini remove-btn" @click="removeAt(node.hurt_command_list, xIdx)">{{ t('删除') }}</button>
+                                <div class="grid2">
+                                    <div class="form-group">
+                                        <label :title="h('command')">{{ t('command') }}</label>
+                                        <input type="text" v-model="cmd.command">
+                                    </div>
+                                    <div class="form-group">
+                                        <label :title="h('execute_at_target')">{{ t('execute_at_target') }}</label>
+                                        <select v-model="cmd.execute_at_target">
+                                            <option :value="false">false</option>
+                                            <option :value="true">true</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="sub-panel" v-if="!conditionAnimationsActive">
+                            <div class="section-head">
+                                <h4 :title="h('dodge_success_command_list')">{{ t('dodge_success_command_list') }}</h4>
+                                <button class="btn mini" @click="addCommand(node.dodge_success_command_list, false)">{{ t('+ 添加命令') }}</button>
+                            </div>
+                            <div v-for="(cmd, xIdx) in node.dodge_success_command_list" :key="xIdx" class="array-item">
+                                <button class="btn danger mini remove-btn" @click="removeAt(node.dodge_success_command_list, xIdx)">{{ t('删除') }}</button>
+                                <div class="grid2">
+                                    <div class="form-group">
+                                        <label :title="h('command')">{{ t('command') }}</label>
+                                        <input type="text" v-model="cmd.command">
+                                    </div>
+                                    <div class="form-group">
+                                        <label :title="h('execute_at_target')">{{ t('execute_at_target') }}</label>
+                                        <select v-model="cmd.execute_at_target">
+                                            <option :value="false">false</option>
+                                            <option :value="true">true</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section-head">
+                        <h4>{{ t('combos') }}</h4>
+                        <button class="btn mini" @click="addChild">{{ t('+ 添加子节点') }}</button>
+                    </div>
+                    <div class="node-children">
+                        <combo-node-editor
+                            v-for="(child, idx) in node.combos"
+                            :key="idx"
+                            :node="child"
+                            :depth="depth + 1"
+                            :key-optional="false"
+                            :is-condition-animation="false"
+                            :index="idx"
+                            :parent-list="node.combos"
+                            @remove="removeAt(node.combos, idx)"
+                        ></combo-node-editor>
+                    </div>
+                </div>
+            `
+        };
+
+        const { createApp } = Vue;
+        createApp({
+            components: { ComboNodeEditor, ConditionEditor: ComboNodeEditor.components.ConditionEditor },
+            data() {
+                const ww = typeof window !== 'undefined' && window.innerWidth ? window.innerWidth : 1400;
+                const defaultLeftWidth = Math.min(1100, Math.max(560, Math.floor(ww * 0.58)));
+                return {
+                    dropdownOpen: false,
+                    lang: localStorage.getItem('ce_lang') || (navigator.language.startsWith('zh') ? 'zh' : 'en'),
+                    isDarkMode: localStorage.getItem('ce_theme') === 'dark',
+                    leftWidth: defaultLeftWidth,
+                    isResizing: false,
+                    config: defaultConfig(),
+                    availableAnimations: [],
+                    availableModels: [],
+                    loadedAnimationMods: [],
+                    animationImportBatches: 0,
+                    animationSourceFileCount: 0,
+                    matchedAnimationFileCount: 0,
+                    draggedList: null,
+                    draggedIndex: null
+                };
+            },
+            computed: {
+                langLabel() {
+                    return this.lang === 'zh' ? this.t('中文') : this.t('English');
+                },
+                themeLabel() {
+                    return this.isDarkMode ? this.t('主题: 暗色') : this.t('主题: 亮色');
+                },
+                prettyJSON() {
+                    const cleaned = cleanup(this.config) || {};
+                    return customStringify(cleaned);
+                },
+                animationLibrarySummary() {
+                    if (this.availableAnimations.length === 0 && this.availableModels.length === 0) return this.t('尚未导入动画资源索引。');
+                    if (this.lang === 'zh') {
+                        return `已索引 ${this.availableAnimations.length} 个动画、${this.availableModels.length} 个模型，来自 ${this.loadedAnimationMods.length} 个命名空间，累计导入 ${this.animationImportBatches} 次，扫描 ${this.animationSourceFileCount} 个文件并命中 ${this.matchedAnimationFileCount} 个动画 JSON。`;
+                    }
+                    return `Indexed ${this.availableAnimations.length} animations and ${this.availableModels.length} models from ${this.loadedAnimationMods.length} namespaces, imported ${this.animationImportBatches} times, scanned ${this.animationSourceFileCount} files and matched ${this.matchedAnimationFileCount} animation JSON files.`;
+                }
+            },
+            watch: {
+                lang() {
+                    document.documentElement.lang = this.lang === 'zh' ? 'zh-CN' : 'en';
+                    document.title = this.t('Invincible 数据包可视化编辑器');
+                },
+                config: {
+                    deep: true,
+                    handler(val) {
+                        localStorage.setItem('invincible_config_draft', JSON.stringify(val));
+                    }
+                }
+            },
+            mounted() {
+                if (this.isDarkMode) document.body.classList.add('dark-mode');
+                document.documentElement.lang = this.lang === 'zh' ? 'zh-CN' : 'en';
+                document.title = this.t('Invincible 数据包可视化编辑器');
+                
+                try {
+                    const draft = localStorage.getItem('invincible_config_draft');
+                    if (draft) {
+                        const parsed = JSON.parse(draft);
+                        if (parsed && typeof parsed === 'object') {
+                            this.config = Object.assign(defaultConfig(), parsed);
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to load draft', e);
+                }
+
+                if (!animationAutocompleteController) {
+                    animationAutocompleteController = createAnimationAutocomplete(() => this.availableAnimations, () => this.availableModels);
+                }
+                this.initFloatingPreviewDrag();
+                const modelInput = document.getElementById('preview-model-input');
+                if (modelInput && !String(modelInput.value || '').trim()) modelInput.value = 'epicfight:entity/biped';
+
+                window.addEventListener('keydown', (e) => {
+                    if (e.ctrlKey && e.key === 'c') {
+                        const activeEl = document.activeElement;
+                        if (!activeEl || (activeEl.tagName !== 'INPUT' && activeEl.tagName !== 'TEXTAREA')) {
+                            this.copyJSON();
+                            e.preventDefault();
+                        }
+                    } else if (e.key === 'Escape') {
+                        this.closePreviewWindow();
+                    }
+                });
+            },
+            methods: {
+                t(key) {
+                    return messages[this.lang] && messages[this.lang][key] ? messages[this.lang][key] : key;
+                },
+                h(key) {
+                    return helpMessages[this.lang] && helpMessages[this.lang][key] ? helpMessages[this.lang][key] : '';
+                },
+                toggleLang() {
+                    this.lang = this.lang === 'zh' ? 'en' : 'zh';
+                    localStorage.setItem('ce_lang', this.lang);
+                },
+                toggleTheme() {
+                    this.isDarkMode = !this.isDarkMode;
+                    localStorage.setItem('ce_theme', this.isDarkMode ? 'dark' : 'light');
+                    document.body.classList.toggle('dark-mode', this.isDarkMode);
+                    if (window.updatePreviewTheme) window.updatePreviewTheme(this.isDarkMode);
+                },
+                initFloatingPreviewDrag() {
+                    const floatWin = document.getElementById('floating-3d-window');
+                    const header = document.getElementById('floating-3d-header');
+                    const resizer = document.getElementById('floating-resizer');
+                    if (!floatWin || !header) return;
+                    if (!header.__invincibleDragBound) {
+                        header.__invincibleDragBound = true;
+                        let dragging = false;
+                        let startX = 0;
+                        let startY = 0;
+                        let startLeft = 0;
+                        let startTop = 0;
+                        const onPointerDown = (e) => {
+                            if (e.button !== undefined && e.button !== 0) return;
+                            if (e.target && e.target.closest && e.target.closest('button')) return;
+                            dragging = true;
+                            const rect = floatWin.getBoundingClientRect();
+                            startLeft = rect.left;
+                            startTop = rect.top;
+                            startX = e.clientX;
+                            startY = e.clientY;
+                            if (header.setPointerCapture && e.pointerId !== undefined) header.setPointerCapture(e.pointerId);
+                            e.preventDefault();
+                        };
+                        const onPointerMove = (e) => {
+                            if (!dragging) return;
+                            const dx = e.clientX - startX;
+                            const dy = e.clientY - startY;
+                            floatWin.style.left = startLeft + dx + 'px';
+                            floatWin.style.top = startTop + dy + 'px';
+                            floatWin.style.right = 'auto';
+                            floatWin.style.bottom = 'auto';
+                        };
+                        const onPointerUp = () => {
+                            dragging = false;
+                        };
+                        header.addEventListener('pointerdown', onPointerDown);
+                        window.addEventListener('pointermove', onPointerMove);
+                        window.addEventListener('pointerup', onPointerUp);
+                    }
+                    if (resizer && !resizer.__invincibleResizeBound) {
+                        resizer.__invincibleResizeBound = true;
+                        let resizing = false;
+                        let startX = 0;
+                        let startY = 0;
+                        let startWidth = 0;
+                        let startHeight = 0;
+                        const onResizerDown = (e) => {
+                            if (e.button !== undefined && e.button !== 0) return;
+                            resizing = true;
+                            const rect = floatWin.getBoundingClientRect();
+                            startWidth = rect.width;
+                            startHeight = rect.height;
+                            startX = e.clientX;
+                            startY = e.clientY;
+                            if (resizer.setPointerCapture && e.pointerId !== undefined) resizer.setPointerCapture(e.pointerId);
+                            e.preventDefault();
+                        };
+                        const onResizerMove = (e) => {
+                            if (!resizing) return;
+                            const dx = e.clientX - startX;
+                            const dy = e.clientY - startY;
+                            floatWin.style.width = Math.max(300, startWidth + dx) + 'px';
+                            floatWin.style.height = Math.max(300, startHeight + dy) + 'px';
+                        };
+                        const onResizerUp = () => {
+                            resizing = false;
+                        };
+                        resizer.addEventListener('pointerdown', onResizerDown);
+                        window.addEventListener('pointermove', onResizerMove);
+                        window.addEventListener('pointerup', onResizerUp);
+                    }
+                },
+                startResize(e) {
+                    this.isResizing = true;
+                    const startX = e.touches ? e.touches[0].clientX : e.clientX;
+                    const startWidth = this.leftWidth;
+                    const onMove = (ev) => {
+                        if (!this.isResizing) return;
+                        const x = ev.touches ? ev.touches[0].clientX : ev.clientX;
+                        const dx = x - startX;
+                        this.leftWidth = Math.max(300, Math.min(1300, startWidth + dx));
+                    };
+                    const onUp = () => {
+                        this.isResizing = false;
+                        window.removeEventListener('mousemove', onMove);
+                        window.removeEventListener('mouseup', onUp);
+                        window.removeEventListener('touchmove', onMove);
+                        window.removeEventListener('touchend', onUp);
+                    };
+                    window.addEventListener('mousemove', onMove);
+                    window.addEventListener('mouseup', onUp);
+                    window.addEventListener('touchmove', onMove, { passive: false });
+                    window.addEventListener('touchend', onUp);
+                },
+                resetAll() {
+                    this.config = defaultConfig();
+                },
+                addTranslationKey() {
+                    if (!Array.isArray(this.config.translationKeys)) this.config.translationKeys = [];
+                    this.config.translationKeys.push('');
+                },
+                removeTranslationKey(idx) {
+                    if (!Array.isArray(this.config.translationKeys)) return;
+                    this.config.translationKeys.splice(idx, 1);
+                },
+                addRootCombo() {
+                    if (!Array.isArray(this.config.combos)) this.config.combos = [];
+                    this.config.combos.push(defaultComboNode());
+                },
+                addRootComboWithConditionAnimations() {
+                    if (!Array.isArray(this.config.combos)) this.config.combos = [];
+                    const n = defaultComboNode();
+                    const alt = defaultComboNode();
+                    delete alt.key;
+                    alt.priority = 0;
+                    n.condition_animations = [alt];
+                    this.config.combos.push(n);
+                },
+                addRootConditionAnimation() {
+                    if (!Array.isArray(this.config.condition_animations)) this.config.condition_animations = [];
+                    const n = defaultComboNode();
+                    delete n.key;
+                    n.priority = 0;
+                    this.config.condition_animations.push(n);
+                },
+                removeRootCombo(idx) {
+                    if (!Array.isArray(this.config.combos)) return;
+                    this.config.combos.splice(idx, 1);
+                },
+                addCondition(list) {
+                    if (!Array.isArray(list)) return;
+                    list.push(defaultCondition());
+                },
+                addComboTo(list) {
+                    if (!Array.isArray(list)) return;
+                    list.push(defaultComboNode());
+                },
+                removeAt(list, idx) {
+                    if (!Array.isArray(list)) return;
+                    list.splice(idx, 1);
+                },
+                async copyJSON() {
+                    try {
+                        await navigator.clipboard.writeText(this.prettyJSON);
+                        alert(this.t('已复制到剪贴板'));
+                    } catch (e) {
+                        alert(this.t('复制失败') + ': ' + (e && e.message ? e.message : e));
+                    }
+                },
+                exportJSON() {
+                    const cleaned = cleanup(this.config) || {};
+                    const content = customStringify(cleaned);
+                    const blob = new Blob([content], { type: 'application/json;charset=utf-8' });
+                    const a = document.createElement('a');
+                    const modId = String(this.config.mod_id || 'invincible').trim() || 'invincible';
+                    const name = String(this.config.name || 'skill').trim() || 'skill';
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `${modId}_${name}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(a.href);
+                },
+                importJSON(event) {
+                    const file = event.target.files && event.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const raw = parseJsonLoose(String(e.target.result || ''));
+                            const base = defaultConfig();
+                            const merged = {
+                                ...base,
+                                ...raw
+                            };
+                            merged.translationKeys = Array.isArray(raw.translationKeys) ? raw.translationKeys : base.translationKeys;
+                            merged.combos = Array.isArray(raw.combos) ? raw.combos.map((n) => normalizeComboNode(n, { keyOptional: false })) : base.combos;
+                            merged.condition_animations = Array.isArray(raw.condition_animations) ? raw.condition_animations.map((n) => normalizeComboNode(n, { keyOptional: true })) : base.condition_animations;
+                            this.config = merged;
+                        } catch (err) {
+                            alert(this.t('JSON 解析失败:') + ' ' + (err && err.message ? err.message : err));
+                        } finally {
+                            event.target.value = '';
+                        }
+                    };
+                    reader.readAsText(file);
+                },
+                openAssetFolderPicker() {
+                    const el = document.getElementById('assetFolderInput');
+                    // 兼容不支持 webkitdirectory 的浏览器兜底
+                    if (el && ('webkitdirectory' in el)) {
+                        el.click();
+                    } else {
+                        const fallbackEl = document.getElementById('assetFolderInputFallback');
+                        if (fallbackEl) fallbackEl.click();
+                    }
+                },
+                openAssetZipPicker() {
+                    const el = document.getElementById('assetZipInput');
+                    if (el) el.click();
+                },
+                clearAnimationLibrary() {
+                    this.availableAnimations = [];
+                    this.availableModels = [];
+                    this.loadedAnimationMods = [];
+                    this.animationImportBatches = 0;
+                    this.animationSourceFileCount = 0;
+                    this.matchedAnimationFileCount = 0;
+                    fileResourceMap.clear();
+                    if (animationAutocompleteController) animationAutocompleteController.refresh();
+                },
+                collectAnimationResources(files) {
+                    const anims = new Set();
+                    const models = new Set();
+                    const modCounts = new Map();
+                    let matched = 0;
+                    files.forEach(file => {
+                        const d = extractAnimationDescriptor(file.webkitRelativePath || file.name, file);
+                        if (!d) return;
+                        if (d.type === 'animation') {
+                            matched += 1;
+                            anims.add(d.id);
+                            modCounts.set(d.modId, (modCounts.get(d.modId) || 0) + 1);
+                        } else if (d.type === 'model') {
+                            models.add(d.id);
+                        }
+                    });
+                    return {
+                        animations: Array.from(anims).sort(),
+                        models: Array.from(models).sort(),
+                        modCounts: Array.from(modCounts.entries()).map(([modId, count]) => ({ modId, count })).sort((a, b) => a.modId.localeCompare(b.modId)),
+                        matchedFileCount: matched
+                    };
+                },
+                mergeLoadedAnimationMods(nextMods) {
+                    const merged = new Map(this.loadedAnimationMods.map(item => [item.modId, item.count]));
+                    nextMods.forEach(item => merged.set(item.modId, (merged.get(item.modId) || 0) + item.count));
+                    this.loadedAnimationMods = Array.from(merged.entries()).map(([modId, count]) => ({ modId, count })).sort((a, b) => a.modId.localeCompare(b.modId));
+                },
+                async importZipResources(event) {
+                    const files = Array.from((event.target && event.target.files) || []);
+                    if (!files.length) return;
+
+                    const workerCode = `
+                        importScripts('https://unpkg.com/jszip@3.10.1/dist/jszip.min.js');
+                        self.onmessage = async function(e) {
+                            try {
+                                const zip = await JSZip.loadAsync(e.data.file);
+                                const entries = [];
+                                const promises = [];
+                                zip.forEach((path, zipEntry) => {
+                                    if (zipEntry.dir) return;
+                                    promises.push(
+                                        zipEntry.async('blob').then(blob => {
+                                            entries.push({ path, blob, name: zipEntry.name.split('/').pop() || 'unknown' });
+                                        })
+                                    );
+                                });
+                                await Promise.all(promises);
+                                self.postMessage({ success: true, entries });
+                            } catch(err) {
+                                self.postMessage({ success: false, error: err.message });
+                            }
+                        };
+                    `;
+                    const blob = new Blob([workerCode], { type: 'application/javascript' });
+                    const workerUrl = URL.createObjectURL(blob);
+
+                    const allExtractedFiles = [];
+                    for (const file of files) {
+                        try {
+                            await new Promise((resolve, reject) => {
+                                const worker = new Worker(workerUrl);
+                                worker.onmessage = (e) => {
+                                    if (e.data.success) {
+                                        e.data.entries.forEach(entry => {
+                                            const extractedFile = new File([entry.blob], entry.name, { type: entry.blob.type });
+                                            Object.defineProperty(extractedFile, 'webkitRelativePath', {
+                                                get: () => entry.path
+                                            });
+                                            allExtractedFiles.push(extractedFile);
+                                        });
+                                        resolve();
+                                    } else {
+                                        reject(new Error(e.data.error));
+                                    }
+                                    worker.terminate();
+                                };
+                                worker.onerror = (err) => {
+                                    reject(err);
+                                    worker.terminate();
+                                };
+                                worker.postMessage({ file });
+                            });
+                        } catch (e) {
+                            console.error(e);
+                            alert(this.t('解析文件失败:') + ' ' + file.name);
+                        }
+                    }
+                    URL.revokeObjectURL(workerUrl);
+                    this.processExtractedFiles(allExtractedFiles);
+                    event.target.value = '';
+                },
+                importAnimationResources(event) {
+                    const files = Array.from((event.target && event.target.files) || []);
+                    if (!files.length) return;
+                    this.processExtractedFiles(files);
+                    event.target.value = '';
+                },
+                processExtractedFiles(files) {
+                    const result = this.collectAnimationResources(files);
+                    if (result.animations.length === 0 && result.models.length === 0) {
+                        alert(this.t('未在所选目录中找到可识别的动画或模型资源。'));
+                        return;
+                    }
+                    const mergedAnims = new Set(this.availableAnimations);
+                    result.animations.forEach(id => mergedAnims.add(id));
+                    this.availableAnimations = Array.from(mergedAnims).sort();
+                    const mergedModels = new Set(this.availableModels);
+                    result.models.forEach(id => mergedModels.add(id));
+                    this.availableModels = Array.from(mergedModels).sort();
+                    this.mergeLoadedAnimationMods(result.modCounts);
+                    this.animationImportBatches += 1;
+                    this.animationSourceFileCount += files.length;
+                    this.matchedAnimationFileCount += result.matchedFileCount;
+                    if (animationAutocompleteController) animationAutocompleteController.refresh();
+                },
+                previewAnimation(animPath) {
+                    const animId = String(animPath || '').trim();
+                    if (!animId) return;
+                    if (!window.playAnimationPreview) {
+                        alert(this.t('3D预览环境尚未加载完成'));
+                        return;
+                    }
+                    const floatWin = document.getElementById('floating-3d-window');
+                    if (floatWin) floatWin.style.display = 'flex';
+                    const modelInput = document.getElementById('preview-model-input');
+                    if (modelInput && !String(modelInput.value || '').trim()) modelInput.value = 'epicfight:entity/biped';
+                    const modelId = (modelInput && modelInput.value ? modelInput.value.trim() : '') || 'epicfight:entity/biped';
+                    const weaponInput = document.getElementById('preview-weapon-input');
+                    const weaponId = weaponInput && weaponInput.value ? String(weaponInput.value).trim() : '';
+                    window.playAnimationPreview(modelId, animId, weaponId);
+                },
+                closePreviewWindow() {
+                    const floatWin = document.getElementById('floating-3d-window');
+                    if (floatWin) floatWin.style.display = 'none';
+                }
+            }
+        }).mount('#app');
+    </script>
+
+    <script type="module">
+        let THREE, OrbitControls, OBJLoader;
+        let scene, camera, renderer, controls;
+        let isThreeLoaded = false;
+
+        const container = document.getElementById('preview-container');
+        const msgEl = document.getElementById('preview-msg');
+
+        let currentRoot = null;
+        let currentMesh = null;
+        let currentWeapon = null;
+        let currentWeaponRootGroup = null;
+        let currentWeaponMesh = null;
+        let currentWeaponBindToOrigin = [];
+        let bonesByName = {};
+        let mixer = null;
+        let weaponMixer = null;
+        let clock = null;
+
+        async function initThreeJS() {
+            if (isThreeLoaded) return;
+            msgEl.textContent = '加载 3D 引擎中...';
+            msgEl.style.display = 'block';
+            
+            THREE = await import('three');
+            const { OrbitControls: OC } = await import('three/addons/controls/OrbitControls.js');
+            const { OBJLoader: OL } = await import('three/addons/loaders/OBJLoader.js');
+            OrbitControls = OC;
+            OBJLoader = OL;
+
+            clock = new THREE.Clock();
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1e1e1e);
+            scene.add(new THREE.GridHelper(10, 10, 0x444444, 0x222222));
+            scene.add(new THREE.AxesHelper(2));
+
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+            camera.position.set(2, 2, 4);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.target.set(0, 1, 0);
+            controls.enableDamping = true;
+            controls.update();
+
+            const isDark = document.body.classList.contains('dark-mode');
+            window.updatePreviewTheme(isDark);
+
+            animate();
+            isThreeLoaded = true;
+            msgEl.style.display = 'none';
+        }
+
+        window.updatePreviewTheme = function(isDark) {
+            if (scene) {
+                scene.background = new THREE.Color(isDark ? 0x1e1e1e : 0xf0f0f0);
+            }
+            container.style.background = isDark ? '#1e1e1e' : '#f0f0f0';
+        };
+        // Initial setup for container bg only, scene will update when loaded
+        window.updatePreviewTheme(document.body.classList.contains('dark-mode'));
+
+        function disposeObject(obj) {
+            if (!obj) return;
+            obj.traverse((child) => {
+                if (child.isMesh) {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+                        else child.material.dispose();
+                    }
+                }
+            });
+        }
+
+        let _cpuMatA, _cpuMatB, _cpuVec4A, _cpuVec4B;
+        async function initThreeVariables() {
+            if (!_cpuMatA) {
+                _cpuMatA = new THREE.Matrix4();
+                _cpuMatB = new THREE.Matrix4();
+                _cpuVec4A = new THREE.Vector4();
+                _cpuVec4B = new THREE.Vector4();
+            }
+        }
+
+        function getBoneMatrixRelativeToGroup(bone, group) {
+            group.updateMatrixWorld(true);
+            return _cpuMatA.copy(group.matrixWorld).invert().multiply(bone.matrixWorld);
+        }
+
+        function applyCpuSkinning(mesh, rootGroup, bindToOriginArr) {
+            if (!mesh || !mesh.userData || !mesh.userData.cpuSkinning || !rootGroup) return;
+            const cpu = mesh.userData.cpuSkinning;
+            const posAttr = mesh.geometry.getAttribute('position');
+            const normAttr = mesh.geometry.getAttribute('normal');
+            const posArray = posAttr.array;
+            const normArray = normAttr ? normAttr.array : null;
+            rootGroup.updateMatrixWorld(true);
+            for (let i = 0; i < cpu.vertexCount; i++) {
+                const basePosIdx = i * 3;
+                const skinIdxBase = i * 4;
+                let px = 0, py = 0, pz = 0;
+                let nx = 0, ny = 0, nz = 0;
+                for (let j = 0; j < 4; j++) {
+                    const weight = cpu.skinWeights[skinIdxBase + j];
+                    if (weight <= 0) continue;
+                    const jointIndex = cpu.skinIndices[skinIdxBase + j];
+                    const bone = cpu.boneList[jointIndex];
+                    const toOrigin = bindToOriginArr[jointIndex];
+                    if (!bone || !toOrigin) continue;
+                    const poseMat = getBoneMatrixRelativeToGroup(bone, rootGroup);
+                    const finalMat = _cpuMatB.copy(poseMat).multiply(toOrigin);
+                    _cpuVec4A.set(
+                        cpu.basePositions[basePosIdx],
+                        cpu.basePositions[basePosIdx + 1],
+                        cpu.basePositions[basePosIdx + 2],
+                        1.0
+                    ).applyMatrix4(finalMat);
+                    px += _cpuVec4A.x * weight;
+                    py += _cpuVec4A.y * weight;
+                    pz += _cpuVec4A.z * weight;
+                    if (normArray && cpu.baseNormals.length >= basePosIdx + 3) {
+                        finalMat.setPosition(0, 0, 0);
+                        _cpuVec4B.set(
+                            cpu.baseNormals[basePosIdx],
+                            cpu.baseNormals[basePosIdx + 1],
+                            cpu.baseNormals[basePosIdx + 2],
+                            1.0
+                        ).applyMatrix4(finalMat);
+                        nx += _cpuVec4B.x * weight;
+                        ny += _cpuVec4B.y * weight;
+                        nz += _cpuVec4B.z * weight;
+                    }
+                }
+                posArray[basePosIdx] = px;
+                posArray[basePosIdx + 1] = py;
+                posArray[basePosIdx + 2] = pz;
+                if (normArray) {
+                    const len = Math.hypot(nx, ny, nz) || 1;
+                    normArray[basePosIdx] = nx / len;
+                    normArray[basePosIdx + 1] = ny / len;
+                    normArray[basePosIdx + 2] = nz / len;
+                }
+            }
+            posAttr.needsUpdate = true;
+            if (normAttr) normAttr.needsUpdate = true;
+        }
+
+        function renderLoop() {
+            requestAnimationFrame(renderLoop);
+            const dt = clock.getDelta();
+            if (mixer) mixer.update(dt);
+            if (weaponMixer) weaponMixer.update(dt);
+            applyCpuSkinning(currentWeaponMesh, currentWeaponRootGroup, currentWeaponBindToOrigin);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        renderLoop();
+
+        const resizeObserver = new ResizeObserver(() => {
+            if (!container.clientWidth) return;
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        });
+        resizeObserver.observe(container);
+
+        function readJsonFile(fileObj) {
+            return new Promise((resolve, reject) => {
+                const r = new FileReader();
+                r.onload = (e) => {
+                    try { resolve(JSON.parse(String(e.target.result || ''))); }
+                    catch (err) { reject(err); }
+                };
+                r.onerror = (e) => reject(e);
+                r.readAsText(fileObj);
+            });
+        }
+
+        function readTextFile(fileObj) {
+            return new Promise((resolve, reject) => {
+                const r = new FileReader();
+                r.onload = (e) => resolve(String(e.target.result || ''));
+                r.onerror = (e) => reject(e);
+                r.readAsText(fileObj);
+            });
+        }
+
+        function resolveWeaponFileId(weaponId) {
+            const raw = String(weaponId || '').trim();
+            if (!raw) return '';
+            if (fileResourceMap.has(raw)) return raw;
+            if (!/\.(obj|geo|png)$/i.test(raw)) {
+                const asObj = `${raw}.obj`;
+                if (fileResourceMap.has(asObj)) return asObj;
+                const asGeo = `${raw}.geo`;
+                if (fileResourceMap.has(asGeo)) return asGeo;
+                const asPng = `${raw}.png`;
+                if (fileResourceMap.has(asPng)) return asPng;
+            }
+            if (!raw.includes(':')) {
+                const asMinecraftItem = `minecraft:item/${raw}`;
+                if (fileResourceMap.has(asMinecraftItem)) return asMinecraftItem;
+            }
+            if (raw.includes(':') && !raw.split(':')[1].includes('/')) {
+                const [ns, name] = raw.split(':', 2);
+                const guessWeapon = `${ns}:weapon/${name}`;
+                if (fileResourceMap.has(guessWeapon)) return guessWeapon;
+                const guessItem = `${ns}:item/${name}`;
+                if (fileResourceMap.has(guessItem)) return guessItem;
+                const guessWeaponObj = `${ns}:weapon/${name}.obj`;
+                if (fileResourceMap.has(guessWeaponObj)) return guessWeaponObj;
+                const guessItemObj = `${ns}:item/${name}.obj`;
+                if (fileResourceMap.has(guessItemObj)) return guessItemObj;
+                const guessWeaponGeo = `${ns}:weapon/${name}.geo`;
+                if (fileResourceMap.has(guessWeaponGeo)) return guessWeaponGeo;
+                const guessItemGeo = `${ns}:item/${name}.geo`;
+                if (fileResourceMap.has(guessItemGeo)) return guessItemGeo;
+            }
+            return raw;
+        }
+
+        function resolveModelFileId(modelId) {
+            const raw = String(modelId || '').trim();
+            if (!raw) return 'epicfight:entity/biped';
+            if (fileResourceMap.has(raw)) return raw;
+            if (raw.includes(':') && !raw.split(':')[1].includes('/')) {
+                const [ns, name] = raw.split(':');
+                const guess = `${ns}:entity/${name}`;
+                if (fileResourceMap.has(guess)) return guess;
+            }
+            return raw;
+        }
+
+        async function resolveMinecraftModel(data, depth) {
+            const d = Number(depth || 0);
+            if (d > 10 || !data || typeof data !== 'object') return data;
+            let merged = { ...data };
+            if (merged.parent) {
+                let parentPath = String(merged.parent || '');
+                if (!parentPath.includes(':')) parentPath = `minecraft:${parentPath}`;
+                let parentFile = fileResourceMap.get(parentPath);
+                if (!parentFile) {
+                    const parts = parentPath.split(':');
+                    const noNs = parts[parts.length - 1];
+                    parentFile = fileResourceMap.get(noNs) || fileResourceMap.get(`minecraft:item/${noNs}`);
+                }
+                if (parentFile) {
+                    try {
+                        const parentData = await readJsonFile(parentFile);
+                        const resolvedParent = await resolveMinecraftModel(parentData, d + 1);
+                        merged.display = { ...(resolvedParent && resolvedParent.display ? resolvedParent.display : {}), ...(merged.display || {}) };
+                        if (!merged.elements && resolvedParent && resolvedParent.elements) merged.elements = resolvedParent.elements;
+                        merged.textures = { ...(resolvedParent && resolvedParent.textures ? resolvedParent.textures : {}), ...(merged.textures || {}) };
+                    } catch (e) {
+                    }
+                }
+            }
+            return merged;
+        }
+
+        async function createMinecraft2DMeshFromImage(imageFile) {
+            const url = URL.createObjectURL(imageFile);
+            try {
+                const img = await new Promise((resolve, reject) => {
+                    const i = new Image();
+                    i.onload = () => resolve(i);
+                    i.onerror = (e) => reject(e);
+                    i.src = url;
+                });
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                const imgData = ctx.getImageData(0, 0, img.width, img.height);
+                const data = imgData.data;
+                const w = img.width;
+                const h = img.height;
+                const depth = 1 / 16;
+                const pixelW = 1 / w;
+                const pixelH = 1 / h;
+                const instances = [];
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        const idx = (y * w + x) * 4;
+                        const a = data[idx + 3];
+                        if (a > 10) {
+                            instances.push({
+                                x,
+                                y,
+                                c: new THREE.Color(data[idx] / 255, data[idx + 1] / 255, data[idx + 2] / 255)
+                            });
+                        }
+                    }
+                }
+                const group = new THREE.Group();
+                if (instances.length === 0) return group;
+                const boxGeo = new THREE.BoxGeometry(pixelW, pixelH, depth);
+                const mat = new THREE.MeshStandardMaterial({ 
+                    color: 0xffffff,
+                    roughness: 0.5, 
+                    metalness: 0.1, 
+                    side: THREE.DoubleSide 
+                });
+                const mesh = new THREE.InstancedMesh(boxGeo, mat, instances.length);
+                const m = new THREE.Matrix4();
+                const pos = new THREE.Vector3();
+                const quat = new THREE.Quaternion();
+                const sca = new THREE.Vector3(1, 1, 1);
+                for (let i = 0; i < instances.length; i++) {
+                    const it = instances[i];
+                    pos.set(it.x * pixelW + pixelW / 2, (h - 1 - it.y) * pixelH + pixelH / 2, 0);
+                    m.compose(pos, quat, sca);
+                    mesh.setMatrixAt(i, m);
+                    mesh.setColorAt(i, it.c);
+                }
+                mesh.instanceMatrix.needsUpdate = true;
+                if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+                group.add(mesh);
+                return group;
+            } finally {
+                URL.revokeObjectURL(url);
+            }
+        }
+
+        function applyMinecraftDisplayTransform(target, display) {
+            if (!display || !target) return;
+            const tr = display.thirdperson_righthand;
+            if (!tr) return;
+            if (Array.isArray(tr.translation)) target.position.set(tr.translation[0] / 16, tr.translation[1] / 16, tr.translation[2] / 16);
+            if (Array.isArray(tr.rotation)) target.rotation.set(THREE.MathUtils.degToRad(tr.rotation[0]), THREE.MathUtils.degToRad(tr.rotation[1]), THREE.MathUtils.degToRad(tr.rotation[2]));
+            if (Array.isArray(tr.scale)) target.scale.set(tr.scale[0], tr.scale[1], tr.scale[2]);
+        }
+
+        function buildMinecraftElementsModel(data, material) {
+            const mcGroup = new THREE.Group();
+            const elements = Array.isArray(data && data.elements) ? data.elements : null;
+            if (!elements) return mcGroup;
+            for (const el of elements) {
+                if (!el || !el.from || !el.to) continue;
+                const w = (el.to[0] - el.from[0]) / 16;
+                const h = (el.to[1] - el.from[1]) / 16;
+                const d = (el.to[2] - el.from[2]) / 16;
+                const box = new THREE.BoxGeometry(w, h, d);
+                const boxMesh = new THREE.Mesh(box, material);
+                const cx = (el.from[0] + el.to[0]) / 2 / 16;
+                const cy = (el.from[1] + el.to[1]) / 2 / 16;
+                const cz = (el.from[2] + el.to[2]) / 2 / 16;
+                boxMesh.position.set(cx - 0.5, cy, cz - 0.5);
+                if (el.rotation) {
+                    const axis = el.rotation.axis;
+                    const angle = THREE.MathUtils.degToRad(el.rotation.angle || 0);
+                    const origin = el.rotation.origin ? [el.rotation.origin[0] / 16 - 0.5, el.rotation.origin[1] / 16, el.rotation.origin[2] / 16 - 0.5] : [0, 0, 0];
+                    const pivot = new THREE.Group();
+                    pivot.position.set(origin[0], origin[1], origin[2]);
+                    if (axis === 'x') pivot.rotation.x = angle;
+                    else if (axis === 'y') pivot.rotation.y = angle;
+                    else if (axis === 'z') pivot.rotation.z = angle;
+                    boxMesh.position.sub(pivot.position);
+                    pivot.add(boxMesh);
+                    mcGroup.add(pivot);
+                } else {
+                    mcGroup.add(boxMesh);
+                }
+            }
+            return mcGroup;
+        }
+
+        async function findTextureFileId(texPath) {
+            let t = String(texPath || '').trim();
+            if (!t) return null;
+            if (!t.includes(':')) t = `minecraft:${t}`;
+            const [ns, rel] = t.split(':', 2);
+            const key = `${ns}:${rel}.png`;
+            if (fileResourceMap.has(key)) return key;
+            const suffix = `${rel}.png`.toLowerCase();
+            for (const k of fileResourceMap.keys()) {
+                if (String(k).toLowerCase().endsWith(suffix)) return k;
+            }
+            return null;
+        }
+
+        function buildGeoModel(data, material) {
+            const rootGroup = new THREE.Group();
+            let geoArray = data && (data['minecraft:geometry'] || data.geometry);
+            if (!geoArray) return rootGroup;
+            if (!Array.isArray(geoArray)) geoArray = [geoArray];
+            const geoData = geoArray[0];
+            if (!geoData) return rootGroup;
+            const bones = Array.isArray(geoData.bones) ? geoData.bones : [];
+            const rootBone = new THREE.Bone();
+            rootBone.name = 'Root';
+            rootGroup.add(rootBone);
+            const boneGroupMap = {};
+            for (const b of bones) {
+                if (!b || !b.name) continue;
+                const bGroup = new THREE.Bone();
+                bGroup.name = b.name;
+                boneGroupMap[b.name] = bGroup;
+                if (Array.isArray(b.pivot)) bGroup.position.set(b.pivot[0] / 16, b.pivot[1] / 16, b.pivot[2] / 16);
+                if (Array.isArray(b.rotation)) bGroup.rotation.set(THREE.MathUtils.degToRad(-b.rotation[0]), THREE.MathUtils.degToRad(-b.rotation[1]), THREE.MathUtils.degToRad(b.rotation[2]));
+                if (Array.isArray(b.cubes)) {
+                    for (const cube of b.cubes) {
+                        if (!cube || !cube.size || !cube.origin) continue;
+                        const w = cube.size[0] / 16;
+                        const h = cube.size[1] / 16;
+                        const d = cube.size[2] / 16;
+                        const boxGeo = new THREE.BoxGeometry(w, h, d);
+                        const boxMesh = new THREE.Mesh(boxGeo, material);
+                        const cx = cube.origin[0] / 16 + w / 2;
+                        const cy = cube.origin[1] / 16 + h / 2;
+                        const cz = cube.origin[2] / 16 + d / 2;
+                        boxMesh.position.set(cx, cy, cz);
+                        if (cube.rotation && cube.pivot) {
+                            const pivotGroup = new THREE.Group();
+                            pivotGroup.position.set(cube.pivot[0] / 16, cube.pivot[1] / 16, cube.pivot[2] / 16);
+                            pivotGroup.rotation.set(THREE.MathUtils.degToRad(-cube.rotation[0]), THREE.MathUtils.degToRad(-cube.rotation[1]), THREE.MathUtils.degToRad(cube.rotation[2]));
+                            boxMesh.position.sub(pivotGroup.position);
+                            pivotGroup.add(boxMesh);
+                            bGroup.add(pivotGroup);
+                        } else {
+                            boxMesh.position.sub(bGroup.position);
+                            bGroup.add(boxMesh);
+                        }
+                    }
+                }
+            }
+            for (const b of bones) {
+                if (!b || !b.name) continue;
+                const bGroup = boneGroupMap[b.name];
+                if (!bGroup) continue;
+                if (b.parent && boneGroupMap[b.parent]) {
+                    const parentGroup = boneGroupMap[b.parent];
+                    const globalPivot = bGroup.position.clone();
+                    bGroup.position.copy(globalPivot.sub(parentGroup.position));
+                    parentGroup.add(bGroup);
+                } else {
+                    rootBone.add(bGroup);
+                }
+            }
+            return rootGroup;
+        }
+
+        function buildBoneHierarchy(nodeData, localMap) {
+            const bone = new THREE.Bone();
+            bone.name = nodeData.name;
+            localMap[bone.name] = bone;
+            const arr = nodeData.transform;
+            if (arr && arr.length === 16) {
+                const mat = new THREE.Matrix4().fromArray(arr).transpose();
+                mat.decompose(bone.position, bone.quaternion, bone.scale);
+            }
+            if (nodeData.children) {
+                for (const childData of nodeData.children) bone.add(buildBoneHierarchy(childData, localMap));
+            }
+            return bone;
+        }
+
+        function buildGeometryWithCpuSkinning(verticesData) {
+            const geometry = new THREE.BufferGeometry();
+            const posArray = verticesData.positions.array;
+            const uvArray = verticesData.uvs ? verticesData.uvs.array : null;
+            const normArray = verticesData.normals ? verticesData.normals.array : null;
+            const vcounts = verticesData.vcounts ? verticesData.vcounts.array : null;
+            const vindices = verticesData.vindices ? verticesData.vindices.array : null;
+            const weights = verticesData.weights ? verticesData.weights.array : null;
+
+            const posSkinIndices = [];
+            const posSkinWeights = [];
+            if (vcounts && vindices && weights) {
+                let vIndexOffset = 0;
+                for (let i = 0; i < vcounts.length; i++) {
+                    const count = vcounts[i];
+                    const jData = [];
+                    for (let j = 0; j < count; j++) {
+                        const jointIdx = vindices[vIndexOffset++];
+                        const weightIdx = vindices[vIndexOffset++];
+                        jData.push({ j: jointIdx, w: weights[weightIdx] });
+                    }
+                    jData.sort((a, b) => b.w - a.w);
+                    let wSum = 0;
+                    const sIdx = [0, 0, 0, 0];
+                    const sWt = [0, 0, 0, 0];
+                    for (let j = 0; j < 4; j++) {
+                        if (j < jData.length) {
+                            sIdx[j] = jData[j].j;
+                            sWt[j] = jData[j].w;
+                            wSum += jData[j].w;
+                        }
+                    }
+                    if (wSum > 0) {
+                        for (let j = 0; j < 4; j++) sWt[j] /= wSum;
+                    }
+                    posSkinIndices.push(sIdx);
+                    posSkinWeights.push(sWt);
+                }
+            }
+
+            const outPositions = [];
+            const outUvs = [];
+            const outNormals = [];
+            const outSkinIndices = [];
+            const outSkinWeights = [];
+
+            function pushVertex(posIdx, uvIdx, normIdx) {
+                outPositions.push(posArray[posIdx * 3], posArray[posIdx * 3 + 1], posArray[posIdx * 3 + 2]);
+                if (uvArray) outUvs.push(uvArray[uvIdx * 2], uvArray[uvIdx * 2 + 1]);
+                if (normArray) outNormals.push(normArray[normIdx * 3], normArray[normIdx * 3 + 1], normArray[normIdx * 3 + 2]);
+                if (posSkinIndices.length > 0) {
+                    const sIdx = posSkinIndices[posIdx];
+                    const sWt = posSkinWeights[posIdx];
+                    outSkinIndices.push(sIdx[0], sIdx[1], sIdx[2], sIdx[3]);
+                    outSkinWeights.push(sWt[0], sWt[1], sWt[2], sWt[3]);
+                }
+            }
+
+            if (verticesData.parts) {
+                for (const partName in verticesData.parts) {
+                    const part = verticesData.parts[partName];
+                    if (!part || !part.array) continue;
+                    for (let i = 0; i < part.array.length; i += 3) {
+                        pushVertex(part.array[i], part.array[i + 1], part.array[i + 2]);
+                    }
+                }
+            } else if (verticesData.indices && verticesData.indices.array) {
+                const arr = verticesData.indices.array;
+                for (let i = 0; i < arr.length; i += 3) {
+                    pushVertex(arr[i], arr[i + 1], arr[i + 2]);
+                }
+            } else {
+                throw new Error('Model vertices missing parts/indices');
+            }
+
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(outPositions, 3));
+            if (outUvs.length > 0) geometry.setAttribute('uv', new THREE.Float32BufferAttribute(outUvs, 2));
+            if (outNormals.length > 0) geometry.setAttribute('normal', new THREE.Float32BufferAttribute(outNormals, 3));
+            geometry.computeBoundingSphere();
+
+            const cpuSkinning = outSkinIndices.length > 0 ? {
+                basePositions: new Float32Array(outPositions),
+                baseNormals: new Float32Array(outNormals),
+                skinIndices: new Float32Array(outSkinIndices),
+                skinWeights: new Float32Array(outSkinWeights)
+            } : null;
+
+            return { geometry, cpuSkinning };
+        }
+
+        function buildGeometry(verticesData) {
+            const posArray = verticesData.positions.array;
+            const uvArray = verticesData.uvs ? verticesData.uvs.array : null;
+            const normArray = verticesData.normals ? verticesData.normals.array : null;
+            const vcounts = verticesData.vcounts ? verticesData.vcounts.array : null;
+            const vindices = verticesData.vindices ? verticesData.vindices.array : null;
+            const weights = verticesData.weights ? verticesData.weights.array : null;
+
+            const posSkinIndices = [];
+            const posSkinWeights = [];
+            if (vcounts && vindices && weights) {
+                let vIndexOffset = 0;
+                for (let i = 0; i < vcounts.length; i++) {
+                    const count = vcounts[i];
+                    const jData = [];
+                    for (let j = 0; j < count; j++) {
+                        const jointIdx = vindices[vIndexOffset++];
+                        const weightIdx = vindices[vIndexOffset++];
+                        jData.push({ j: jointIdx, w: weights[weightIdx] });
+                    }
+                    jData.sort((a, b) => b.w - a.w);
+                    let wSum = 0;
+                    const sIdx = [0, 0, 0, 0];
+                    const sWt = [0, 0, 0, 0];
+                    for (let j = 0; j < 4; j++) {
+                        if (j < jData.length) {
+                            sIdx[j] = jData[j].j;
+                            sWt[j] = jData[j].w;
+                            wSum += jData[j].w;
+                        }
+                    }
+                    if (wSum > 0) {
+                        for (let j = 0; j < 4; j++) sWt[j] /= wSum;
+                    }
+                    posSkinIndices.push(sIdx);
+                    posSkinWeights.push(sWt);
+                }
+            }
+
+            const outPositions = [];
+            const outUvs = [];
+            const outNormals = [];
+            const outSkinIndices = [];
+            const outSkinWeights = [];
+
+            function pushVertex(posIdx, uvIdx, normIdx) {
+                outPositions.push(posArray[posIdx * 3], posArray[posIdx * 3 + 1], posArray[posIdx * 3 + 2]);
+                if (uvArray) outUvs.push(uvArray[uvIdx * 2], uvArray[uvIdx * 2 + 1]);
+                if (normArray) outNormals.push(normArray[normIdx * 3], normArray[normIdx * 3 + 1], normArray[normIdx * 3 + 2]);
+                if (posSkinIndices.length > 0) {
+                    const sIdx = posSkinIndices[posIdx];
+                    const sWt = posSkinWeights[posIdx];
+                    outSkinIndices.push(sIdx[0], sIdx[1], sIdx[2], sIdx[3]);
+                    outSkinWeights.push(sWt[0], sWt[1], sWt[2], sWt[3]);
+                }
+            }
+
+            if (verticesData.parts) {
+                for (const partName in verticesData.parts) {
+                    const part = verticesData.parts[partName];
+                    if (!part || !part.array) continue;
+                    for (let i = 0; i < part.array.length; i += 3) {
+                        pushVertex(part.array[i], part.array[i + 1], part.array[i + 2]);
+                    }
+                }
+            } else if (verticesData.indices && verticesData.indices.array) {
+                const arr = verticesData.indices.array;
+                for (let i = 0; i < arr.length; i += 3) {
+                    pushVertex(arr[i], arr[i + 1], arr[i + 2]);
+                }
+            } else {
+                throw new Error('Model vertices missing parts/indices');
+            }
+
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(outPositions, 3));
+            if (outUvs.length > 0) geometry.setAttribute('uv', new THREE.Float32BufferAttribute(outUvs, 2));
+            if (outNormals.length > 0) geometry.setAttribute('normal', new THREE.Float32BufferAttribute(outNormals, 3));
+            if (outSkinIndices.length > 0) geometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(outSkinIndices, 4));
+            if (outSkinWeights.length > 0) geometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(outSkinWeights, 4));
+            geometry.computeBoundingSphere();
+            return geometry;
+        }
+
+        async function loadModel(modelId, options) {
+            const includeLights = !options || options.includeLights !== false;
+            const resolved = resolveModelFileId(modelId);
+            const low = String(resolved).toLowerCase();
+            if (low.endsWith('.obj') || low.endsWith('.geo') || low.endsWith('.png')) {
+                throw new Error(`Unsupported model type for preview: ${resolved}`);
+            }
+            const fileObj = fileResourceMap.get(resolved);
+            if (!fileObj) throw new Error(`Missing model file: ${resolved}`);
+            const data = await readJsonFile(fileObj);
+            const rootGroup = new THREE.Group();
+            const localMap = {};
+            let rootBone = null;
+            if (data.armature && data.armature.hierarchy && data.armature.hierarchy.length > 0) {
+                rootBone = buildBoneHierarchy(data.armature.hierarchy[0], localMap);
+                rootGroup.add(rootBone);
+            } else if (data.armature && Array.isArray(data.armature.joints)) {
+                rootBone = new THREE.Bone();
+                rootBone.name = 'Root';
+                localMap.Root = rootBone;
+                rootGroup.add(rootBone);
+            } else {
+                rootBone = new THREE.Bone();
+                rootBone.name = 'Root';
+                localMap.Root = rootBone;
+                rootGroup.add(rootBone);
+            }
+
+            let mesh = null;
+            if (data.vertices) {
+                const geometry = buildGeometry(data.vertices);
+                const material = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.6, metalness: 0.1, side: THREE.DoubleSide });
+                const hasSkin = !!(geometry.getAttribute('skinIndex') && geometry.getAttribute('skinWeight'));
+                if (hasSkin) {
+                    const skinned = new THREE.SkinnedMesh(geometry, material);
+                    const arm = data.armature && (data.armature.joints || data.armature.hierarchy) ? data.armature : null;
+                    const joints = arm && Array.isArray(arm.joints) ? arm.joints : null;
+                    const boneList = [];
+                    if (joints && joints.length > 0) {
+                        for (const jName of joints) boneList.push(localMap[jName] || rootBone);
+                    } else {
+                        rootBone.traverse(b => { if (b.isBone) boneList.push(b); });
+                    }
+                    skinned.add(rootBone);
+                    const skeleton = new THREE.Skeleton(boneList);
+                    skinned.bind(skeleton);
+                    mesh = skinned;
+                    rootGroup.add(skinned);
+                } else {
+                    const plain = new THREE.Mesh(geometry, material);
+                    mesh = plain;
+                    rootGroup.add(plain);
+                }
+            } else {
+            }
+
+            if (includeLights) {
+                const lightA = new THREE.DirectionalLight(0xffffff, 1.0);
+                lightA.position.set(2, 4, 3);
+                const lightB = new THREE.AmbientLight(0xffffff, 0.4);
+                rootGroup.add(lightA);
+                rootGroup.add(lightB);
+            }
+
+            return { rootGroup, rootBone, mesh, localMap };
+        }
+
+        let cachedEpicFightBipedArmature = null;
+        let cachedEpicFightBipedJoints = null;
+        async function getEpicFightBipedArmature() {
+            if (cachedEpicFightBipedArmature) return cachedEpicFightBipedArmature;
+            const id = resolveModelFileId('epicfight:entity/biped');
+            let fileObj = fileResourceMap.get(id);
+            if (!fileObj) fileObj = fileResourceMap.get('epicfight:biped');
+            if (!fileObj) return null;
+            try {
+                const data = await readJsonFile(fileObj);
+                const armature = data && data.armature && Array.isArray(data.armature.hierarchy) ? data.armature : null;
+                cachedEpicFightBipedArmature = armature;
+                if (armature && Array.isArray(armature.joints)) cachedEpicFightBipedJoints = armature.joints;
+                return armature;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        async function getEpicFightBipedJoints() {
+            if (cachedEpicFightBipedJoints) return cachedEpicFightBipedJoints;
+            const arm = await getEpicFightBipedArmature();
+            return arm && Array.isArray(arm.joints) ? arm.joints : null;
+        }
+
+        function computeMaxJointIndex(verticesData) {
+            const arr = verticesData && verticesData.vindices && Array.isArray(verticesData.vindices.array) ? verticesData.vindices.array : null;
+            if (!arr) return 0;
+            let max = 0;
+            for (let i = 0; i < arr.length; i += 2) {
+                const v = Number(arr[i]);
+                if (Number.isFinite(v) && v > max) max = v;
+            }
+            return max;
+        }
+
+        async function parseAndBuildModel(fileObj, isWeapon) {
+            const fileName = String(fileObj && fileObj.name ? fileObj.name : '').toLowerCase();
+            const material = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.6, metalness: 0.1, side: THREE.DoubleSide });
+
+            if (fileName.endsWith('.png')) {
+                const rootGroup = new THREE.Group();
+                const extruded = await createMinecraft2DMeshFromImage(fileObj);
+                extruded.position.set(-0.5, 0, 0);
+                rootGroup.add(extruded);
+                return { rootGroup, rootBone: null, mesh: null, localBonesMap: {}, bindToOrigin: [], isMinecraft: true, isPng: true, display: null };
+            }
+
+            if (fileName.endsWith('.obj')) {
+                const text = await readTextFile(fileObj);
+                const loader = new OBJLoader();
+                const obj = loader.parse(text);
+                obj.traverse((child) => {
+                    if (child.isMesh) child.material = material;
+                });
+                const rootGroup = new THREE.Group();
+                rootGroup.add(obj);
+                return { rootGroup, rootBone: null, mesh: null, localBonesMap: {}, bindToOrigin: [], isObj: true };
+            }
+
+            let data = await readJsonFile(fileObj);
+            const isGeo = !!(data && (data['minecraft:geometry'] || (data.format_version && data.geometry))) || fileName.endsWith('.geo');
+            if (isGeo) {
+                const rootGroup = buildGeoModel(data, material);
+                let rootBone = null;
+                let mesh = null;
+                rootGroup.traverse((o) => {
+                    if (!rootBone && o.isBone) rootBone = o;
+                    if (!mesh && o.isMesh) mesh = o;
+                });
+                return { rootGroup, rootBone, mesh, localBonesMap: {}, bindToOrigin: [], isGeo: true };
+            }
+
+            const hasArmature = !!(data && data.armature);
+            const hasVertices = !!(data && data.vertices);
+            if (!hasArmature && !hasVertices) {
+                const resolvedMc = await resolveMinecraftModel(data, 0);
+                const rootGroup = new THREE.Group();
+                const rootBone = new THREE.Bone();
+                rootBone.name = 'Root';
+                rootGroup.add(rootBone);
+
+                const mcGroup = new THREE.Group();
+                if (resolvedMc && Array.isArray(resolvedMc.elements)) {
+                    mcGroup.add(buildMinecraftElementsModel(resolvedMc, material));
+                } else if (resolvedMc && resolvedMc.textures && resolvedMc.textures.layer0) {
+                    const texId = await findTextureFileId(resolvedMc.textures.layer0);
+                    if (texId) {
+                        const texFile = fileResourceMap.get(texId);
+                        if (texFile) {
+                            const extruded = await createMinecraft2DMeshFromImage(texFile);
+                            extruded.position.set(-0.5, 0, 0);
+                            mcGroup.add(extruded);
+                        }
+                    }
+                }
+                if (mcGroup.children.length === 0) {
+                    const box = new THREE.BoxGeometry(0.1, 1.0, 0.1);
+                    const boxMesh = new THREE.Mesh(box, material);
+                    boxMesh.position.set(0, 0.5, 0);
+                    mcGroup.add(boxMesh);
+                }
+
+                rootGroup.add(mcGroup);
+                return { rootGroup, rootBone, mesh: null, localBonesMap: {}, bindToOrigin: [], isMinecraft: true, display: resolvedMc ? resolvedMc.display : null };
+            }
+
+            let armatureData = hasArmature ? data.armature : null;
+            if (!armatureData || !Array.isArray(armatureData.hierarchy) || armatureData.hierarchy.length === 0) {
+                armatureData = await getEpicFightBipedArmature();
+            }
+            if (!armatureData || !Array.isArray(armatureData.hierarchy) || armatureData.hierarchy.length === 0) {
+                throw new Error('Armature data missing');
+            }
+
+            if (data.vertices && (!data.vertices.vcounts || !data.vertices.weights)) {
+                const posCount = data.vertices.positions && data.vertices.positions.array ? (data.vertices.positions.array.length / 3) : 0;
+                let toolRIndex = armatureData.joints ? armatureData.joints.indexOf('Tool_R') : -1;
+                if (toolRIndex === -1) toolRIndex = 0;
+                const fakeVcounts = new Array(posCount).fill(1);
+                const fakeVindices = [];
+                const fakeWeights = [1.0];
+                for (let i = 0; i < posCount; i++) {
+                    fakeVindices.push(toolRIndex);
+                    fakeVindices.push(0);
+                }
+                data.vertices.vcounts = { array: fakeVcounts };
+                data.vertices.vindices = { array: fakeVindices };
+                data.vertices.weights = { array: fakeWeights };
+            }
+
+            const rootGroup = new THREE.Group();
+            const localBonesMap = {};
+            const rootBone = buildBoneHierarchy(armatureData.hierarchy[0], localBonesMap);
+            rootGroup.add(rootBone);
+
+            let mesh = null;
+            let bindToOrigin = [];
+            if (data.vertices) {
+                const { geometry, cpuSkinning } = buildGeometryWithCpuSkinning(data.vertices);
+                mesh = new THREE.Mesh(geometry, material);
+                rootGroup.add(mesh);
+
+                const jointsToUse = (data.armature && Array.isArray(data.armature.joints)) ? data.armature.joints : (armatureData.joints || []);
+                const boneList = [];
+                if (Array.isArray(jointsToUse) && jointsToUse.length > 0) {
+                    for (const jName of jointsToUse) boneList.push(localBonesMap[jName] || rootBone);
+                } else {
+                    rootGroup.traverse((o) => { if (o.isBone) boneList.push(o); });
+                    if (boneList.length === 0) boneList.push(rootBone);
+                }
+                rootGroup.updateMatrixWorld(true);
+                bindToOrigin = boneList.map((bone) => new THREE.Matrix4().copy(rootGroup.matrixWorld).invert().multiply(bone.matrixWorld).invert());
+                if (cpuSkinning) {
+                    mesh.userData.cpuSkinning = {
+                        ...cpuSkinning,
+                        boneList,
+                        vertexCount: cpuSkinning.basePositions.length / 3
+                    };
+                }
+            }
+
+            if (!isWeapon) {
+                const lightA = new THREE.DirectionalLight(0xffffff, 0.7);
+                lightA.position.set(2, 4, 3);
+                const lightB = new THREE.AmbientLight(0xffffff, 0.4);
+                rootGroup.add(lightA);
+                rootGroup.add(lightB);
+            }
+
+            return { rootGroup, rootBone, mesh, localBonesMap, bindToOrigin };
+        }
+
+        async function loadWeaponModel(weaponId) {
+            const resolved = resolveWeaponFileId(weaponId);
+            if (!resolved) return null;
+            const fileObj = fileResourceMap.get(resolved);
+            if (!fileObj) throw new Error(`Missing weapon file: ${resolved}`);
+            return await parseAndBuildModel(fileObj, true);
+        }
+
+        function buildAnimationClip(animData, localMap) {
+            if (!animData || !Array.isArray(animData.animation)) throw new Error('Invalid animation JSON');
+            const tracks = [];
+            const mat = new THREE.Matrix4();
+            const p = new THREE.Vector3();
+            const q = new THREE.Quaternion();
+            const s = new THREE.Vector3();
+            for (const node of animData.animation) {
+                const boneName = String(node.name || '');
+                const bone = localMap[boneName];
+                if (!bone) continue;
+                const timesRaw = Array.isArray(node.time) ? node.time.map(Number) : null;
+                const transforms = Array.isArray(node.transform) ? node.transform : null;
+                if (!timesRaw || !transforms || timesRaw.length === 0 || transforms.length === 0) continue;
+                const len = Math.min(timesRaw.length, transforms.length);
+                if (len <= 0) continue;
+                const times = timesRaw.slice(0, len);
+                const positions = [];
+                const quaternions = [];
+                const scales = [];
+                for (let i = 0; i < len; i++) {
+                    const t = transforms[i];
+                    if (Array.isArray(t) && t.length === 16) {
+                        mat.fromArray(t).transpose();
+                        mat.decompose(p, q, s);
+                        positions.push(p.x, p.y, p.z);
+                        quaternions.push(q.x, q.y, q.z, q.w);
+                        scales.push(s.x, s.y, s.z);
+                    } else {
+                        const l = t && Array.isArray(t.loc) ? t.loc : [0, 0, 0];
+                        const r = t && Array.isArray(t.rot) ? t.rot : [1, 0, 0, 0];
+                        const sc = t && Array.isArray(t.sca) ? t.sca : [1, 1, 1];
+                        positions.push(l[0], l[1], l[2]);
+                        quaternions.push(r[1], r[2], r[3], r[0]);
+                        scales.push(sc[0], sc[1], sc[2]);
+                    }
+                }
+                tracks.push(new THREE.VectorKeyframeTrack(`${bone.name}.position`, times, positions));
+                tracks.push(new THREE.QuaternionKeyframeTrack(`${bone.name}.quaternion`, times, quaternions));
+                tracks.push(new THREE.VectorKeyframeTrack(`${bone.name}.scale`, times, scales));
+            }
+            return new THREE.AnimationClip('anim', -1, tracks);
+        }
+
+        async function loadAnimation(animationId) {
+            const id = String(animationId || '').trim();
+            const fileObj = fileResourceMap.get(id);
+            if (!fileObj) throw new Error(`Missing animation file: ${id}`);
+            return await readJsonFile(fileObj);
+        }
+
+        window.playAnimationPreview = async function (modelId, animationId, weaponId) {
+            const floatWin = document.getElementById('floating-3d-window');
+            if (floatWin) floatWin.style.display = 'flex';
+            
+            await initThreeJS();
+            await initThreeVariables();
+            
+            msgEl.textContent = '加载中...';
+            msgEl.style.color = '#aaa';
+            try {
+                if (currentRoot) {
+                    scene.remove(currentRoot);
+                    disposeObject(currentRoot);
+                }
+                if (currentWeapon) {
+                    if (currentWeapon.parent) currentWeapon.parent.remove(currentWeapon);
+                    disposeObject(currentWeapon);
+                    currentWeapon = null;
+                }
+                if (mixer) { mixer.stopAllAction(); mixer = null; }
+                if (weaponMixer) { weaponMixer.stopAllAction(); weaponMixer = null; }
+                bonesByName = {};
+                currentMesh = null;
+                currentWeaponRootGroup = null;
+                currentWeaponMesh = null;
+                currentWeaponBindToOrigin = [];
+                const mainModel = await loadModel(modelId, { includeLights: true });
+                currentRoot = mainModel.rootGroup;
+                currentMesh = mainModel.mesh;
+                bonesByName = mainModel.localMap;
+                currentRoot.rotation.set(-Math.PI / 2, 0, 0);
+                const box = new THREE.Box3().setFromObject(currentRoot);
+                if (Number.isFinite(box.min.x) && Number.isFinite(box.max.x)) {
+                    const center = box.getCenter(new THREE.Vector3());
+                    controls.target.copy(center);
+                    controls.update();
+                }
+                scene.add(currentRoot);
+                if (weaponId) {
+                    currentRoot.updateMatrixWorld(true);
+                    if (mainModel.mesh) mainModel.mesh.updateMatrixWorld(true);
+                    const weaponModel = await loadWeaponModel(weaponId);
+                    if (weaponModel && weaponModel.rootGroup) {
+                        const attachBoneSelect = document.getElementById('preview-attach-bone');
+                        const attachBoneName = attachBoneSelect ? attachBoneSelect.value : 'Tool_R';
+                        const toolBone = bonesByName[attachBoneName] || bonesByName.Tool_R || bonesByName.Hand_R || mainModel.rootBone;
+                        let displayData = null;
+                        if (weaponModel.isMinecraft && weaponModel.display) {
+                            displayData = weaponModel.display;
+                        } else if (weaponModel.isObj || weaponModel.isGeo || weaponModel.isPng) {
+                            const baseId = String(resolveWeaponFileId(weaponId) || '').replace(/\.(obj|geo)$/i, '');
+                            const tFile = fileResourceMap.get(baseId) || fileResourceMap.get(`${baseId}.json`);
+                            if (tFile) {
+                                try {
+                                    const tData = await readJsonFile(tFile);
+                                    displayData = tData && tData.display ? tData.display : null;
+                                } catch (e) {
+                                }
+                            }
+                        }
+                        if (displayData) applyMinecraftDisplayTransform(weaponModel.rootGroup, displayData);
+
+                        const needsHeldItemCorrection = weaponModel.isMinecraft || weaponModel.isObj || weaponModel.isGeo || weaponModel.isPng;
+                        if (needsHeldItemCorrection) {
+                            if (weaponModel.rootGroup.position.length() === 0 && weaponModel.rootGroup.rotation.x === 0 && weaponModel.rootGroup.scale.x === 1) {
+                                weaponModel.rootGroup.position.set(0, 0, 0);
+                                weaponModel.rootGroup.rotation.set(0, 0, 0);
+                                weaponModel.rootGroup.scale.set(1, 1, 1);
+                            }
+
+                            const correctionGroup = new THREE.Group();
+                            correctionGroup.position.set(0, 0, -0.13);
+                            // 针对 OBJ 特殊处理：原版逻辑中由于 OBJ 模型坐标系的不同，不需要 -90 度的旋转以防倒垂
+                            if (!weaponModel.isObj) {
+                                correctionGroup.rotation.x = THREE.MathUtils.degToRad(-90);
+                            }
+
+                            const offsetGroup = new THREE.Group();
+                            const children = [...weaponModel.rootGroup.children];
+                            for (const child of children) offsetGroup.add(child);
+                            weaponModel.rootGroup.add(offsetGroup);
+                            if (weaponModel.isMinecraft || weaponModel.isPng) {
+                                offsetGroup.position.set(0, -0.5, 0);
+                            }
+
+                            correctionGroup.add(weaponModel.rootGroup);
+                            toolBone.add(correctionGroup);
+                            currentWeapon = correctionGroup;
+                            correctionGroup.updateMatrixWorld(true);
+                        } else {
+                            weaponModel.rootGroup.rotation.set(-Math.PI / 2, 0, 0);
+                            scene.add(weaponModel.rootGroup);
+                            currentWeapon = weaponModel.rootGroup;
+                            currentWeaponRootGroup = weaponModel.rootGroup;
+                            currentWeaponMesh = weaponModel.mesh;
+                            currentWeaponBindToOrigin = weaponModel.bindToOrigin || [];
+                            if (weaponModel.rootBone) weaponMixer = new THREE.AnimationMixer(weaponModel.rootBone);
+                            weaponModel.rootGroup.updateMatrixWorld(true);
+                        }
+                    }
+                }
+                const animData = await loadAnimation(animationId);
+                const clip = buildAnimationClip(animData, bonesByName);
+                mixer = new THREE.AnimationMixer(mainModel.rootBone);
+                const action = mixer.clipAction(clip);
+                action.reset();
+                action.play();
+                if (weaponMixer) {
+                    const wAction = weaponMixer.clipAction(clip);
+                    wAction.reset();
+                    wAction.play();
+                }
+                msgEl.textContent = '';
+            } catch (err) {
+                msgEl.textContent = String(err && err.message ? err.message : err);
+                msgEl.style.color = '#ff8080';
+            }
+        };
+    </script>
+</body>
+</html>

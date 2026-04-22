@@ -143,6 +143,7 @@
                         <a href="index.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('Trail 调节器') }}</a>
                         <a href="CE_VisualEditor.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('CE 动作') }}</a>
                         <a href="CE_Converter.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('ID 转 CE 转换器') }}</a>
+                        <a href="Invincible_VisualEditor.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('Invincible 编辑器') }}</a>
                     </div>
                 </div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center; margin-top:10px;">
@@ -169,7 +170,8 @@
                     <div class="hint">{{ t('导入资源目录后，动画路径输入框会出现分组联想和高亮匹配。') }}</div>
                 </div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap">
-                    <button class="btn mini" @click="openAssetFolderPicker">{{ t('导入资源文件夹') }}</button>
+                    <button class="btn mini" @click="openAssetFolderPicker" :title="t('导入本地文件夹（推荐）')">{{ t('导入资源文件夹') }}</button>
+                    <button class="btn secondary mini" @click="openAssetZipPicker" :title="t('支持直接导入 Mod jar 或资源包 zip 文件')">{{ t('导入 ZIP/JAR') }}</button>
                     <button class="btn secondary mini" @click="clearAnimationLibrary" :disabled="availableAnimations.length===0">{{ t('清空索引') }}</button>
                 </div>
             </div>
@@ -496,7 +498,9 @@
         </div>
 
         <input id="jsonImportInput" type="file" accept=".json" @change="importJSON" style="display:none">
-        <input id="assetFolderInput" type="file" webkitdirectory directory multiple @change="importAnimationResources" style="display:none">
+        <input id="assetFolderInput" type="file" webkitdirectory directory multiple @change="importAnimationResources" style="display:none" aria-label="导入资源文件夹">
+        <input id="assetFolderInputFallback" type="file" multiple accept=".json,.obj,.geo" @change="importAnimationResources" style="display:none" aria-label="导入多个资源文件 (兜底)">
+        <input id="assetZipInput" type="file" accept=".zip,.jar" multiple @change="importZipResources" style="display:none" aria-label="导入 ZIP/JAR 文件">
     </div>
 
     <div class="resizer" id="mainResizer" @mousedown="startDrag" @touchstart="startDrag"></div>
@@ -917,6 +921,7 @@ const messages = {
         "Trail 调节器": "Trail Visualizer",
         "CE 动作": "CE Action",
         "ID 转 CE 转换器": "ID to CE Converter",
+        "Invincible 编辑器": "Invincible Editor",
         "切换深色/浅色模式": "Toggle Dark/Light Mode",
         "浅色模式": "Light Mode",
         "深色模式": "Dark Mode",
@@ -1125,7 +1130,7 @@ createApp({
         previewAnimation(animPath){if(!window.playAnimationPreview)return;let modelId=this.config.armature;if(modelId.includes(':entity/'))modelId=modelId.replace(':entity/',':');const wpn = document.getElementById("weapon-model-input").value.trim(); window.playAnimationPreview(modelId,animPath,wpn);},
         buildExportObject(){const out=clone(this.config);if(!Array.isArray(out.combat_behavior))throw new Error(this.t('combat_behavior 必须是数组'));out.combat_behavior=out.combat_behavior.map(cb=>({...cb,behavior_series:cb.behavior_series.map(s=>({...s,behaviors:s.behaviors.map(b=>finalizeBehavior(b))}))}));if(!out.boss_bar){delete out.custom_texture;delete out.custom_name}return cleanup(out)||{}},
         triggerImport(){document.getElementById('jsonImportInput').click()},
-        openAssetFolderPicker(){document.getElementById('assetFolderInput').click()},
+        openAssetFolderPicker(){const input=document.getElementById('assetFolderInput');if('webkitdirectory' in input){input.click()}else{document.getElementById('assetFolderInputFallback').click()}},
         joinList(list){return Array.isArray(list)?list.join(', '):''},
         parseCommaList(value){return String(value||'').split(',').map(s=>s.trim()).filter(Boolean)},
         addObjectField(obj,base,value){obj[uniqueKey(obj,base)]=value},
@@ -1162,7 +1167,38 @@ createApp({
         clearAnimationLibrary(){this.availableAnimations=[];this.availableModels=[];this.loadedAnimationMods=[];this.animationImportBatches=0;this.animationSourceFileCount=0;this.matchedAnimationFileCount=0;fileResourceMap.clear();if(animationAutocompleteController)animationAutocompleteController.refresh()},
         collectAnimationResources(files){const anims=new Set(),models=new Set(),modCounts=new Map();let matched=0;files.forEach(file=>{const d=extractAnimationDescriptor(file.webkitRelativePath||file.name, file);if(!d)return;if(d.type==='animation'){matched+=1;anims.add(d.id);modCounts.set(d.modId,(modCounts.get(d.modId)||0)+1)}else if(d.type==='model'||d.type==='texture'){models.add(d.id)}});return{animations:Array.from(anims).sort(),models:Array.from(models).sort(),modCounts:Array.from(modCounts.entries()).map(([modId,count])=>({modId,count})).sort((a,b)=>a.modId.localeCompare(b.modId)),matchedFileCount:matched}},
         mergeLoadedAnimationMods(nextMods){const merged=new Map(this.loadedAnimationMods.map(item=>[item.modId,item.count]));nextMods.forEach(item=>merged.set(item.modId,(merged.get(item.modId)||0)+item.count));this.loadedAnimationMods=Array.from(merged.entries()).map(([modId,count])=>({modId,count})).sort((a,b)=>a.modId.localeCompare(b.modId))},
-        importAnimationResources(event){const files=Array.from(event.target.files||[]);if(!files.length)return;const result=this.collectAnimationResources(files);if(result.animations.length===0&&result.models.length===0){alert(this.t('未在所选目录中找到可识别的动画或模型资源。'));event.target.value='';return}const merged=new Set(this.availableAnimations);result.animations.forEach(id=>merged.add(id));this.availableAnimations=Array.from(merged).sort();const mergedModels=new Set(this.availableModels);result.models.forEach(id=>mergedModels.add(id));this.availableModels=Array.from(mergedModels).sort();this.mergeLoadedAnimationMods(result.modCounts);this.animationImportBatches+=1;this.animationSourceFileCount+=files.length;this.matchedAnimationFileCount+=result.matchedFileCount;if(animationAutocompleteController)animationAutocompleteController.refresh();event.target.value=''}
+        openAssetZipPicker(){document.getElementById('assetZipInput').click()},
+        async importZipResources(event){
+            const files=Array.from(event.target.files||[]);
+            if(!files.length)return;
+            const workerCode=`importScripts('https://unpkg.com/jszip@3.10.1/dist/jszip.min.js');self.onmessage=async function(e){try{const zip=await JSZip.loadAsync(e.data.file);const entries=[];const promises=[];zip.forEach((path,zipEntry)=>{if(zipEntry.dir)return;promises.push(zipEntry.async('blob').then(blob=>{entries.push({path,blob,name:zipEntry.name.split('/').pop()||'unknown'})}))});await Promise.all(promises);self.postMessage({success:true,entries})}catch(err){self.postMessage({success:false,error:err.message})}};`;
+            const blob=new Blob([workerCode],{type:'application/javascript'});
+            const workerUrl=URL.createObjectURL(blob);
+            const allExtractedFiles=[];
+            for(const file of files){
+                try{
+                    await new Promise((resolve,reject)=>{
+                        const worker=new Worker(workerUrl);
+                        worker.onmessage=(e)=>{if(e.data.success){e.data.entries.forEach(entry=>{const extractedFile=new File([entry.blob],entry.name,{type:entry.blob.type});Object.defineProperty(extractedFile,'webkitRelativePath',{get:()=>entry.path});allExtractedFiles.push(extractedFile)});resolve()}else{reject(new Error(e.data.error))}worker.terminate()};
+                        worker.onerror=(err)=>{reject(err);worker.terminate()};
+                        worker.postMessage({file});
+                    })
+                }catch(e){console.error(e);alert(this.t('解析文件失败:')+' '+file.name)}
+            }
+            URL.revokeObjectURL(workerUrl);
+            this.processExtractedFiles(allExtractedFiles);
+            event.target.value='';
+        },
+        processExtractedFiles(files){
+            const result=this.collectAnimationResources(files);
+            if(result.animations.length===0&&result.models.length===0){alert(this.t('未在所选目录中找到可识别的动画或模型资源。'));return}
+            const merged=new Set(this.availableAnimations);result.animations.forEach(id=>merged.add(id));this.availableAnimations=Array.from(merged).sort();
+            const mergedModels=new Set(this.availableModels);result.models.forEach(id=>mergedModels.add(id));this.availableModels=Array.from(mergedModels).sort();
+            this.mergeLoadedAnimationMods(result.modCounts);
+            this.animationImportBatches+=1;this.animationSourceFileCount+=files.length;this.matchedAnimationFileCount+=result.matchedFileCount;
+            if(animationAutocompleteController)animationAutocompleteController.refresh();
+        },
+        importAnimationResources(event){const files=Array.from(event.target.files||[]);if(!files.length)return;this.processExtractedFiles(files);event.target.value=''}
     },
     mounted(){
         if (this.isDarkMode) document.body.classList.add('dark-mode');

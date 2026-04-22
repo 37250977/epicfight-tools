@@ -419,6 +419,7 @@
                         <a href="index.html" class="btn btn-secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('Trail 调节器') }}</a>
                         <a href="Indestructible_VisualEditor.html" class="btn btn-secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('Indestructible 编辑器') }}</a>
                         <a href="CE_Converter.html" class="btn btn-secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('ID 转 CE 转换器') }}</a>
+                        <a href="Invincible_VisualEditor.html" class="btn btn-secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('Invincible 编辑器') }}</a>
                     </div>
                 </div>
                 <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
@@ -432,14 +433,8 @@
                         <div class="resource-import-header">
                             <div style="font-size:12px; color:#3b82f6; font-weight:bold;">{{ t('动画资源索引') }}</div>
                             <div class="resource-import-actions">
-                                <label class="btn" style="cursor:pointer; margin:0;">
-                                    {{ t('导入资源文件夹') }}
-                                    <input type="file" webkitdirectory directory multiple @change="importAnimationResources" style="display:none">
-                                </label>
-                                <label class="btn btn-secondary" style="cursor:pointer; margin:0;" :title="t('如果不兼容文件夹导入，点此多选文件')">
-                                    {{ t('导入多个文件') }}
-                                    <input type="file" multiple accept=".json,.obj,.geo" @change="importAnimationResources" style="display:none">
-                                </label>
+                                <button class="btn" @click="openAssetFolderPicker" :title="t('导入本地文件夹（推荐）')">{{ t('导入资源文件夹') }}</button>
+                                <button class="btn btn-secondary" @click="openAssetZipPicker" :title="t('支持直接导入 Mod jar 或资源包 zip 文件')">{{ t('导入 ZIP/JAR') }}</button>
                                 <button class="btn btn-secondary" @click="clearAnimationLibrary" :disabled="availableAnimations.length === 0">{{ t('清空索引') }}</button>
                             </div>
                         </div>
@@ -448,7 +443,9 @@
                         <div class="resource-import-tags" v-if="loadedAnimationMods.length > 0">
                             <span class="resource-tag" v-for="mod in loadedAnimationMods" :key="mod.modId">{{ mod.modId }} ({{ mod.count }})</span>
                         </div>
-                        <input type="file" id="assetFolderInput" webkitdirectory directory multiple @change="importAnimationResources" style="display:none;">
+                        <input type="file" id="assetFolderInput" webkitdirectory directory multiple @change="importAnimationResources" style="display:none" aria-label="导入资源文件夹">
+                        <input type="file" id="assetFolderInputFallback" multiple accept=".json,.obj,.geo" @change="importAnimationResources" style="display:none" aria-label="导入多个资源文件 (兜底)">
+                        <input id="assetZipInput" type="file" accept=".zip,.jar" multiple @change="importZipResources" style="display:none" aria-label="导入 ZIP/JAR 文件">
                     </div>
                     <input type="file" id="importFile" @change="importJSON" style="display:none" accept=".json">
                     <button class="btn" @click="triggerImport">{{ t('导入 JSON') }}</button>
@@ -1827,6 +1824,7 @@
                 "Trail 调节器": "Trail Visualizer",
                 "Indestructible 编辑器": "Indestructible Editor",
                 "ID 转 CE 转换器": "ID to CE Converter",
+                "Invincible 编辑器": "Invincible Editor",
                 "切换深色/浅色模式": "Toggle Dark/Light Mode",
                 "浅色模式": "Light Mode",
                 "深色模式": "Dark Mode",
@@ -2308,9 +2306,88 @@
                     reader.readAsText(file);
                     event.target.value = ''; // reset
                 },
+                openAssetFolderPicker() {
+                    const input = document.getElementById('assetFolderInput');
+                    if ('webkitdirectory' in input) {
+                        input.click();
+                    } else {
+                        document.getElementById('assetFolderInputFallback').click();
+                    }
+                },
+                openAssetZipPicker() {
+                    document.getElementById('assetZipInput').click();
+                },
+                async importZipResources(event) {
+                    const files = Array.from((event.target && event.target.files) || []);
+                    if (!files.length) return;
+
+                    const workerCode = `
+                        importScripts('https://unpkg.com/jszip@3.10.1/dist/jszip.min.js');
+                        self.onmessage = async function(e) {
+                            try {
+                                const zip = await JSZip.loadAsync(e.data.file);
+                                const entries = [];
+                                const promises = [];
+                                zip.forEach((path, zipEntry) => {
+                                    if (zipEntry.dir) return;
+                                    promises.push(
+                                        zipEntry.async('blob').then(blob => {
+                                            entries.push({ path, blob, name: zipEntry.name.split('/').pop() || 'unknown' });
+                                        })
+                                    );
+                                });
+                                await Promise.all(promises);
+                                self.postMessage({ success: true, entries });
+                            } catch(err) {
+                                self.postMessage({ success: false, error: err.message });
+                            }
+                        };
+                    `;
+                    const blob = new Blob([workerCode], { type: 'application/javascript' });
+                    const workerUrl = URL.createObjectURL(blob);
+
+                    const allExtractedFiles = [];
+                    for (const file of files) {
+                        try {
+                            await new Promise((resolve, reject) => {
+                                const worker = new Worker(workerUrl);
+                                worker.onmessage = (e) => {
+                                    if (e.data.success) {
+                                        e.data.entries.forEach(entry => {
+                                            const extractedFile = new File([entry.blob], entry.name, { type: entry.blob.type });
+                                            Object.defineProperty(extractedFile, 'webkitRelativePath', {
+                                                get: () => entry.path
+                                            });
+                                            allExtractedFiles.push(extractedFile);
+                                        });
+                                        resolve();
+                                    } else {
+                                        reject(new Error(e.data.error));
+                                    }
+                                    worker.terminate();
+                                };
+                                worker.onerror = (err) => {
+                                    reject(err);
+                                    worker.terminate();
+                                };
+                                worker.postMessage({ file });
+                            });
+                        } catch (e) {
+                            console.error(e);
+                            alert(this.t('解析文件失败:') + ' ' + file.name);
+                        }
+                    }
+                    URL.revokeObjectURL(workerUrl);
+                    this.processExtractedFiles(allExtractedFiles);
+                    event.target.value = '';
+                },
                 async importAnimationResources(event) {
                     const files = Array.from(event.target.files || []);
                     if (files.length === 0) return;
+                    this.processExtractedFiles(files);
+                    event.target.value = '';
+                },
+                async processExtractedFiles(files) {
 
                     // 分批次加载，不阻塞页面
                     const animationSet = new Set(this.availableAnimations);
@@ -2352,7 +2429,6 @@
 
                     if (animationSet.size === 0 && modelSet.size === 0) {
                         alert(this.t("未在所选目录中找到可识别的动画或模型资源。请确认目录内包含 animmodels 文件夹。"));
-                        event.target.value = '';
                         return;
                     }
 
@@ -2368,7 +2444,6 @@
                     this.matchedAnimationFileCount = matchedFileCount;
 
                     if (animationAutocompleteController) animationAutocompleteController.refresh();
-                    event.target.value = '';
                 }
             },
             mounted() {

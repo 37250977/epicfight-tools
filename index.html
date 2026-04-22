@@ -196,6 +196,7 @@
                     <a href="CE_VisualEditor.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('CE 动作') }}</a>
                     <a href="Indestructible_VisualEditor.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('Indestructible 编辑器') }}</a>
                     <a href="CE_Converter.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('ID 转 CE 转换器') }}</a>
+                    <a href="Invincible_VisualEditor.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('Invincible 编辑器') }}</a>
                 </div>
             </div>
             <div style="display:flex; gap:10px;">
@@ -209,10 +210,13 @@
 
         <div class="form-group" style="border:1px solid var(--border); padding:10px; border-radius:8px; margin-bottom:15px; background:var(--panel-bg);">
             <div style="font-weight:bold; margin-bottom:10px;">{{ t('动画资源导入与预览') }}</div>
-            <label class="btn" style="cursor:pointer; display:inline-block; margin-bottom:10px;">
-                {{ t('导入资源文件夹 (包含 animmodels)') }}
-                <input type="file" webkitdirectory directory multiple @change="importAnimationResources" style="display:none">
-            </label>
+            <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+                <button class="btn" @click="openAssetFolderPicker" :title="t('导入本地文件夹（推荐）')">{{ t('导入资源文件夹') }}</button>
+                <button class="btn secondary" @click="openAssetZipPicker" :title="t('支持直接导入 Mod jar 或资源包 zip 文件')">{{ t('导入 ZIP/JAR') }}</button>
+            </div>
+            <input type="file" id="assetFolderInput" webkitdirectory directory multiple @change="importAnimationResources" style="display:none" aria-label="导入资源文件夹">
+            <input type="file" id="assetFolderInputFallback" multiple accept=".json,.obj,.geo" @change="importAnimationResources" style="display:none" aria-label="导入多个资源文件 (兜底)">
+            <input type="file" id="assetZipInput" accept=".zip,.jar" multiple @change="importZipResources" style="display:none" aria-label="导入 ZIP/JAR 文件">
             <div style="font-size:12px; color:#666; margin-bottom:10px;">{{ t('已加载模型:') }} {{availableModels.length}} {{ lang === 'zh' ? '个 动画:' : 'Animations:' }} {{availableAnimations.length}}</div>
             
             <div class="form-group">
@@ -388,6 +392,7 @@
             "CE 动作": "CE Action",
             "Indestructible 编辑器": "Indestructible Editor",
             "ID 转 CE 转换器": "ID to CE Converter",
+            "Invincible 编辑器": "Invincible Editor",
             "重置参数": "Reset Params",
             "动画资源导入与预览": "Animation Resources Import & Preview",
             "导入资源文件夹 (包含 animmodels)": "Import Resource Folder (contains animmodels)",
@@ -2544,10 +2549,89 @@
                     alert('播放函数未加载');
                 }
             },
+            openAssetFolderPicker() {
+                const input = document.getElementById('assetFolderInput');
+                if ('webkitdirectory' in input) {
+                    input.click();
+                } else {
+                    document.getElementById('assetFolderInputFallback').click();
+                }
+            },
+            openAssetZipPicker() {
+                document.getElementById('assetZipInput').click();
+            },
+            async importZipResources(event) {
+                const files = Array.from((event.target && event.target.files) || []);
+                if (!files.length) return;
+
+                const workerCode = `
+                    importScripts('https://unpkg.com/jszip@3.10.1/dist/jszip.min.js');
+                    self.onmessage = async function(e) {
+                        try {
+                            const zip = await JSZip.loadAsync(e.data.file);
+                            const entries = [];
+                            const promises = [];
+                            zip.forEach((path, zipEntry) => {
+                                if (zipEntry.dir) return;
+                                promises.push(
+                                    zipEntry.async('blob').then(blob => {
+                                        entries.push({ path, blob, name: zipEntry.name.split('/').pop() || 'unknown' });
+                                    })
+                                );
+                            });
+                            await Promise.all(promises);
+                            self.postMessage({ success: true, entries });
+                        } catch(err) {
+                            self.postMessage({ success: false, error: err.message });
+                        }
+                    };
+                `;
+                const blob = new Blob([workerCode], { type: 'application/javascript' });
+                const workerUrl = URL.createObjectURL(blob);
+
+                const allExtractedFiles = [];
+                for (const file of files) {
+                    try {
+                        await new Promise((resolve, reject) => {
+                            const worker = new Worker(workerUrl);
+                            worker.onmessage = (e) => {
+                                if (e.data.success) {
+                                    e.data.entries.forEach(entry => {
+                                        const extractedFile = new File([entry.blob], entry.name, { type: entry.blob.type });
+                                        Object.defineProperty(extractedFile, 'webkitRelativePath', {
+                                            get: () => entry.path
+                                        });
+                                        allExtractedFiles.push(extractedFile);
+                                    });
+                                    resolve();
+                                } else {
+                                    reject(new Error(e.data.error));
+                                }
+                                worker.terminate();
+                            };
+                            worker.onerror = (err) => {
+                                reject(err);
+                                worker.terminate();
+                            };
+                            worker.postMessage({ file });
+                        });
+                    } catch (e) {
+                        console.error(e);
+                        alert(this.t('解析文件失败:') + ' ' + file.name);
+                    }
+                }
+                URL.revokeObjectURL(workerUrl);
+                this.processExtractedFiles(allExtractedFiles);
+                event.target.value = '';
+            },
             async importAnimationResources(event) {
-                try {
                 const files = Array.from(event.target.files || []);
                 if (files.length === 0) return;
+                this.processExtractedFiles(files);
+                event.target.value = '';
+            },
+            async processExtractedFiles(files) {
+                try {
                 
                 const animationSet = new Set(this.availableAnimations);
                 const modelSet = new Set(this.availableModels);
@@ -2586,7 +2670,6 @@
                 
                 if (animationSet.size === 0 && modelSet.size === 0 && textureSet.size === 0) {
                     alert('未在所选目录中找到可识别的动画或模型资源。');
-                    event.target.value = '';
                     return;
                 }
                 
@@ -2598,11 +2681,9 @@
                     animationAutocompleteController.refresh();
                 }
                 this.showToast('成功加载 ' + this.availableModels.length + ' 个模型, ' + this.availableAnimations.length + ' 个动画。');
-                event.target.value = '';
             } catch(err) {
                 console.error(err);
                 alert("导入过程中发生错误: " + err.message);
-                event.target.value = '';
             }
             },
             copyJSON() {
