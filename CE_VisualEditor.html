@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -447,7 +447,7 @@
                             <span class="resource-tag" v-for="mod in loadedAnimationMods" :key="mod.modId">{{ mod.modId }} ({{ mod.count }})</span>
                         </div>
                         <input type="file" id="assetFolderInput" webkitdirectory directory multiple @change="importAnimationResources" style="display:none" aria-label="导入资源文件夹">
-                        <input type="file" id="assetFolderInputFallback" multiple accept=".json,.obj,.geo" @change="importAnimationResources" style="display:none" aria-label="导入多个资源文件 (兜底)">
+                        <input type="file" id="assetFolderInputFallback" multiple accept=".json,.obj,.geo,.mtl" @change="importAnimationResources" style="display:none" aria-label="导入多个资源文件 (兜底)">
                         <input id="assetZipInput" type="file" accept=".zip,.jar" multiple @change="importZipResources" style="display:none" aria-label="导入 ZIP/JAR 文件">
                     </div>
                     <input type="file" id="importFile" @change="importJSON" style="display:none" accept=".json">
@@ -858,40 +858,62 @@
     function extractAnimationDescriptor(path, fileObj) {
         const p = normalizeAnimationResourcePath(path);
         const lowerP = p ? p.toLowerCase() : '';
-        if (!p || (!lowerP.endsWith('.json') && !lowerP.endsWith('.obj') && !lowerP.endsWith('.png') && !lowerP.endsWith('.geo'))) return null;
+        if (!p || (!lowerP.endsWith('.json') && !lowerP.endsWith('.obj') && !lowerP.endsWith('.png') && !lowerP.endsWith('.geo') && !lowerP.endsWith('.mtl'))) return null;
 
         const parts = p.split('/').filter(Boolean);
         
         let isModel = false;
+        let isTexture = false;
+        let isSupport = false;
         let idx = parts.findIndex((part, i) => part === 'animmodels' && parts[i+1] === 'animations');
         let off = 2;
         
         if (idx === -1) {
-            // 如果不是 animations，我们只要找到 animmodels，那么它下面的所有文件夹（如 entity, weapon, item, obj 等）都算作模型
             idx = parts.indexOf('animmodels');
             if (idx !== -1 && idx + 1 < parts.length) {
                 isModel = true;
-                off = 1; // 保留第二级的子文件夹名（例如 entity/biped, weapon/sword）作为前缀
+                off = 1;
             } else {
-                // 有些原版或自定义模型可能直接放在 models/item 等目录下，并不在 animmodels 里
                 idx = parts.indexOf('models');
                 if (idx !== -1 && idx + 1 < parts.length) {
                     isModel = true;
-                    off = 1; 
+                    off = 1;
                 } else {
                     idx = parts.indexOf('textures');
                     if (idx !== -1 && idx + 1 < parts.length) {
-                        isModel = true;
-                        off = 1;
+                        isTexture = true;
+                        off = 0;
                     } else {
-                        idx = parts.indexOf('geo'); // 支持放在 geo 目录下的文件
+                        idx = parts.indexOf('geo');
                         if (idx !== -1 && idx + 1 < parts.length) {
                             isModel = true;
                             off = 1;
                         } else {
-                            idx = parts.indexOf('animations');
-                            off = 1;
-                            if (idx === -1) return null;
+                            idx = parts.indexOf('item_skins');
+                            if (idx !== -1 && idx + 1 < parts.length && lowerP.endsWith('.json')) {
+                                isSupport = true;
+                                off = 0;
+                            } else {
+                                idx = parts.indexOf('animations');
+                                off = 1;
+                                if (idx === -1) {
+                                    if (lowerP.endsWith('.png')) {
+                                        isTexture = true;
+                                        idx = parts.length - 1;
+                                        off = 0;
+                                    } else if (lowerP.endsWith('.mtl')) {
+                                        isSupport = true;
+                                        idx = parts.indexOf('models');
+                                        if (idx !== -1 && idx + 1 < parts.length) {
+                                            off = 1;
+                                        } else {
+                                            return null;
+                                        }
+                                    } else {
+                                        return null;
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -904,36 +926,32 @@
         if (assetsIndex !== -1 && assetsIndex + 1 < parts.length) modId = parts[assetsIndex + 1];
         else if (dataIndex !== -1 && dataIndex + 1 < parts.length) modId = parts[dataIndex + 1];
         else if (idx > 0) modId = parts[idx - 1];
+        else modId = 'epicfight';
 
-        // 保留 .obj 后缀以便后续区分解析，去掉 .json 后缀
         let rel = parts.slice(idx + off).join('/');
         if (lowerP.endsWith('.json')) {
             rel = rel.replace(/\.json$/i, '');
-        } else if (lowerP.endsWith('.obj')) {
-            // 保留 obj 后缀，但不做修改，确保 id 生成时包含 .obj
         } else if (lowerP.endsWith('.png')) {
-            // 对 png 图片，前缀设为 texture 方便区分，但在保存时按 minecraft ID 风格记录
             rel = rel.replace(/\.png$/i, '');
-        } else if (lowerP.endsWith('.geo')) {
-            // 保留 geo 后缀
         }
         
         if (!modId || !rel) return null;
         
         let id = `${modId}:${rel}`;
         
-        // 修正：强制确保 obj/png/geo 文件生成的 ID 带有后缀
         if (lowerP.endsWith('.obj') && !id.toLowerCase().endsWith('.obj')) {
             id += '.obj';
         } else if (lowerP.endsWith('.png') && !id.toLowerCase().endsWith('.png')) {
             id += '.png';
         } else if (lowerP.endsWith('.geo') && !id.toLowerCase().endsWith('.geo')) {
             id += '.geo';
+        } else if (lowerP.endsWith('.mtl') && !id.toLowerCase().endsWith('.mtl')) {
+            id += '.mtl';
         }
         
         if (fileObj) fileResourceMap.set(id, fileObj);
         
-        return { type: isModel ? 'model' : (lowerP.endsWith('.png') ? 'texture' : 'animation'), modId, id };
+        return { type: isSupport ? 'support' : (isTexture ? 'texture' : (isModel ? 'model' : 'animation')), modId, id };
     }
 
         function createAnimationAutocomplete(getAnimOptions, getModelOptions) {
@@ -2865,6 +2883,488 @@
         });
     }
 
+    function getResourceIdsForFile(fileObj) {
+        const ids = [];
+        for (const [id, file] of fileResourceMap.entries()) {
+            if (file === fileObj) ids.push(id);
+        }
+        return ids;
+    }
+
+    function getDefaultNamespaceForFile(fileObj) {
+        const resourceId = getResourceIdsForFile(fileObj)[0];
+        if (!resourceId || !resourceId.includes(':')) return 'minecraft';
+        return resourceId.split(':')[0] || 'minecraft';
+    }
+
+    function findSiblingResourceFile(fileObj, siblingName) {
+        if (!fileObj || !siblingName) return null;
+        const normalizedSiblingName = String(siblingName).trim().replace(/\\/g, '/').split('/').pop();
+        if (!normalizedSiblingName) return null;
+
+        const resourceIds = getResourceIdsForFile(fileObj);
+        for (const resourceId of resourceIds) {
+            if (!resourceId || !resourceId.includes(':')) continue;
+            const [namespace, rel] = resourceId.split(':');
+            const relParts = rel.split('/');
+            relParts[relParts.length - 1] = normalizedSiblingName;
+            const candidate = `${namespace}:${relParts.join('/')}`;
+            const file = fileResourceMap.get(candidate);
+            if (file) return file;
+        }
+        return null;
+    }
+
+    function normalizeTextureResourceId(texturePath, defaultNamespace = 'minecraft') {
+        let id = String(texturePath || '').trim().replace(/\\/g, '/').replace(/^\/+/, '');
+        if (!id) return '';
+
+        if (id.startsWith('assets/')) {
+            const parts = id.split('/').filter(Boolean);
+            if (parts.length >= 4) {
+                const ns = parts[1];
+                let rel = parts.slice(2).join('/');
+                if (rel.startsWith('textures/')) rel = rel.substring('textures/'.length);
+                id = `${ns}:${rel}`;
+            }
+        }
+
+        if (!id.includes(':')) {
+            id = `${defaultNamespace}:${id}`;
+        }
+        return id;
+    }
+
+    function findTextureFileByResourceId(texturePath, defaultNamespace = 'minecraft') {
+        const id = normalizeTextureResourceId(texturePath, defaultNamespace);
+        if (!id) return null;
+
+        const candidates = [];
+        const addCandidate = (candidate) => {
+            if (candidate && !candidates.includes(candidate)) candidates.push(candidate);
+        };
+
+        addCandidate(id);
+        if (!id.toLowerCase().endsWith('.png')) addCandidate(id + '.png');
+
+        const parts = id.split(':');
+        if (parts.length === 2) {
+            const rel = parts[1];
+            if (rel.startsWith('textures/')) {
+                const altId = parts[0] + ':' + rel.substring('textures/'.length);
+                addCandidate(altId);
+                if (!altId.toLowerCase().endsWith('.png')) addCandidate(altId + '.png');
+            } else {
+                const altId = parts[0] + ':textures/' + rel;
+                addCandidate(altId);
+                if (!altId.toLowerCase().endsWith('.png')) addCandidate(altId + '.png');
+            }
+        }
+
+        let file = null;
+        for (const candidate of candidates) {
+            file = fileResourceMap.get(candidate);
+            if (file && typeof file.name === 'string' && /\.(png|jpg|jpeg|webp|gif)$/i.test(file.name)) {
+                return file;
+            }
+        }
+
+        const searchName = id.split('/').pop().toLowerCase();
+        const searchNameWithExt = searchName.endsWith('.png') ? searchName : searchName + '.png';
+        for (const [key, val] of fileResourceMap.entries()) {
+            const lowerKey = key.toLowerCase();
+            if (
+                (lowerKey.endsWith('/' + searchNameWithExt) || lowerKey.endsWith(':' + searchNameWithExt)) &&
+                val &&
+                typeof val.name === 'string' &&
+                /\.(png|jpg|jpeg|webp|gif)$/i.test(val.name)
+            ) {
+                return val;
+            }
+        }
+
+        return null;
+    }
+
+    async function loadTextureFromFileObject(texFile, options = {}) {
+        if (!texFile) return null;
+        const url = URL.createObjectURL(texFile);
+        try {
+            const texture = await new Promise((res, rej) => {
+                new THREE.TextureLoader().load(url, res, undefined, rej);
+            });
+            texture.magFilter = THREE.NearestFilter;
+            texture.minFilter = THREE.NearestFilter;
+            texture.colorSpace = THREE.SRGBColorSpace;
+            texture.flipY = options.flipY === true;
+            texture.needsUpdate = true;
+            return texture;
+        } finally {
+            URL.revokeObjectURL(url);
+        }
+    }
+
+    async function readJsonFileObject(fileObj) {
+        if (!fileObj) return null;
+        const text = await new Promise((res, rej) => {
+            const r = new FileReader();
+            r.onload = e => res(e.target.result);
+            r.onerror = e => rej(e);
+            r.readAsText(fileObj);
+        });
+        return JSON.parse(text);
+    }
+
+    function resolveTextureRefFromTextures(textures, preferredKeys = ['layer0', 'texture', 'particle']) {
+        if (!textures || typeof textures !== 'object') return null;
+
+        const deref = (value) => {
+            let current = typeof value === 'string' ? value.trim() : '';
+            const seen = new Set();
+            while (current.startsWith('#')) {
+                const key = current.substring(1);
+                if (!key || seen.has(key) || typeof textures[key] !== 'string') return null;
+                seen.add(key);
+                current = String(textures[key] || '').trim();
+            }
+            return current || null;
+        };
+
+        for (const key of preferredKeys) {
+            const resolved = deref(textures[key]);
+            if (resolved) return resolved;
+        }
+
+        for (const value of Object.values(textures)) {
+            const resolved = deref(value);
+            if (resolved) return resolved;
+        }
+
+        return null;
+    }
+
+    function extractTexturePathFromConfigData(data, depth = 0) {
+        if (!data || depth > 6) return null;
+        if (typeof data === 'string') return /(?:^#|\/|:|\.png$)/i.test(data) ? data : null;
+        if (Array.isArray(data)) {
+            for (const item of data) {
+                const found = extractTexturePathFromConfigData(item, depth + 1);
+                if (found) return found;
+            }
+            return null;
+        }
+        if (typeof data !== 'object') return null;
+
+        const directKeys = ['texture', 'texture_path', 'texturePath', 'skin_texture', 'skinTexture', 'item_texture', 'itemTexture', 'texture_location', 'textureLocation', 'resource', 'resource_path', 'resourcePath'];
+        for (const key of directKeys) {
+            if (typeof data[key] === 'string' && data[key].trim()) return data[key].trim();
+        }
+
+        if (data.textures) {
+            if (typeof data.textures === 'string' && data.textures.trim()) return data.textures.trim();
+            if (typeof data.textures === 'object') {
+                const fromTextures = resolveTextureRefFromTextures(data.textures);
+                if (fromTextures) return fromTextures;
+            }
+        }
+
+        for (const value of Object.values(data)) {
+            const found = extractTexturePathFromConfigData(value, depth + 1);
+            if (found) return found;
+        }
+
+        return null;
+    }
+
+    function normalizeModelResourceId(modelRef, defaultNamespace = 'minecraft') {
+        let id = String(modelRef || '').trim().replace(/\\/g, '/').replace(/^\/+/, '');
+        if (!id) return '';
+        if (id.startsWith('assets/')) {
+            const parts = id.split('/').filter(Boolean);
+            if (parts.length >= 4) id = `${parts[1]}:${parts.slice(2).join('/')}`;
+        }
+        if (!id.includes(':')) id = `${defaultNamespace}:${id}`;
+        const parts = id.split(':');
+        if (parts.length === 2 && parts[1].startsWith('models/')) id = `${parts[0]}:${parts[1].substring('models/'.length)}`;
+        return id;
+    }
+
+    function configReferencesModelResource(configData, resourceId, depth = 0) {
+        if (!configData || !resourceId || depth > 8) return false;
+        const normalizedResourceId = normalizeModelResourceId(resourceId);
+        if (typeof configData === 'string') return normalizeModelResourceId(configData) === normalizedResourceId;
+        if (Array.isArray(configData)) return configData.some(item => configReferencesModelResource(item, resourceId, depth + 1));
+        if (typeof configData !== 'object') return false;
+
+        const refKeys = ['mesh_main', 'mesh_off', 'model', 'mesh', 'model_main', 'model_off'];
+        for (const key of refKeys) {
+            if (typeof configData[key] === 'string' && normalizeModelResourceId(configData[key]) === normalizedResourceId) return true;
+        }
+        return Object.values(configData).some(value => configReferencesModelResource(value, resourceId, depth + 1));
+    }
+
+    function getTexturePathForModelFromConfig(configData, resourceId) {
+        if (!configData || typeof configData !== 'object') return null;
+        if (Array.isArray(configData.variations)) {
+            for (const variation of configData.variations) {
+                if (!configReferencesModelResource(variation, resourceId)) continue;
+                const texturePath = extractTexturePathFromConfigData(variation);
+                if (texturePath) return texturePath;
+            }
+        }
+        if (configReferencesModelResource(configData, resourceId)) {
+            const directTexture = extractTexturePathFromConfigData(configData);
+            if (directTexture) return directTexture;
+        }
+        return extractTexturePathFromConfigData(configData);
+    }
+
+    function getSupportJsonFilesForResourceId(resourceId) {
+        const files = [];
+        const seen = new Set();
+        const addFile = (file) => {
+            if (file && !seen.has(file)) {
+                seen.add(file);
+                files.push(file);
+            }
+        };
+        const addId = (candidateId) => {
+            if (!candidateId) return;
+            addFile(fileResourceMap.get(candidateId));
+        };
+
+        if (!resourceId || !resourceId.includes(':')) return files;
+        const parts = resourceId.split(':');
+        const modId = parts[0];
+        const rel = parts.slice(1).join(':');
+        const relNoExt = rel.replace(/\.(json|obj|geo)$/i, '');
+        const baseName = relNoExt.split('/').pop();
+        const isAvalonModel = rel.startsWith('mesh/');
+        const isObjModel = /\.obj$/i.test(rel);
+
+        if (/\.(obj|geo)$/i.test(rel)) {
+            addId(`${modId}:${relNoExt}.json`);
+            addId(`${modId}:${relNoExt}`);
+            if (/\/obj\//i.test(relNoExt)) {
+                const withoutObjFolder = relNoExt.replace(/\/obj\//ig, '/');
+                addId(`${modId}:${withoutObjFolder}.json`);
+                addId(`${modId}:${withoutObjFolder}`);
+            }
+        }
+
+        if (isObjModel) {
+            for (const [key, file] of fileResourceMap.entries()) {
+                const lowerKey = key.toLowerCase();
+                if (lowerKey.startsWith(modId.toLowerCase() + ':') && file && /\.json$/i.test(file.name || '')) {
+                    addFile(file);
+                }
+            }
+        }
+
+        if (isAvalonModel) {
+            for (const [key, file] of fileResourceMap.entries()) {
+                const lowerKey = key.toLowerCase();
+                if (
+                    lowerKey.includes(':item_skins/') &&
+                    (lowerKey.endsWith('/' + baseName.toLowerCase()) || lowerKey.endsWith('/' + baseName.toLowerCase() + '.json'))
+                ) {
+                    addFile(file);
+                }
+            }
+        }
+
+        return files;
+    }
+
+    async function tryLoadTextureFromConfigFiles(fileObj) {
+        const resourceIds = getResourceIdsForFile(fileObj);
+        const defaultNamespace = getDefaultNamespaceForFile(fileObj);
+        for (const resourceId of resourceIds) {
+            const supportFiles = getSupportJsonFilesForResourceId(resourceId);
+            for (const supportFile of supportFiles) {
+                try {
+                    const configData = await readJsonFileObject(supportFile);
+                    const texturePath = getTexturePathForModelFromConfig(configData, resourceId);
+                    if (!texturePath) continue;
+                    const supportNamespace = getDefaultNamespaceForFile(supportFile) || defaultNamespace;
+                    const texFile = findTextureFileByResourceId(texturePath, supportNamespace);
+                    if (texFile) return await loadTextureFromFileObject(texFile);
+                } catch (e) {
+                    console.warn('解析模型贴图配置失败:', resourceId, e);
+                }
+            }
+        }
+        return null;
+    }
+
+    async function tryLoadTextureFromModelData(data, fileObj) {
+        if (!data || !data.textures) return null;
+        const texturePath = resolveTextureRefFromTextures(data.textures);
+        if (!texturePath) return null;
+        const texFile = findTextureFileByResourceId(texturePath, getDefaultNamespaceForFile(fileObj));
+        if (!texFile) return null;
+        return await loadTextureFromFileObject(texFile);
+    }
+
+    function findModelFileByReference(modelRef, defaultNamespace = 'minecraft') {
+        let id = String(modelRef || '').trim().replace(/\\/g, '/').replace(/^\/+/, '');
+        if (!id) return null;
+        if (id.startsWith('assets/')) {
+            const parts = id.split('/').filter(Boolean);
+            if (parts.length >= 4) id = `${parts[1]}:${parts.slice(2).join('/')}`;
+        }
+        if (!id.includes(':')) id = `${defaultNamespace}:${id}`;
+        const candidates = [id];
+        const parts = id.split(':');
+        if (parts.length === 2 && parts[1].startsWith('models/')) candidates.push(`${parts[0]}:${parts[1].substring('models/'.length)}`);
+
+        const expandedCandidates = [];
+        for (const candidate of candidates) {
+            expandedCandidates.push(candidate);
+            if (!/\.(json|obj|geo)$/i.test(candidate)) expandedCandidates.push(candidate + '.json', candidate + '.obj', candidate + '.geo');
+        }
+        for (const candidate of expandedCandidates) {
+            const file = fileResourceMap.get(candidate);
+            if (file) return file;
+        }
+        return null;
+    }
+
+    function getItemModelTexturePath(data) {
+        if (!data || typeof data !== 'object') return null;
+        const direct = resolveTextureRefFromTextures(data.textures);
+        if (direct) return direct;
+
+        const perspectiveOrder = ['gui', 'fixed', 'ground', 'thirdperson_righthand', 'firstperson_righthand'];
+        if (data.perspectives && typeof data.perspectives === 'object') {
+            for (const key of perspectiveOrder) {
+                const tex = resolveTextureRefFromTextures(data.perspectives[key] && data.perspectives[key].textures);
+                if (tex) return tex;
+            }
+            for (const value of Object.values(data.perspectives)) {
+                const tex = resolveTextureRefFromTextures(value && value.textures);
+                if (tex) return tex;
+            }
+        }
+
+        if (data.base && typeof data.base === 'object') {
+            const baseTex = getItemModelTexturePath(data.base);
+            if (baseTex) return baseTex;
+        }
+        return null;
+    }
+
+    async function resolveItemModelReference(fileObj, data, depth = 0, inherited = {}) {
+        if (!data || depth > 6) return null;
+
+        const defaultNamespace = getDefaultNamespaceForFile(fileObj);
+        const inheritedDisplay = inherited.display || null;
+        const inheritedTexturePath = inherited.texturePath || null;
+        const ownDisplay = data.display || (data.base && data.base.display) || inheritedDisplay;
+        const ownTexturePath = getItemModelTexturePath(data) || inheritedTexturePath;
+
+        const tryModelRef = async (modelRef, extra = {}) => {
+            if (!modelRef) return null;
+            const targetFile = findModelFileByReference(modelRef, defaultNamespace);
+            if (!targetFile) return null;
+
+            const targetName = String(targetFile.name || '').toLowerCase();
+            const nextInherited = {
+                display: extra.display || ownDisplay,
+                texturePath: extra.texturePath || ownTexturePath
+            };
+
+            if (targetName.endsWith('.obj') || targetName.endsWith('.geo')) {
+                return { file: targetFile, display: nextInherited.display, texturePath: nextInherited.texturePath };
+            }
+
+            if (targetName.endsWith('.json')) {
+                try {
+                    const nestedData = await readJsonFileObject(targetFile);
+                    const nestedResolved = await resolveItemModelReference(targetFile, nestedData, depth + 1, nextInherited);
+                    if (nestedResolved) return nestedResolved;
+                } catch (e) {
+                    console.warn('解析物品模型引用失败:', modelRef, e);
+                }
+            }
+
+            return null;
+        };
+
+        if (data.base && typeof data.base === 'object' && typeof data.base.model === 'string') {
+            const resolved = await tryModelRef(data.base.model, {
+                display: data.base.display || ownDisplay,
+                texturePath: ownTexturePath
+            });
+            if (resolved) return resolved;
+        }
+
+        if (typeof data.model === 'string') {
+            const resolved = await tryModelRef(data.model, { display: ownDisplay, texturePath: ownTexturePath });
+            if (resolved) return resolved;
+        }
+
+        if (Array.isArray(data.overrides)) {
+            for (const override of data.overrides) {
+                if (!override || typeof override.model !== 'string') continue;
+                const resolved = await tryModelRef(override.model, { display: ownDisplay, texturePath: ownTexturePath });
+                if (resolved) return resolved;
+            }
+        }
+
+        return null;
+    }
+
+    function extractObjConfigSettings(configData, resourceId) {
+        if (!configData || typeof configData !== 'object') return { texturePath: null, flipV: false };
+
+        if (configReferencesModelResource(configData, resourceId)) {
+            const matchingBranches = [];
+            if (configData.base && typeof configData.base === 'object' && configReferencesModelResource(configData.base, resourceId)) matchingBranches.push(configData.base);
+            if (Array.isArray(configData.overrides)) {
+                for (const item of configData.overrides) {
+                    if (item && typeof item === 'object' && configReferencesModelResource(item, resourceId)) matchingBranches.push(item);
+                }
+            }
+            matchingBranches.push(configData);
+
+            for (const branch of matchingBranches) {
+                if (!branch || typeof branch !== 'object') continue;
+                const flipV = branch.flip_v === true;
+                const texturePath = getTexturePathForModelFromConfig(branch, resourceId);
+                if (flipV || texturePath) return { texturePath: texturePath || null, flipV };
+            }
+        }
+
+        return {
+            texturePath: getTexturePathForModelFromConfig(configData, resourceId),
+            flipV: configData.flip_v === true || (configData.base && configData.base.flip_v === true)
+        };
+    }
+
+    async function tryLoadObjTextureFromMtl(objContent, fileObj) {
+        if (!objContent || !fileObj) return null;
+        const mtllibMatch = objContent.match(/^\s*mtllib\s+(.+)$/im);
+        if (!mtllibMatch) return null;
+
+        const mtlFile = findSiblingResourceFile(fileObj, mtllibMatch[1].trim());
+        if (!mtlFile) return null;
+
+        const mtlText = await new Promise((res, rej) => {
+            const r = new FileReader();
+            r.onload = e => res(e.target.result);
+            r.onerror = e => rej(e);
+            r.readAsText(mtlFile);
+        });
+
+        const mapKdMatch = String(mtlText || '').match(/^\s*map_Kd\s+(.+)$/im);
+        if (!mapKdMatch) return null;
+        const textureRef = mapKdMatch[1].trim();
+        const texFile = findTextureFileByResourceId(textureRef, getDefaultNamespaceForFile(fileObj));
+        if (!texFile) return null;
+        return await loadTextureFromFileObject(texFile, { flipY: true });
+    }
+
     async function resolveMinecraftModel(data, depth = 0) {
         if (depth > 10) return data; // 防止死循环
         let mergedData = { ...data };
@@ -2915,20 +3415,33 @@
         return mergedData;
     }
 
-    async function parseAndBuildModel(fileObj, isWeapon) {
-        let texture = null;
+    async function resolvePreviewMinecraftModel(data, depth = 0) {
+        const mergedData = await resolveMinecraftModel(data, depth);
+        if (
+            mergedData &&
+            mergedData.loader === 'forge:separate_transforms' &&
+            mergedData.base &&
+            typeof mergedData.base === 'object'
+        ) {
+            const baseData = await resolvePreviewMinecraftModel(mergedData.base, depth + 1);
+            return {
+                ...mergedData,
+                ...baseData,
+                display: { ...(mergedData.display || {}), ...(baseData.display || {}) },
+                textures: { ...(mergedData.textures || {}), ...(baseData.textures || {}) }
+            };
+        }
+        return mergedData;
+    }
+
+    async function parseAndBuildModel(fileObj, isWeapon, options = {}) {
+        let texture = options.texture || null;
+        const displayOverride = options.display || null;
         try {
             const manualTexInput = document.getElementById('preview-texture-file');
-            if (manualTexInput && manualTexInput.files && manualTexInput.files[0]) {
+            if (!isWeapon && manualTexInput && manualTexInput.files && manualTexInput.files[0]) {
                 const texFile = manualTexInput.files[0];
-                const url = URL.createObjectURL(texFile);
-                texture = await new Promise((res, rej) => {
-                    new THREE.TextureLoader().load(url, res, undefined, rej);
-                });
-                texture.magFilter = THREE.NearestFilter;
-                texture.minFilter = THREE.NearestFilter;
-                texture.colorSpace = THREE.SRGBColorSpace;
-                texture.flipY = false;
+                texture = await loadTextureFromFileObject(texFile);
             }
         } catch (e) {
             console.warn('Failed to load local texture:', e);
@@ -2940,9 +3453,37 @@
             if (fileName.endsWith('.obj')) {
                 // 如果是 .obj 文件，使用 Three.js 的 OBJLoader
                 const reader = new FileReader();
-                reader.onload = (evt) => {
+                reader.onload = async (evt) => {
                     try {
                         const objContent = evt.target.result;
+                        let objFlipV = false;
+                        if (!texture) {
+                            texture = await tryLoadObjTextureFromMtl(objContent, fileObj);
+                        }
+                        if (!texture) {
+                            const resourceIds = getResourceIdsForFile(fileObj);
+                            for (const resourceId of resourceIds) {
+                                const supportFiles = getSupportJsonFilesForResourceId(resourceId);
+                                for (const supportFile of supportFiles) {
+                                    try {
+                                        const configData = await readJsonFileObject(supportFile);
+                                        const settings = extractObjConfigSettings(configData, resourceId);
+                                        if (settings.flipV) objFlipV = true;
+                                        if (!texture && settings.texturePath) {
+                                            const texFile = findTextureFileByResourceId(settings.texturePath, getDefaultNamespaceForFile(supportFile) || getDefaultNamespaceForFile(fileObj));
+                                            if (texFile) texture = await loadTextureFromFileObject(texFile, { flipY: objFlipV });
+                                        }
+                                    } catch (e) {
+                                        console.warn('解析 OBJ 材质配置失败:', resourceId, e);
+                                    }
+                                    if (texture) break;
+                                }
+                                if (texture) break;
+                            }
+                        }
+                        if (!texture) {
+                            texture = await tryLoadTextureFromConfigFiles(fileObj);
+                        }
                         const loader = new OBJLoader();
                         const objGroup = loader.parse(objContent);
                         
@@ -2976,7 +3517,8 @@
                             mesh: firstMesh, 
                             bindToOrigin: [], 
                             localBonesMap: {},
-                            isObj: true
+                            isObj: true,
+                            display: displayOverride
                         });
                     } catch(err) {
                         reject(err);
@@ -2990,6 +3532,29 @@
             reader.onload = async (evt) => {
                 try {
                     let data = JSON.parse(evt.target.result);
+
+                    const redirectedModel = await resolveItemModelReference(fileObj, data);
+                    if (redirectedModel && redirectedModel.file && redirectedModel.file !== fileObj) {
+                        let redirectedTexture = texture;
+                        if (!redirectedTexture && redirectedModel.texturePath) {
+                            const texFile = findTextureFileByResourceId(redirectedModel.texturePath, getDefaultNamespaceForFile(fileObj));
+                            if (texFile) redirectedTexture = await loadTextureFromFileObject(texFile);
+                        }
+
+                        const resolvedModel = await parseAndBuildModel(redirectedModel.file, isWeapon, {
+                            texture: redirectedTexture,
+                            display: redirectedModel.display || displayOverride
+                        });
+                        if (!resolvedModel.display && (redirectedModel.display || displayOverride)) {
+                            resolvedModel.display = redirectedModel.display || displayOverride;
+                        }
+                        resolve(resolvedModel);
+                        return;
+                    }
+
+                    if (!texture) {
+                        texture = await tryLoadTextureFromConfigFiles(fileObj);
+                    }
                     
                     const rootGroup = new THREE.Group();
                     let rootBone = null;
@@ -3124,8 +3689,16 @@
                         }
                     }
 
-                    // 解析并合并父模型的 display/elements
-                    data = await resolveMinecraftModel(data);
+                    // 解析并合并父模型；对 forge:separate_transforms 预览时优先折叠到 base 分支
+                    data = await resolvePreviewMinecraftModel(data);
+                    
+                    if (!texture) {
+                        try {
+                            texture = await tryLoadTextureFromModelData(data, fileObj);
+                        } catch(e) {
+                            console.warn("自动加载模型贴图失败:", e);
+                        }
+                    }
                     
                     function buildHierarchy(nodeData) {
                         const bone = new THREE.Bone();
@@ -3208,38 +3781,16 @@
                             // 做一个基础的默认朝向修正，然后再应用 display 旋转：
                             mcGroup.position.set(0, 0, 0);
                             
-                        } else if (data.textures && data.textures.layer0) {
+                        } else {
                             // 处理 2D 物品 (如铁斧、钻石剑等没有 elements 只有 textures 的情况)
-                            let texPath = data.textures.layer0;
-                            if (!texPath.includes(':')) {
-                                texPath = 'minecraft:' + texPath;
-                            }
-                            
-                            // 尝试去 fileResourceMap 找对应的 png 文件
-                            const parts = texPath.split(':');
-                            const ns = parts[0];
-                            let relPath = parts[1];
-                            
-                            // 由于我们前面将 png 文件提取 ID 时去掉了后缀
-                            let texFile = fileResourceMap.get(ns + ':' + relPath + '.png') 
-                                       || fileResourceMap.get(ns + ':texture/' + relPath + '.png')
-                                       || fileResourceMap.get(ns + ':textures/' + relPath + '.png');
-                            
-                            // 兼容性：如果找不到，也有可能是用户上传的路径包含完整目录名
-                            if (!texFile) {
-                                // 暴力遍历匹配
-                                const searchStr = relPath.toLowerCase() + '.png';
-                                for (const [k, v] of fileResourceMap.entries()) {
-                                    if (k.toLowerCase().endsWith(searchStr)) {
-                                        texFile = v;
-                                        break;
-                                    }
-                                }
-                            }
-                            
+                            const texPath = getItemModelTexturePath(data);
+                            let texFile = texPath
+                                ? findTextureFileByResourceId(texPath, getDefaultNamespaceForFile(fileObj))
+                                : null;
+
                             // 尝试使用用户手动添加的贴图（如果有）
                             const manualTexInput = document.getElementById('preview-texture-file');
-                            if (!texFile && manualTexInput && manualTexInput.files && manualTexInput.files[0]) {
+                            if (!isWeapon && !texFile && manualTexInput && manualTexInput.files && manualTexInput.files[0]) {
                                 texFile = manualTexInput.files[0];
                             }
                             
@@ -3258,8 +3809,6 @@
                             } else {
                                 createPlaceholderSword();
                             }
-                        } else {
-                            createPlaceholderSword();
                         }
                         
                         function createPlaceholderSword() {
@@ -3280,7 +3829,7 @@
                             bindToOrigin: [], 
                             localBonesMap: {},
                             isMinecraft: true,
-                            display: data.display
+                            display: displayOverride || data.display
                         });
                         return;
                     }
@@ -3567,7 +4116,7 @@
                     if (weaponModel.isObj || weaponModel.isMinecraft || weaponModel.isGeo) {
                         // 对于 OBJ/Minecraft/Geo 模型，检查自身的 display 或是同级目录下的 .json 提供的 display
                         let tData = null;
-                        if (weaponModel.isMinecraft && weaponModel.display) {
+                        if (weaponModel.display) {
                             tData = { display: weaponModel.display };
                         } else if (weaponModel.isObj || weaponModel.isGeo) {
                             let jsonId = weaponId.replace(/\.(obj|geo)$/i, '.json');
