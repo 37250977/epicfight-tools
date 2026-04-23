@@ -131,7 +131,10 @@
         <div class="panel editor">
             <div class="top">
                 <div>
-                    <h2>{{ t('Invincible 数据包可视化编辑器') }}</h2>
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                        <h2 style="margin:0;">{{ t('Invincible 数据包可视化编辑器') }}</h2>
+                        <a href="https://www.ifdian.net/a/zidou" target="_blank" class="btn" style="background-color: #f7b92a; color: #fff; text-decoration: none; padding: 4px 8px; font-size: 12px; font-weight: bold; display: flex; align-items: center; border: none; border-radius: 4px;">{{ t('赞助作者') }}</a>
+                    </div>
                     <p class="hint">{{ t('用于创建/编辑 invincible 连段技能数据包（支持 JSON 注释导入）。') }}</p>
                 </div>
                 <div class="toolbar">
@@ -192,10 +195,17 @@
             <div class="section">
                 <div class="section-head">
                     <h3>{{ t('基础信息') }}</h3>
-                    <span class="pill">{{ t('skill') }}</span>
+                    <div class="inline">
+                        <label style="margin-right:8px;font-weight:bold;color:var(--primary)">{{ t('数据包版本') }}:</label>
+                        <select v-model="config.version" style="padding:4px;border-radius:4px;border:1px solid var(--border);">
+                            <option value="20.9.7">20.9.7 ({{ t('旧版') }})</option>
+                            <option value="20.14.X">20.14.X ({{ t('新版') }})</option>
+                            <option value="1.21.1">1.21.1 ({{ t('最新版') }})</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="grid2">
-                    <div class="form-group">
+                    <div class="form-group" v-if="config.version !== '1.21.1'">
                         <label :title="h('mod_id')">{{ t('mod_id') }}</label>
                         <input type="text" v-model="config.mod_id">
                     </div>
@@ -221,11 +231,29 @@
                         </div>
                     </div>
                 </div>
+                <div class="grid3" v-if="config.version === '20.14.X' || config.version === '1.21.1'">
+                    <div class="form-group">
+                        <label :title="h('maxProtectTime')">{{ t('maxProtectTime') }}</label>
+                        <input type="number" step="1" v-model.number="config.maxProtectTime">
+                    </div>
+                    <div class="form-group">
+                        <label :title="h('maxPressTime')">{{ t('maxPressTime') }}</label>
+                        <input type="number" step="1" v-model.number="config.maxPressTime">
+                    </div>
+                    <div class="form-group">
+                        <label :title="h('reserveTime')">{{ t('reserveTime') }}</label>
+                        <input type="number" step="1" v-model.number="config.reserveTime">
+                    </div>
+                </div>
+                <div class="form-group" v-if="config.version === '20.14.X' || config.version === '1.21.1'">
+                    <label :title="h('skillTextureLocation')">{{ t('skillTextureLocation') }}</label>
+                    <input type="text" v-model="config.skillTextureLocation" placeholder="epicfight:textures/gui/skills/weapon_innate/battojutsu.png">
+                </div>
             </div>
 
             <div class="section">
                 <div class="section-head">
-                    <h3>{{ t('translationKeys') }}</h3>
+                    <h3>{{ (config.version === '20.14.X' || config.version === '1.21.1') ? t('descriptions') : t('translationKeys') }}</h3>
                     <button class="btn mini" @click="addTranslationKey">{{ t('+ 添加') }}</button>
                 </div>
                 <div class="hint">{{ h('translationKeys') }}</div>
@@ -246,14 +274,15 @@
                 </div>
                 <div class="hint">{{ h('combos') }}</div>
                 <combo-node-editor
-                    v-for="(node, idx) in config.combos"
+                    v-for="(n, idx) in config.combos"
                     :key="idx"
-                    :node="node"
+                    :node="n"
                     :depth="0"
                     :key-optional="false"
                     :is-condition-animation="false"
                     :index="idx"
                     :parent-list="config.combos"
+                    :version="config.version"
                     @remove="removeRootCombo(idx)"
                 ></combo-node-editor>
             </div>
@@ -266,13 +295,14 @@
                 <div class="hint">{{ h('root_condition_animations') }}</div>
                 <combo-node-editor
                     v-for="(node, idx) in config.condition_animations"
-                    :key="idx"
+                    :key="'root_ca_' + idx"
                     :node="node"
                     :depth="0"
                     :key-optional="true"
                     :is-condition-animation="true"
                     :index="idx"
                     :parent-list="config.condition_animations"
+                    :version="config.version"
                     @remove="removeAt(config.condition_animations, idx)"
                 ></combo-node-editor>
             </div>
@@ -314,6 +344,10 @@
                         <option value="Tool_L">Tool_L ({{ t('副手') }})</option>
                         <option value="Head">Head ({{ t('头部') }})</option>
                     </select>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
+                    <label style="font-size:13px;font-weight:700;white-space:nowrap;min-width:64px;text-align:right;">{{ t('UV材质') }}:</label>
+                    <input id="preview-texture-file" type="file" accept=".png" style="background:#2a2a2a;color:#eee;border:1px solid #555;padding:4px;border-radius:4px;font-size:13px;outline:none;flex:1;cursor:pointer;">
                 </div>
                 <div id="preview-container" style="flex:1;background:#1e1e1e;border-radius:8px;position:relative;overflow:hidden;">
                     <div id="preview-overlay" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#aaa;font-size:13px;text-align:center;pointer-events:none;">
@@ -360,8 +394,13 @@
                 "主手": "Main Hand",
                 "副手": "Off Hand",
                 "头部": "Head",
+                "UV材质": "UV Texture",
                 "点击预览按钮加载": "Click preview button to load",
                 "基础信息": "Basic",
+                "数据包版本": "Data Pack Version",
+                "旧版": "Legacy",
+                "新版": "New",
+                "最新版": "Latest",
                 "translationKeys": "translationKeys",
                 "combos": "combos",
                 "+ 添加": "+ Add",
@@ -439,7 +478,8 @@
                 "复制失败": "Copy failed",
                 "JSON 解析失败:": "JSON parse failed:",
                 "已导入": "Imported",
-                "已导出": "Exported"
+                "已导出": "Exported",
+                "赞助作者": "Sponsor Author"
             },
             zh: {
                 "Invincible 数据包可视化编辑器": "Invincible 数据包可视化编辑器",
@@ -468,6 +508,10 @@
                 "物品模型": "物品模型",
                 "点击预览按钮加载": "点击预览按钮加载",
                 "基础信息": "基础信息",
+                "数据包版本": "数据包版本",
+                "旧版": "旧版",
+                "新版": "新版",
+                "最新版": "最新版",
                 "translationKeys": "translationKeys",
                 "combos": "combos",
                 "+ 添加": "+ 添加",
@@ -551,7 +595,7 @@
 
         const helpMessages = {
             en: {
-                "mod_id": "Namespace of the skill. Exported filename also uses it.",
+                "mod_id": "Namespace of the skill. Exported filename also uses it. (Forced to invincible in 1.21.1)",
                 "name": "Skill id. In weapon config innate_skills use: mod_id:name",
                 "consumption": "Max consumption (energy/charge cap).",
                 "max_stacks": "Max stacks.",
@@ -582,6 +626,12 @@
                 "time": "Time offset since animation starts.",
                 "command": "Minecraft command string.",
                 "execute_at_target": "If true, execute at target. If false, execute at self.",
+                "maxProtectTime": "Long press protection time (ticks). Exceeding this skips the node unless a long-press condition exists.",
+                "maxPressTime": "Maximum long press time (ticks). Exceeding this forces execution.",
+                "reserveTime": "Client-side input reserve time (ticks). Pre-inputs will be retried within this window.",
+                "skillTextureLocation": "Custom texture location for the skill icon.",
+                "name": "Combo node identifier used for goto referencing.",
+                "goto": "Combo node name to jump to, allowing loop or complex branch structures.",
                 "predicate": "Predicate id. You can also type any custom predicate directly.",
                 "predicate.epicfight:within_distance": "Target distance must be within [min, max].",
                 "predicate.epicfight:within_eye_height": "Target is within attacker's eye height (vertical check).",
@@ -589,6 +639,11 @@
                 "predicate.epicfight:within_angle_horizontal": "Horizontal angle within [min, max].",
                 "predicate.epicfight:health": "Health check using comparator.",
                 "predicate.epicfight:random_chance": "Random chance check.",
+                "predicate.invincible:press_interval_condition": "Check if press interval is within [min, max].",
+                "predicate.invincible:has_vehicle": "Check if attacker has a vehicle.",
+                "predicate.invincible:within_target_angle": "Angle between target and attacker within [min, max].",
+                "predicate.invincible:within_target_angle_horizontal": "Horizontal angle between target and attacker within [min, max].",
+                "predicate.invincible:view_and_target_view_within_angle": "Attacker view and target view angle within [min, max].",
                 "predicate.indestructible:guard_break": "Indestructible: target is guard-broken (invert to negate).",
                 "predicate.indestructible:knock_down": "Indestructible: target is knocked down (invert to negate).",
                 "predicate.indestructible:attack_level": "Indestructible: attack level within [min, max] (0-3).",
@@ -596,7 +651,7 @@
                 "predicate.indestructible:using_item": "Indestructible: target is using an item (edible filters food/potion)."
             },
             zh: {
-                "mod_id": "技能命名空间。导出文件名也会使用它。",
+                "mod_id": "技能命名空间。导出文件名也会使用它。(1.21.1版本强制为 invincible)",
                 "name": "技能 id。武器配置 innate_skills 里要填：mod_id:name",
                 "consumption": "充能上限（能量/充能值的最大值）。",
                 "max_stacks": "叠层上限。",
@@ -627,6 +682,12 @@
                 "time": "相对动画开始的时间偏移。",
                 "command": "Minecraft 指令字符串。",
                 "execute_at_target": "true=对目标执行；false=对自身执行。",
+                "maxProtectTime": "长按保护时间（tick）。超过此时间且无长按条件时，跳过该节点触发。",
+                "maxPressTime": "最长长按时间（tick）。超过此时间强制触发发包。",
+                "reserveTime": "预存输入时间（tick），仅客户端有效。提前按下按键时，在此时间内反复尝试请求执行。",
+                "skillTextureLocation": "技能图标贴图自定义路径。",
+                "name": "连击节点标识符，用于被 goto 跳转引用。",
+                "goto": "要跳转到的目标节点名称（name），实现循环或复杂连段分支。",
                 "predicate": "条件类型 id。也可以直接手动输入任意 predicate。",
                 "predicate.epicfight:within_distance": "距离条件：目标距离在 [min, max] 内。",
                 "predicate.epicfight:within_eye_height": "高度条件：目标与攻击者的高度差在眼睛高度内。",
@@ -634,6 +695,11 @@
                 "predicate.epicfight:within_angle_horizontal": "水平角度条件：水平夹角在 [min, max] 内。",
                 "predicate.epicfight:health": "生命条件：按 comparator 对 health 进行比较。",
                 "predicate.epicfight:random_chance": "随机条件：按 chance 判定。",
+                "predicate.invincible:press_interval_condition": "按键间隔条件：按键间隔时间在 [min, max] 内。",
+                "predicate.invincible:has_vehicle": "载具条件：攻击者是否处于乘骑状态。",
+                "predicate.invincible:within_target_angle": "目标视角角度条件：攻击者与目标视角夹角在 [min, max] 内。",
+                "predicate.invincible:within_target_angle_horizontal": "目标视角水平角度条件：水平夹角在 [min, max] 内。",
+                "predicate.invincible:view_and_target_view_within_angle": "双向视角角度条件：攻击者视角与目标视角夹角在 [min, max] 内。",
                 "predicate.indestructible:guard_break": "坚不可摧：目标是否处于破防状态（invert 取反）。",
                 "predicate.indestructible:knock_down": "坚不可摧：目标是否处于倒地状态（invert 取反）。",
                 "predicate.indestructible:attack_level": "坚不可摧：目标攻击阶段在 [min, max]（0-3）。",
@@ -912,7 +978,9 @@
         function defaultComboNode() {
             return {
                 key: "KEY_1",
+                name: undefined,
                 animation: "",
+                goto: undefined,
                 priority: undefined,
                 speed_multiplier: undefined,
                 convert_time: undefined,
@@ -969,6 +1037,11 @@
             if (p === 'invincible:enchantment') return { predicate: p, is_main_hand: true, enchantment: '', min: 1.0, max: 1.0 };
             if (p === 'invincible:mob_effect') return { predicate: p, is_target: false, effect: '', min: 0.0, max: 0.0 };
             if (p === 'invincible:press_time_condition') return { predicate: p, min: 0.0, max: 999.0 };
+            if (p === 'invincible:press_interval_condition') return { predicate: p, min: 0.0, max: 999.0 };
+            if (p === 'invincible:has_vehicle') return { predicate: p };
+            if (p === 'invincible:within_target_angle') return { predicate: p, min: 0.0, max: 180.0 };
+            if (p === 'invincible:within_target_angle_horizontal') return { predicate: p, min: 0.0, max: 180.0 };
+            if (p === 'invincible:view_and_target_view_within_angle') return { predicate: p, min: 0.0, max: 180.0 };
             return { predicate: p };
         }
 
@@ -1025,6 +1098,10 @@
                 predicate === 'invincible:phase' ||
                 predicate === 'invincible:stack_count' ||
                 predicate === 'invincible:press_time_condition' ||
+                predicate === 'invincible:press_interval_condition' ||
+                predicate === 'invincible:within_target_angle' ||
+                predicate === 'invincible:within_target_angle_horizontal' ||
+                predicate === 'invincible:view_and_target_view_within_angle' ||
                 predicate === 'indestructible:attack_level' ||
                 predicate === 'indestructible:phase'
             ) {
@@ -1083,6 +1160,8 @@
                 if (typeof obj.key !== 'string' || !obj.key) delete obj.key;
             }
             if (typeof obj.animation !== 'string') obj.animation = "";
+            if (typeof obj.name !== 'string' && obj.name !== undefined) obj.name = String(obj.name);
+            if (typeof obj.goto !== 'string' && obj.goto !== undefined) obj.goto = String(obj.goto);
             if (!keyOptional) {
                 if (Object.prototype.hasOwnProperty.call(obj, 'priority')) delete obj.priority;
             } else {
@@ -1092,8 +1171,14 @@
                 }
             }
             obj.conditions = normalizeConditionList(obj.conditions);
-            obj.condition_animations = Array.isArray(obj.condition_animations) ? obj.condition_animations : [];
-            obj.condition_animations = obj.condition_animations.map((n) => normalizeComboNode(n, { keyOptional: true }));
+            
+            if (keyOptional) {
+                delete obj.condition_animations;
+            } else {
+                obj.condition_animations = Array.isArray(obj.condition_animations) ? obj.condition_animations : [];
+                obj.condition_animations = obj.condition_animations.map((n) => normalizeComboNode(n, { keyOptional: true }));
+            }
+            
             obj.time_command_list = normalizeCommandList(obj.time_command_list, true);
             obj.hit_command_list = normalizeCommandList(obj.hit_command_list, false);
             obj.hurt_command_list = normalizeCommandList(obj.hurt_command_list, false);
@@ -1105,11 +1190,16 @@
 
         function defaultConfig() {
             return {
+                version: "20.9.7", // 默认旧版
                 mod_id: "invincible",
                 name: "datapack_demo",
                 consumption: 5,
                 max_stacks: 2,
+                maxProtectTime: 110,
+                maxPressTime: 100,
+                reserveTime: 8,
                 drawSkillIcon: true,
+                skillTextureLocation: "",
                 translationKeys: [],
                 combos: [],
                 condition_animations: []
@@ -1149,7 +1239,7 @@
                     },
                     computed: {
                         predicateOptions() {
-                            const builtIn = [
+                            let builtIn = [
                                 'epicfight:within_distance',
                                 'epicfight:within_eye_height',
                                 'epicfight:within_angle',
@@ -1172,6 +1262,7 @@
                                 'invincible:enchantment',
                                 'invincible:mob_effect',
                                 'invincible:press_time_condition',
+                                'invincible:has_vehicle',
                                 'indestructible:guard_break',
                                 'indestructible:knock_down',
                                 'indestructible:attack_level',
@@ -1179,6 +1270,21 @@
                                 'indestructible:using_item',
                                 'indestructible:phase'
                             ];
+                            if (this.$root.config) {
+                                if (this.$root.config.version === '20.14.X') {
+                                    builtIn.splice(23, 0, 
+                                        'invincible:press_interval_condition',
+                                        'invincible:within_target_angle',
+                                        'invincible:within_target_angle_horizontal',
+                                        'invincible:view_and_target_view_within_angle'
+                                    );
+                                } else if (this.$root.config.version === '1.21.1') {
+                                    builtIn.splice(23, 0, 
+                                        'invincible:press_interval_condition'
+                                    );
+                                    builtIn = builtIn.filter(p => !p.startsWith('indestructible:'));
+                                }
+                            }
                             const builtSet = new Set(builtIn);
                             const extra = this.$root && this.$root.config ? collectPredicatesFromConfig(this.$root.config) : [];
                             const merged = builtIn.concat(extra.filter((p) => !builtSet.has(p)));
@@ -1201,6 +1307,10 @@
                             if (p === 'invincible:enchantment') return ['is_main_hand', 'enchantment', 'min', 'max'];
                             if (p === 'invincible:mob_effect') return ['is_target', 'effect', 'min', 'max'];
                             if (p === 'invincible:press_time_condition') return ['min', 'max'];
+                            if (p === 'invincible:press_interval_condition') return ['min', 'max'];
+                            if (p === 'invincible:within_target_angle') return ['min', 'max'];
+                            if (p === 'invincible:within_target_angle_horizontal') return ['min', 'max'];
+                            if (p === 'invincible:view_and_target_view_within_angle') return ['min', 'max'];
                             if (p === 'indestructible:guard_break') return ['invert'];
                             if (p === 'indestructible:knock_down') return ['invert'];
                             if (p === 'indestructible:attack_level') return ['min', 'max'];
@@ -1316,7 +1426,7 @@
                                 </div>
                                 <div v-if="predicateHelp" class="field-help">{{ predicateHelp }}</div>
 
-                                <div class="grid3" v-if="predicate === 'epicfight:within_distance' || predicate === 'epicfight:within_angle' || predicate === 'epicfight:within_angle_horizontal' || predicate === 'invincible:phase' || predicate === 'invincible:stack_count' || predicate === 'invincible:press_time_condition' || predicate === 'indestructible:attack_level' || predicate === 'indestructible:phase'">
+                                <div class="grid3" v-if="predicate === 'epicfight:within_distance' || predicate === 'epicfight:within_angle' || predicate === 'epicfight:within_angle_horizontal' || predicate === 'invincible:phase' || predicate === 'invincible:stack_count' || predicate === 'invincible:press_time_condition' || predicate === 'invincible:press_interval_condition' || predicate === 'invincible:within_target_angle' || predicate === 'invincible:within_target_angle_horizontal' || predicate === 'invincible:view_and_target_view_within_angle' || predicate === 'indestructible:attack_level' || predicate === 'indestructible:phase'">
                                     <div class="form-group">
                                         <label>min</label>
                                         <input type="number" step="0.01" :value="cond.min" @input="setField('min', Number($event.target.value))">
@@ -1504,7 +1614,8 @@
                 keyOptional: { type: Boolean, default: false },
                 isConditionAnimation: { type: Boolean, default: false },
                 index: { type: Number, default: -1 },
-                parentList: { type: Array, default: null }
+                parentList: { type: Array, default: null },
+                version: { type: String, default: "20.9.7" }
             },
             emits: ['remove'],
             data() {
@@ -1693,6 +1804,17 @@
                         </div>
                     </div>
 
+                    <div class="grid2" v-if="version === '20.14.X' || version === '1.21.1'">
+                        <div class="form-group">
+                            <label :title="h('name')">{{ t('name') }}</label>
+                            <input type="text" v-model="node.name">
+                        </div>
+                        <div class="form-group">
+                            <label :title="h('goto')">{{ t('goto') }}</label>
+                            <input type="text" v-model="node.goto">
+                        </div>
+                    </div>
+
                     <div v-show="!collapsed">
                         <div v-if="conditionAnimationsActive" class="hint">{{ t('当存在 condition_animations 时，同级除按键与 combos 外参数会被忽略。') }}</div>
 
@@ -1783,7 +1905,7 @@
                             </div>
                         </div>
 
-                        <div class="sub-panel">
+                        <div class="sub-panel" v-if="!isConditionAnimation">
                             <div class="section-head">
                                 <h4 :title="h('condition_animations')">{{ t('condition_animations') }}</h4>
                                 <button class="btn mini" @click="addConditionAnimation">{{ t('+ 添加条件动画') }}</button>
@@ -1798,6 +1920,7 @@
                                     :is-condition-animation="true"
                                     :index="idx"
                                     :parent-list="node.condition_animations"
+                                    :version="version"
                                     @remove="removeAt(node.condition_animations, idx)"
                                 ></combo-node-editor>
                             </div>
@@ -1900,11 +2023,11 @@
                         </div>
                     </div>
 
-                    <div class="section-head">
+                    <div class="section-head" v-if="!node.goto">
                         <h4>{{ t('combos') }}</h4>
                         <button class="btn mini" @click="addChild">{{ t('+ 添加子节点') }}</button>
                     </div>
-                    <div class="node-children">
+                    <div class="node-children" v-if="!node.goto">
                         <combo-node-editor
                             v-for="(child, idx) in node.combos"
                             :key="idx"
@@ -1914,6 +2037,7 @@
                             :is-condition-animation="false"
                             :index="idx"
                             :parent-list="node.combos"
+                            :version="version"
                             @remove="removeAt(node.combos, idx)"
                         ></combo-node-editor>
                     </div>
@@ -1952,7 +2076,36 @@
                     return this.isDarkMode ? this.t('主题: 暗色') : this.t('主题: 亮色');
                 },
                 prettyJSON() {
-                    const cleaned = cleanup(this.config) || {};
+                    const cfg = JSON.parse(JSON.stringify(this.config));
+                    const isNew = cfg.version === "20.14.X" || cfg.version === "1.21.1";
+                    if (cfg.version === "1.21.1") delete cfg.mod_id;
+                    delete cfg.version;
+
+                    if (!isNew) {
+                        delete cfg.maxProtectTime;
+                        delete cfg.maxPressTime;
+                        delete cfg.reserveTime;
+                        delete cfg.skillTextureLocation;
+                    } else {
+                        if (cfg.translationKeys) {
+                            cfg.descriptions = cfg.translationKeys;
+                            delete cfg.translationKeys;
+                        }
+                    }
+
+                    const filterNode = (node) => {
+                        if (!isNew) {
+                            delete node.name;
+                            delete node.goto;
+                        }
+                        if (Array.isArray(node.combos)) node.combos.forEach(filterNode);
+                        if (Array.isArray(node.condition_animations)) node.condition_animations.forEach(filterNode);
+                    };
+
+                    if (Array.isArray(cfg.combos)) cfg.combos.forEach(filterNode);
+                    if (Array.isArray(cfg.condition_animations)) cfg.condition_animations.forEach(filterNode);
+
+                    const cleaned = cleanup(cfg) || {};
                     return customStringify(cleaned);
                 },
                 animationLibrarySummary() {
@@ -1971,6 +2124,9 @@
                 config: {
                     deep: true,
                     handler(val) {
+                        if (val.version === '1.21.1' && val.mod_id !== 'invincible') {
+                            val.mod_id = 'invincible';
+                        }
                         localStorage.setItem('invincible_config_draft', JSON.stringify(val));
                     }
                 }
@@ -2179,7 +2335,37 @@
                     }
                 },
                 exportJSON() {
-                    const cleaned = cleanup(this.config) || {};
+                    const cfg = JSON.parse(JSON.stringify(this.config));
+                    const isNew = cfg.version === "20.14.X" || cfg.version === "1.21.1";
+                    const is1211 = cfg.version === "1.21.1";
+                    if (is1211) delete cfg.mod_id;
+                    delete cfg.version;
+
+                    if (!isNew) {
+                        delete cfg.maxProtectTime;
+                        delete cfg.maxPressTime;
+                        delete cfg.reserveTime;
+                        delete cfg.skillTextureLocation;
+                    } else {
+                        if (cfg.translationKeys) {
+                            cfg.descriptions = cfg.translationKeys;
+                            delete cfg.translationKeys;
+                        }
+                    }
+
+                    const filterNode = (node) => {
+                        if (!isNew) {
+                            delete node.name;
+                            delete node.goto;
+                        }
+                        if (Array.isArray(node.combos)) node.combos.forEach(filterNode);
+                        if (Array.isArray(node.condition_animations)) node.condition_animations.forEach(filterNode);
+                    };
+
+                    if (Array.isArray(cfg.combos)) cfg.combos.forEach(filterNode);
+                    if (Array.isArray(cfg.condition_animations)) cfg.condition_animations.forEach(filterNode);
+
+                    const cleaned = cleanup(cfg) || {};
                     const content = customStringify(cleaned);
                     const blob = new Blob([content], { type: 'application/json;charset=utf-8' });
                     const a = document.createElement('a');
@@ -2200,11 +2386,43 @@
                         try {
                             const raw = parseJsonLoose(String(e.target.result || ''));
                             const base = defaultConfig();
+                            
+                            // Auto-detect version based on specific fields
+                            let detectedVersion = "20.9.7";
+                            const isInvincibleModId = raw.mod_id === "invincible";
+                            
+                            if (raw.maxProtectTime !== undefined || raw.maxPressTime !== undefined || raw.reserveTime !== undefined || raw.skillTextureLocation !== undefined || raw.descriptions !== undefined) {
+                                detectedVersion = isInvincibleModId ? "1.21.1" : "20.14.X";
+                            } else {
+                                // check combos for name or goto
+                                const checkNode = (node) => {
+                                    if (node.name !== undefined || node.goto !== undefined) {
+                                        return true;
+                                    }
+                                    if (Array.isArray(node.combos) && node.combos.some(checkNode)) return true;
+                                    if (Array.isArray(node.condition_animations) && node.condition_animations.some(checkNode)) return true;
+                                    return false;
+                                };
+                                if (Array.isArray(raw.combos) && raw.combos.some(checkNode)) {
+                                    detectedVersion = isInvincibleModId ? "1.21.1" : "20.14.X";
+                                } else if (Array.isArray(raw.condition_animations) && raw.condition_animations.some(checkNode)) {
+                                    detectedVersion = isInvincibleModId ? "1.21.1" : "20.14.X";
+                                }
+                            }
+
                             const merged = {
                                 ...base,
-                                ...raw
+                                ...raw,
+                                version: detectedVersion
                             };
-                            merged.translationKeys = Array.isArray(raw.translationKeys) ? raw.translationKeys : base.translationKeys;
+                            
+                            if (Array.isArray(raw.descriptions)) {
+                                merged.translationKeys = raw.descriptions;
+                            } else {
+                                merged.translationKeys = Array.isArray(raw.translationKeys) ? raw.translationKeys : base.translationKeys;
+                            }
+                            delete merged.descriptions;
+
                             merged.combos = Array.isArray(raw.combos) ? raw.combos.map((n) => normalizeComboNode(n, { keyOptional: false })) : base.combos;
                             merged.condition_animations = Array.isArray(raw.condition_animations) ? raw.condition_animations.map((n) => normalizeComboNode(n, { keyOptional: true })) : base.condition_animations;
                             this.config = merged;
@@ -2433,7 +2651,7 @@
             const isDark = document.body.classList.contains('dark-mode');
             window.updatePreviewTheme(isDark);
 
-            animate();
+            renderLoop();
             isThreeLoaded = true;
             msgEl.style.display = 'none';
         }
@@ -2535,6 +2753,7 @@
 
         function renderLoop() {
             requestAnimationFrame(renderLoop);
+            if (!clock) return;
             const dt = clock.getDelta();
             if (mixer) mixer.update(dt);
             if (weaponMixer) weaponMixer.update(dt);
@@ -2542,7 +2761,6 @@
             controls.update();
             renderer.render(scene, camera);
         }
-        renderLoop();
 
         const resizeObserver = new ResizeObserver(() => {
             if (!container.clientWidth) return;
@@ -3028,7 +3246,27 @@
             const fileObj = fileResourceMap.get(resolved);
             if (!fileObj) throw new Error(`Missing model file: ${resolved}`);
             const data = await readJsonFile(fileObj);
+            
+            let texture = null;
+            try {
+                const manualTexInput = document.getElementById('preview-texture-file');
+                if (manualTexInput && manualTexInput.files && manualTexInput.files[0]) {
+                    const texFile = manualTexInput.files[0];
+                    const url = URL.createObjectURL(texFile);
+                    texture = await new Promise((resolve, reject) => {
+                        new THREE.TextureLoader().load(url, resolve, undefined, reject);
+                    });
+                    texture.magFilter = THREE.NearestFilter;
+                    texture.minFilter = THREE.NearestFilter;
+                    texture.colorSpace = THREE.SRGBColorSpace;
+                    texture.flipY = false;
+                }
+            } catch (e) {
+                console.warn('Failed to load local texture for model:', e);
+            }
+
             const rootGroup = new THREE.Group();
+
             const localMap = {};
             let rootBone = null;
             if (data.armature && data.armature.hierarchy && data.armature.hierarchy.length > 0) {
@@ -3049,7 +3287,15 @@
             let mesh = null;
             if (data.vertices) {
                 const geometry = buildGeometry(data.vertices);
-                const material = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.6, metalness: 0.1, side: THREE.DoubleSide });
+                const material = new THREE.MeshStandardMaterial({ 
+                    color: texture ? 0xffffff : 0xcccccc, 
+                    roughness: 0.6, 
+                    metalness: 0.1, 
+                    side: THREE.DoubleSide,
+                    map: texture,
+                    transparent: true,
+                    alphaTest: 0.1
+                });
                 const hasSkin = !!(geometry.getAttribute('skinIndex') && geometry.getAttribute('skinWeight'));
                 if (hasSkin) {
                     const skinned = new THREE.SkinnedMesh(geometry, material);
@@ -3123,7 +3369,57 @@
 
         async function parseAndBuildModel(fileObj, isWeapon) {
             const fileName = String(fileObj && fileObj.name ? fileObj.name : '').toLowerCase();
-            const material = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.6, metalness: 0.1, side: THREE.DoubleSide });
+            
+            let texture = null;
+            try {
+                if (!isWeapon) {
+                    const manualTexInput = document.getElementById('preview-texture-file');
+                    if (manualTexInput && manualTexInput.files && manualTexInput.files[0]) {
+                        const texFile = manualTexInput.files[0];
+                        const url = URL.createObjectURL(texFile);
+                        texture = await new Promise((resolve, reject) => {
+                            new THREE.TextureLoader().load(url, resolve, undefined, reject);
+                        });
+                        texture.magFilter = THREE.NearestFilter;
+                        texture.minFilter = THREE.NearestFilter;
+                        texture.colorSpace = THREE.SRGBColorSpace;
+                        texture.flipY = false;
+                    }
+                }
+                
+                // If no manual texture for weapons (or if manual input wasn't used)
+                if (!texture) {
+                    let texFileId = null;
+                    const baseName = fileName.replace(/\.(json|obj|geo)$/i, '');
+                    texFileId = await findTextureFileId(baseName);
+                    
+                    if (texFileId) {
+                        const texFile = fileResourceMap.get(texFileId);
+                        if (texFile) {
+                            const url = URL.createObjectURL(texFile);
+                            texture = await new Promise((resolve, reject) => {
+                                new THREE.TextureLoader().load(url, resolve, undefined, reject);
+                            });
+                            texture.magFilter = THREE.NearestFilter;
+                            texture.minFilter = THREE.NearestFilter;
+                            texture.colorSpace = THREE.SRGBColorSpace;
+                            texture.flipY = false;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to load texture for parseAndBuildModel:', e);
+            }
+
+            const material = new THREE.MeshStandardMaterial({ 
+                color: texture ? 0xffffff : 0xcccccc, 
+                roughness: 0.6, 
+                metalness: 0.1, 
+                side: THREE.DoubleSide,
+                map: texture,
+                transparent: true,
+                alphaTest: 0.1
+            });
 
             if (fileName.endsWith('.png')) {
                 const rootGroup = new THREE.Group();
@@ -3248,11 +3544,30 @@
             }
 
             if (!isWeapon) {
-                const lightA = new THREE.DirectionalLight(0xffffff, 0.7);
-                lightA.position.set(2, 4, 3);
-                const lightB = new THREE.AmbientLight(0xffffff, 0.4);
-                rootGroup.add(lightA);
-                rootGroup.add(lightB);
+                // 前方光源
+                const lightFront = new THREE.DirectionalLight(0xffffff, 0.5);
+                lightFront.position.set(0, 4, 4);
+                
+                // 后方光源
+                const lightBack = new THREE.DirectionalLight(0xffffff, 0.5);
+                lightBack.position.set(0, 4, -4);
+
+                // 左侧光源
+                const lightLeft = new THREE.DirectionalLight(0xffffff, 0.5);
+                lightLeft.position.set(-4, 4, 0);
+
+                // 右侧光源
+                const lightRight = new THREE.DirectionalLight(0xffffff, 0.5);
+                lightRight.position.set(4, 4, 0);
+
+                // 全局环境光
+                const lightAmbient = new THREE.AmbientLight(0xffffff, 0.4);
+                
+                rootGroup.add(lightFront);
+                rootGroup.add(lightBack);
+                rootGroup.add(lightLeft);
+                rootGroup.add(lightRight);
+                rootGroup.add(lightAmbient);
             }
 
             return { rootGroup, rootBone, mesh, localBonesMap, bindToOrigin };
@@ -3273,9 +3588,12 @@
             const p = new THREE.Vector3();
             const q = new THREE.Quaternion();
             const s = new THREE.Vector3();
+            const isAttributes = animData.format === "attributes";
+
             for (const node of animData.animation) {
-                const boneName = String(node.name || '');
+                let boneName = String(node.name || '');
                 const bone = localMap[boneName];
+
                 if (!bone) continue;
                 const timesRaw = Array.isArray(node.time) ? node.time.map(Number) : null;
                 const transforms = Array.isArray(node.transform) ? node.transform : null;
@@ -3286,6 +3604,16 @@
                 const positions = [];
                 const quaternions = [];
                 const scales = [];
+                
+                const restMat = new THREE.Matrix4();
+                restMat.compose(bone.position, bone.quaternion, bone.scale);
+
+                const animMat = new THREE.Matrix4();
+                const finalMat = new THREE.Matrix4();
+                const tempP = new THREE.Vector3();
+                const tempQ = new THREE.Quaternion();
+                const tempS = new THREE.Vector3();
+
                 for (let i = 0; i < len; i++) {
                     const t = transforms[i];
                     if (Array.isArray(t) && t.length === 16) {
@@ -3298,9 +3626,24 @@
                         const l = t && Array.isArray(t.loc) ? t.loc : [0, 0, 0];
                         const r = t && Array.isArray(t.rot) ? t.rot : [1, 0, 0, 0];
                         const sc = t && Array.isArray(t.sca) ? t.sca : [1, 1, 1];
-                        positions.push(l[0], l[1], l[2]);
-                        quaternions.push(r[1], r[2], r[3], r[0]);
-                        scales.push(sc[0], sc[1], sc[2]);
+                        
+                        tempP.set(l[0], l[1], l[2]);
+                        tempQ.set(r[1], r[2], r[3], r[0]).normalize();
+                        tempS.set(sc[0], sc[1], sc[2]);
+
+                        animMat.compose(tempP, tempQ, tempS);
+
+                        if (isAttributes) {
+                            // EpicFight applies restMat * animMat for attributes format
+                            finalMat.multiplyMatrices(restMat, animMat);
+                        } else {
+                            finalMat.copy(animMat);
+                        }
+
+                        finalMat.decompose(p, q, s);
+                        positions.push(p.x, p.y, p.z);
+                        quaternions.push(q.x, q.y, q.z, q.w);
+                        scales.push(s.x, s.y, s.z);
                     }
                 }
                 tracks.push(new THREE.VectorKeyframeTrack(`${bone.name}.position`, times, positions));
@@ -3320,7 +3663,7 @@
         window.playAnimationPreview = async function (modelId, animationId, weaponId) {
             const floatWin = document.getElementById('floating-3d-window');
             if (floatWin) floatWin.style.display = 'flex';
-            
+
             await initThreeJS();
             await initThreeVariables();
             

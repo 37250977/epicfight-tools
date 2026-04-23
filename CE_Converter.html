@@ -4,6 +4,332 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title data-i18n="Indestructible 转 CombatEvolution 格式工具">Indestructible 转 CombatEvolution 格式工具</title>
+    <script id="ce-converter-core">
+        const CONDITION_MAP = {
+            "epicfight:within_distance": (cond) => ({ type: "combat_evolution:target_in_distance", min: cond.min || 0, max: cond.max || 0 }),
+            "epicfight:health": (cond) => {
+                let comp = cond.comparator || "less_ratio";
+                if (!["less_ratio", "greater_ratio", "less_absolute", "greater_absolute"].includes(comp)) comp = "less_ratio";
+                return { type: "combat_evolution:health_check", health: cond.health || 0, comparator: comp };
+            },
+            "indestructible:stamina": (cond) => {
+                let comp = cond.comparator || "less_ratio";
+                if (!["less_ratio", "greater_ratio", "less_absolute", "greater_absolute"].includes(comp)) comp = "less_ratio";
+                return { type: "combat_evolution:stamina_check", stamina: cond.stamina || 0, comparator: comp };
+            },
+            "indestructible:attack_level": (cond) => ({ type: "combat_evolution:attack_level", min: cond.min || 1, max: cond.max || 1 }),
+            "indestructible:phase": (cond) => ({ type: "combat_evolution:phase_between", min: cond.min || 0, max: cond.max || 0 }),
+            "indestructible:guard_break": (cond) => ({ type: "combat_evolution:target_guard_break" }),
+            "epicfight:within_angle": (cond) => ({ type: "combat_evolution:current_angle", side: "all", first: 0, second: cond.max || 180 }),
+            "epicfight:within_angle_horizontal": (cond) => ({ type: "combat_evolution:current_angle", side: "all", first: 0, second: cond.max || 180 }),
+            "epicfight:within_eye_height": (cond) => null // CE无直接等价，丢弃
+        };
+
+        function validateSchema(data) {
+            const isIndestructible = data.combat_behavior !== undefined || 
+                                     data.attributes !== undefined || 
+                                     data.humanoid_weapon_motions !== undefined || 
+                                     data.custom_guard_motion !== undefined ||
+                                     data.stun_animations !== undefined ||
+                                     data.default_livingmotions !== undefined;
+            if (!isIndestructible) {
+                throw new Error("文件格式不匹配，未检测到 Indestructible 特有字段");
+            }
+        }
+
+        function convertConditions(conditions) {
+            if (!conditions) return [];
+            let newConds = [];
+            for (let cond of conditions) {
+                let pred = cond.predicate;
+                if (pred && !pred.includes(':')) {
+                    if (CONDITION_MAP["epicfight:" + pred]) {
+                        pred = "epicfight:" + pred;
+                    } else if (CONDITION_MAP["indestructible:" + pred]) {
+                        pred = "indestructible:" + pred;
+                    }
+                }
+                
+                if (CONDITION_MAP[pred]) {
+                    let mapped = CONDITION_MAP[pred](cond);
+                    if (mapped !== null) newConds.push(mapped);
+                } else {
+                    let unmapped = { type: pred, ...cond };
+                    delete unmapped.predicate;
+                    newConds.push(unmapped);
+                }
+            }
+            return newConds;
+        }
+
+        function convertCommandList(cmdList) {
+            if (!cmdList) return [];
+            return cmdList.map(cmd => {
+                let time = cmd.time || 0;
+                let onTarget = cmd.execute_at_target || false;
+                let command = cmd.command || "";
+                if (!command.startsWith("/")) command = "/" + command;
+                if (time > 0) return { type: "in_time", timeStart: time, onTarget: onTarget, command: command };
+                else return { type: "tick", onTarget: onTarget, command: command };
+            });
+        }
+
+        function convertHitCommandList(cmdList) {
+            if (!cmdList) return [];
+            return cmdList.map(cmd => {
+                let onTarget = cmd.execute_at_target || false;
+                let command = cmd.command || "";
+                if (!command.startsWith("/")) command = "/" + command;
+                return { type: "success", phase: -1, onTarget: onTarget, command: command };
+            });
+        }
+
+        function convertBehavior(b) {
+            let outB = {};
+            if (b.conditions) {
+                let conds = convertConditions(b.conditions);
+                if (conds.length > 0) outB.conditions = conds;
+            }
+            
+            if (b.animation) {
+                outB.behaviorType = "action";
+                outB.animation = b.animation; 
+                
+                let params = {};
+                if (b.convert_time !== undefined) params.transitionTime = b.convert_time;
+                if (b.play_speed !== undefined) params.playSpeed = b.play_speed;
+                if (Object.keys(params).length > 0) outB.animationParams = params;
+
+                if (b.command_list) {
+                    let te = convertCommandList(b.command_list);
+                    if (te.length > 0) outB.timeEvents = te;
+                }
+                if (b.hit_command_list) {
+                    let he = convertHitCommandList(b.hit_command_list);
+                    if (he.length > 0) outB.hitEvents = he;
+                }
+                if (b.damage_modifier && typeof b.damage_modifier === 'object') {
+                    let phaseParam = { phase: -1 }; 
+                    let mod = b.damage_modifier;
+                    if (mod.damage !== undefined) phaseParam.damageMultiplier = mod.damage;
+                    if (mod.impact !== undefined) phaseParam.impactMultiplier = mod.impact;
+                    if (mod.armor_negation !== undefined) phaseParam.armorNegationMultiplier = mod.armor_negation;
+                    if (mod.stun_type !== undefined) phaseParam.stunType = mod.stun_type;
+                    if (Object.keys(phaseParam).length > 1) {
+                        outB.animationParams = outB.animationParams || {};
+                        outB.animationParams.phaseParams = [phaseParam];
+                    }
+                }
+                if (b.set_phase !== undefined) {
+                    outB.setPhase = b.set_phase;
+                }
+            } else if (b.guard !== undefined) {
+                outB.behaviorType = "guard";
+                outB.guardTime = b.guard;
+                if (b.counter) {
+                    outB.counterAnimation = b.counter; 
+                    outB.counterType = "random";
+                    outB.counterChance = b.counter_chance || 0.3;
+                }
+            } else if (b.wander !== undefined) {
+                outB.behaviorType = "wander";
+                outB.wanderTime = b.wander;
+                if (b.x_axis !== undefined) outB.strafe = b.x_axis;
+                if (b.z_axis !== undefined) outB.forward = b.z_axis;
+            }
+
+            if (b.stamina !== undefined && b.stamina > 0) {
+                outB.addStamina = -b.stamina;
+            }
+            return outB;
+        }
+
+        function convertData(data) {
+            let out = {
+                faction: data.faction || "neutral",
+                renderer: data.renderer || "skeleton",
+                model: data.model || "skeleton",
+                armature: data.armature || "epicfight:entity/biped",
+                humanoid: data.isHumanoid !== undefined ? data.isHumanoid : true
+            };
+
+            if (data.attributes && typeof data.attributes === 'object') {
+                let attrs = data.attributes;
+                if (attrs.chasing_speed !== undefined) out.chasingSpeed = attrs.chasing_speed;
+                if (attrs.scale !== undefined) out.scale = attrs.scale;
+                if (attrs.stamina_regan_delay !== undefined) out.staminaRegenDelay = attrs.stamina_regan_delay;
+                if (attrs.stamina_lose_multiply !== undefined) out.hurtImpact = attrs.stamina_lose_multiply;
+                
+                let outAttrs = [];
+                if (attrs.max_stamina !== undefined) outAttrs.push({ attribute: "epicfight:staminar", value: attrs.max_stamina });
+                if (attrs.stamina_regan_multiply !== undefined) outAttrs.push({ attribute: "epicfight:stamina_regen", value: attrs.stamina_regan_multiply });
+                if (attrs.impact !== undefined) outAttrs.push({ attribute: "epicfight:impact", value: attrs.impact });
+                if (attrs.armor_negation !== undefined) outAttrs.push({ attribute: "epicfight:armor_negation", value: attrs.armor_negation });
+                
+                if (outAttrs.length > 0) out.attributes = outAttrs;
+            }
+
+            if (data.stun_animations && Array.isArray(data.stun_animations)) out.stunAnimations = data.stun_animations;
+            
+            let defaultMotions = (data.default_livingmotions && typeof data.default_livingmotions === 'object') ? data.default_livingmotions : {};
+            
+            if (data.humanoid_weapon_motions && Array.isArray(data.humanoid_weapon_motions)) {
+                out.weaponLivingMotions = [];
+                for (let wm of data.humanoid_weapon_motions) {
+                    if (!wm || typeof wm !== 'object') continue;
+                    let combinedMotions = Object.assign({}, defaultMotions, (wm.livingmotions && typeof wm.livingmotions === 'object') ? wm.livingmotions : {});
+                    let wMotion = {
+                        weaponCategories: Array.isArray(wm.weapon_categories) ? wm.weapon_categories : [],
+                        style: wm.style || "common",
+                        livingMotions: combinedMotions
+                    };
+                    out.weaponLivingMotions.push(wMotion);
+                }
+            } else if (Object.keys(defaultMotions).length > 0) {
+                out.weaponLivingMotions = [{
+                    weaponCategories: [], 
+                    style: "common",
+                    livingMotions: defaultMotions
+                }];
+            }
+            
+            if (data.custom_guard_motion && Array.isArray(data.custom_guard_motion)) {
+                out.guardHitAnimation = [];
+                for (let gm of data.custom_guard_motion) {
+                    if (!gm || typeof gm !== 'object') continue;
+                    let gHit = {
+                        weaponCategories: Array.isArray(gm.weapon_categories) ? gm.weapon_categories : [],
+                        style: gm.style || "common",
+                        animations: Array.isArray(gm.parry_animation) ? gm.parry_animation : [] 
+                    };
+                    if (gHit.animations.length === 0 && gm.guard) {
+                        gHit.animations.push(gm.guard);
+                    }
+                    if (gHit.animations.length > 0) out.guardHitAnimation.push(gHit);
+                }
+            }
+
+            if (data.combat_behavior && Array.isArray(data.combat_behavior)) {
+                let outCbs = [];
+                for (let idxCb = 0; idxCb < data.combat_behavior.length; idxCb++) {
+                    let cb = data.combat_behavior[idxCb];
+                    let outCb = {
+                        weaponCategories: cb.weapon_categories || [],
+                        style: cb.style || "common",
+                        behaviorRoots: []
+                    };
+
+                    if (cb.behavior_series) {
+                        for (let idxS = 0; idxS < cb.behavior_series.length; idxS++) {
+                            let series = cb.behavior_series[idxS];
+                            let root = {
+                                rootName: "BehaviorRoot_" + idxS,
+                                weight: series.weight || 1.0,
+                                maxCooldown: series.cooldown || 0,
+                                firstBehaviors: []
+                            };
+
+                            if (series.behaviors && series.behaviors.length > 0) {
+                                let first = convertBehavior(series.behaviors[0]);
+                                first.behaviorName = "Action_" + idxS + "_0";
+                                let current = first;
+                                for (let i = 1; i < series.behaviors.length; i++) {
+                                    let next = convertBehavior(series.behaviors[i]);
+                                    next.behaviorName = "Action_" + idxS + "_" + i;
+                                    current.nextBehaviors = [next];
+                                    current = next;
+                                }
+                                root.firstBehaviors.push(first);
+                            }
+                            outCb.behaviorRoots.push(root);
+                        }
+                    }
+                    outCbs.push(outCb);
+                }
+                out.combatBehaviors = outCbs;
+            }
+            return out;
+        }
+
+        function customStringify(obj, indentLevel = 0) {
+            if (obj === undefined) return undefined;
+            if (obj === null) return "null";
+            
+            const indent = "\t".repeat(indentLevel);
+            const nextIndent = "\t".repeat(indentLevel + 1);
+            
+            if (Array.isArray(obj)) {
+                if (obj.length === 0) return "[]";
+                let allSimple = obj.every(item => typeof item !== 'object' || item === null);
+                if (allSimple) {
+                    return "[" + obj.map(item => JSON.stringify(item)).join(", ") + "]";
+                }
+                
+                let items = [];
+                for (let i = 0; i < obj.length; i++) {
+                    let itemStr = "";
+                    let item = obj[i];
+                    if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+                        if (Object.keys(item).length <= 4 && !Object.values(item).some(v => typeof v === 'object' && v !== null)) {
+                            itemStr = JSON.stringify(item);
+                        } else {
+                            itemStr = customStringify(item, indentLevel + 1);
+                        }
+                    } else {
+                        itemStr = customStringify(item, indentLevel + 1);
+                    }
+                    
+                    if (itemStr !== undefined) {
+                        items.push(nextIndent + itemStr);
+                    } else {
+                        items.push(nextIndent + "null");
+                    }
+                }
+                return "[\n" + items.join(",\n") + "\n" + indent + "]";
+            } else if (typeof obj === 'object') {
+                let keys = Object.keys(obj);
+                if (keys.length === 0) return "{}";
+                
+                let items = [];
+                for (let i = 0; i < keys.length; i++) {
+                    let key = keys[i];
+                    let valStr = customStringify(obj[key], indentLevel + 1);
+                    if (valStr === undefined) continue;
+                    
+                    items.push(nextIndent + JSON.stringify(key) + ": " + valStr);
+                }
+                if (items.length === 0) return "{}";
+                return "{\n" + items.join(",\n") + "\n" + indent + "}";
+            } else {
+                return JSON.stringify(obj);
+            }
+        }
+
+        function getFirstJsonChar(text) {
+            if (typeof text !== 'string') return '';
+            let s = text.replace(/^\uFEFF/, '');
+            for (let i = 0; i < s.length; i++) {
+                const c = s[i];
+                if (c === ' ' || c === '\n' || c === '\r' || c === '\t') continue;
+                return c;
+            }
+            return '';
+        }
+
+        async function convertJsonTextToCE(text, fileName = "unknown.json") {
+            const c = getFirstJsonChar(text.slice(0, 4096));
+            if (c !== '{' && c !== '[') {
+                throw new Error("文件内容不像 JSON（开头未发现 { 或 [）");
+            }
+            let json = JSON.parse(text);
+            validateSchema(json);
+            
+            let ceJson = convertData(json);
+            let jsonStr = customStringify(ceJson);
+            
+            return { jsonStr, fileName };
+        }
+    </script>
     <script>
         const messages = {
     "en":  {
@@ -59,7 +385,8 @@
                " 数据包 (.json)。": " datapack (.json).",
                "2. 点击“批量转换并下载”，浏览器会自动将它们转换为 ": "2. Click “Batch Convert & Download”; the browser will convert them to ",
                " 格式并下载。": " format and download.",
-               "准备就绪... 等待选择或拖放文件。": "Ready... waiting for file selection or drag & drop."
+               "准备就绪... 等待选择或拖放文件。": "Ready... waiting for file selection or drag & drop.",
+               "赞助作者": "Sponsor Author"
            },
     "zh":  {
                "Indestructible 转 CombatEvolution 格式工具":  "Indestructible 转 CombatEvolution 格式工具",
@@ -323,11 +650,12 @@
         <div class="topbar">
             <div class="title-row">
                 <h1>Indestructible -> CombatEvolution</h1>
-                <div>
+                <div style="display:flex; gap:10px; align-items:center;">
                     <button class="btn btn-secondary btn-sm" onclick="toggleLang()" id="langBtn" style="font-weight:bold;">
                         中文 / English
                     </button>
                     <button class="btn btn-secondary btn-sm" id="themeToggle" type="button" onclick="toggleTheme()">主题: 自动</button>
+                    <a href="https://www.ifdian.net/a/zidou" target="_blank" class="btn btn-sm" style="background-color: #f7b92a; color: #fff; text-decoration: none; font-weight: bold; border: none; display:flex; align-items:center;" data-i18n="赞助作者">赞助作者</a>
                 </div>
             </div>
             <div class="nav">
@@ -431,16 +759,6 @@
             return `${v.toFixed(fixed)} ${units[idx]}`;
         }
 
-        function getFirstJsonChar(text) {
-            if (typeof text !== 'string') return '';
-            let s = text.replace(/^\uFEFF/, '');
-            for (let i = 0; i < s.length; i++) {
-                const c = s[i];
-                if (c === ' ' || c === '\n' || c === '\r' || c === '\t') continue;
-                return c;
-            }
-            return '';
-        }
 
         async function looksLikeJsonFile(file) {
             if (!file || typeof file.slice !== 'function') return false;
@@ -857,396 +1175,17 @@
             });
         }
 
-        function customStringify(obj, indentLevel = 0) {
-            if (obj === undefined) return undefined;
-            if (obj === null) return "null";
-            
-            const indent = "\t".repeat(indentLevel);
-            const nextIndent = "\t".repeat(indentLevel + 1);
-            
-            if (Array.isArray(obj)) {
-                if (obj.length === 0) return "[]";
-                let allSimple = obj.every(item => typeof item !== 'object' || item === null);
-                if (allSimple) {
-                    return "[" + obj.map(item => JSON.stringify(item)).join(", ") + "]";
-                }
-                
-                let items = [];
-                for (let i = 0; i < obj.length; i++) {
-                    let itemStr = "";
-                    let item = obj[i];
-                    if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
-                        if (Object.keys(item).length <= 4 && !Object.values(item).some(v => typeof v === 'object' && v !== null)) {
-                            itemStr = JSON.stringify(item);
-                        } else {
-                            itemStr = customStringify(item, indentLevel + 1);
-                        }
-                    } else {
-                        itemStr = customStringify(item, indentLevel + 1);
-                    }
-                    
-                    if (itemStr !== undefined) {
-                        items.push(nextIndent + itemStr);
-                    } else {
-                        items.push(nextIndent + "null");
-                    }
-                }
-                return "[\n" + items.join(",\n") + "\n" + indent + "]";
-            } else if (typeof obj === 'object') {
-                let keys = Object.keys(obj);
-                if (keys.length === 0) return "{}";
-                
-                let items = [];
-                for (let i = 0; i < keys.length; i++) {
-                    let key = keys[i];
-                    let valStr = customStringify(obj[key], indentLevel + 1);
-                    if (valStr === undefined) continue;
-                    
-                    items.push(nextIndent + JSON.stringify(key) + ": " + valStr);
-                }
-                if (items.length === 0) return "{}";
-                return "{\n" + items.join(",\n") + "\n" + indent + "}";
-            } else {
-                return JSON.stringify(obj);
-            }
-        }
 
         // --- Web Worker Code ---
         const workerCode = `
-            const CONDITION_MAP = {
-                "epicfight:within_distance": (cond) => ({ type: "combat_evolution:target_in_distance", min: cond.min || 0, max: cond.max || 0 }),
-                "epicfight:health": (cond) => {
-                    let comp = cond.comparator || "less_ratio";
-                    if (!["less_ratio", "greater_ratio", "less_absolute", "greater_absolute"].includes(comp)) comp = "less_ratio";
-                    return { type: "combat_evolution:health_check", health: cond.health || 0, comparator: comp };
-                },
-                "indestructible:stamina": (cond) => {
-                    let comp = cond.comparator || "less_ratio";
-                    if (!["less_ratio", "greater_ratio", "less_absolute", "greater_absolute"].includes(comp)) comp = "less_ratio";
-                    return { type: "combat_evolution:stamina_check", stamina: cond.stamina || 0, comparator: comp };
-                },
-                "indestructible:attack_level": (cond) => ({ type: "combat_evolution:attack_level", min: cond.min || 1, max: cond.max || 1 }),
-                "indestructible:phase": (cond) => ({ type: "combat_evolution:phase_between", min: cond.min || 0, max: cond.max || 0 }),
-                "indestructible:guard_break": (cond) => ({ type: "combat_evolution:target_guard_break" }),
-                "epicfight:within_angle": (cond) => ({ type: "combat_evolution:current_angle", side: "all", first: 0, second: cond.max || 180 }),
-                "epicfight:within_angle_horizontal": (cond) => ({ type: "combat_evolution:current_angle", side: "all", first: 0, second: cond.max || 180 }),
-                "epicfight:within_eye_height": (cond) => null // CE无直接等价，丢弃
-            };
-
-            function validateSchema(data) {
-                const isIndestructible = data.combat_behavior !== undefined || 
-                                         data.attributes !== undefined || 
-                                         data.humanoid_weapon_motions !== undefined || 
-                                         data.custom_guard_motion !== undefined ||
-                                         data.stun_animations !== undefined ||
-                                         data.default_livingmotions !== undefined;
-                if (!isIndestructible) {
-                    throw new Error("文件格式不匹配，未检测到 Indestructible 特有字段");
-                }
-            }
-
-            function convertConditions(conditions) {
-                if (!conditions) return [];
-                let newConds = [];
-                for (let cond of conditions) {
-                    let pred = cond.predicate;
-                    // 处理可能缺失命名空间前缀的情况
-                    if (pred && !pred.includes(':')) {
-                        // 尝试为其添加 epicfight: 或 indestructible: 前缀进行匹配
-                        if (CONDITION_MAP["epicfight:" + pred]) {
-                            pred = "epicfight:" + pred;
-                        } else if (CONDITION_MAP["indestructible:" + pred]) {
-                            pred = "indestructible:" + pred;
-                        }
-                    }
-                    
-                    if (CONDITION_MAP[pred]) {
-                        let mapped = CONDITION_MAP[pred](cond);
-                        if (mapped !== null) newConds.push(mapped);
-                    } else {
-                        // 未知条件保留，修改 key 从 predicate 为 type
-                        let unmapped = { type: pred, ...cond };
-                        delete unmapped.predicate;
-                        newConds.push(unmapped);
-                    }
-                }
-                return newConds;
-            }
-
-            function convertCommandList(cmdList) {
-                if (!cmdList) return [];
-                return cmdList.map(cmd => {
-                    let time = cmd.time || 0;
-                    let onTarget = cmd.execute_at_target || false;
-                    let command = cmd.command || "";
-                    if (!command.startsWith("/")) command = "/" + command;
-                    if (time > 0) return { type: "in_time", timeStart: time, onTarget: onTarget, command: command };
-                    else return { type: "tick", onTarget: onTarget, command: command };
-                });
-            }
-
-            function convertHitCommandList(cmdList) {
-                if (!cmdList) return [];
-                return cmdList.map(cmd => {
-                    let onTarget = cmd.execute_at_target || false;
-                    let command = cmd.command || "";
-                    if (!command.startsWith("/")) command = "/" + command;
-                    return { type: "success", phase: -1, onTarget: onTarget, command: command };
-                });
-            }
-
-            function convertBehavior(b) {
-                let outB = {};
-                if (b.conditions) {
-                    let conds = convertConditions(b.conditions);
-                    if (conds.length > 0) outB.conditions = conds;
-                }
-                
-                if (b.animation) {
-                    outB.behaviorType = "action";
-                    outB.animation = b.animation; 
-                    
-                    let params = {};
-                    if (b.convert_time !== undefined) params.transitionTime = b.convert_time;
-                    if (b.play_speed !== undefined) params.playSpeed = b.play_speed;
-                    if (Object.keys(params).length > 0) outB.animationParams = params;
-
-                    if (b.command_list) {
-                        let te = convertCommandList(b.command_list);
-                        if (te.length > 0) outB.timeEvents = te;
-                    }
-                    if (b.hit_command_list) {
-                        let he = convertHitCommandList(b.hit_command_list);
-                        if (he.length > 0) outB.hitEvents = he;
-                    }
-                    if (b.damage_modifier && typeof b.damage_modifier === 'object') {
-                        let phaseParam = { phase: -1 }; 
-                        let mod = b.damage_modifier;
-                        if (mod.damage !== undefined) phaseParam.damageMultiplier = mod.damage;
-                        if (mod.impact !== undefined) phaseParam.impactMultiplier = mod.impact;
-                        if (mod.armor_negation !== undefined) phaseParam.armorNegationMultiplier = mod.armor_negation;
-                        if (mod.stun_type !== undefined) phaseParam.stunType = mod.stun_type;
-                        if (Object.keys(phaseParam).length > 1) {
-                            outB.animationParams = outB.animationParams || {};
-                            outB.animationParams.phaseParams = [phaseParam];
-                        }
-                    }
-                    if (b.set_phase !== undefined) {
-                        outB.setPhase = b.set_phase;
-                    }
-                } else if (b.guard !== undefined) {
-                    outB.behaviorType = "guard";
-                    outB.guardTime = b.guard;
-                    if (b.counter) {
-                        outB.counterAnimation = b.counter; 
-                        outB.counterType = "random";
-                        outB.counterChance = b.counter_chance || 0.3;
-                    }
-                } else if (b.wander !== undefined) {
-                    outB.behaviorType = "wander"; // 添加行为类型
-                    outB.wanderTime = b.wander;
-                    if (b.x_axis !== undefined) outB.strafe = b.x_axis;
-                    if (b.z_axis !== undefined) outB.forward = b.z_axis;
-                }
-
-                if (b.stamina !== undefined && b.stamina > 0) {
-                    outB.addStamina = -b.stamina;
-                }
-                return outB;
-            }
-
-            function convertData(data) {
-                let out = {
-                    faction: data.faction || "neutral",
-                    renderer: data.renderer || "skeleton",
-                    model: data.model || "skeleton",
-                    armature: data.armature || "epicfight:entity/biped",
-                    humanoid: data.isHumanoid !== undefined ? data.isHumanoid : true
-                };
-
-                if (data.attributes && typeof data.attributes === 'object') {
-                    let attrs = data.attributes;
-                    if (attrs.chasing_speed !== undefined) out.chasingSpeed = attrs.chasing_speed;
-                    if (attrs.scale !== undefined) out.scale = attrs.scale;
-                    if (attrs.stamina_regan_delay !== undefined) out.staminaRegenDelay = attrs.stamina_regan_delay;
-                    if (attrs.stamina_lose_multiply !== undefined) out.hurtImpact = attrs.stamina_lose_multiply;
-                    
-                    let outAttrs = [];
-                    if (attrs.max_stamina !== undefined) outAttrs.push({ attribute: "epicfight:staminar", value: attrs.max_stamina });
-                    if (attrs.stamina_regan_multiply !== undefined) outAttrs.push({ attribute: "epicfight:stamina_regen", value: attrs.stamina_regan_multiply });
-                    if (attrs.impact !== undefined) outAttrs.push({ attribute: "epicfight:impact", value: attrs.impact });
-                    if (attrs.armor_negation !== undefined) outAttrs.push({ attribute: "epicfight:armor_negation", value: attrs.armor_negation });
-                    
-                    if (outAttrs.length > 0) out.attributes = outAttrs;
-                }
-
-                if (data.stun_animations && Array.isArray(data.stun_animations)) out.stunAnimations = data.stun_animations;
-                
-                let defaultMotions = (data.default_livingmotions && typeof data.default_livingmotions === 'object') ? data.default_livingmotions : {};
-                
-                if (data.humanoid_weapon_motions && Array.isArray(data.humanoid_weapon_motions)) {
-                    out.weaponLivingMotions = [];
-                    for (let wm of data.humanoid_weapon_motions) {
-                        if (!wm || typeof wm !== 'object') continue;
-                        let combinedMotions = Object.assign({}, defaultMotions, (wm.livingmotions && typeof wm.livingmotions === 'object') ? wm.livingmotions : {});
-                        let wMotion = {
-                            weaponCategories: Array.isArray(wm.weapon_categories) ? wm.weapon_categories : [],
-                            style: wm.style || "common",
-                            livingMotions: combinedMotions
-                        };
-                        out.weaponLivingMotions.push(wMotion);
-                    }
-                } else if (Object.keys(defaultMotions).length > 0) {
-                    out.weaponLivingMotions = [{
-                        weaponCategories: [], 
-                        style: "common",
-                        livingMotions: defaultMotions
-                    }];
-                }
-                
-                if (data.custom_guard_motion && Array.isArray(data.custom_guard_motion)) {
-                    out.guardHitAnimation = [];
-                    for (let gm of data.custom_guard_motion) {
-                        if (!gm || typeof gm !== 'object') continue;
-                        let gHit = {
-                            weaponCategories: Array.isArray(gm.weapon_categories) ? gm.weapon_categories : [],
-                            style: gm.style || "common",
-                            animations: Array.isArray(gm.parry_animation) ? gm.parry_animation : [] 
-                        };
-                        if (gHit.animations.length === 0 && gm.guard) {
-                            gHit.animations.push(gm.guard);
-                        }
-                        if (gHit.animations.length > 0) out.guardHitAnimation.push(gHit);
-                    }
-                }
-
-                if (data.combat_behavior && Array.isArray(data.combat_behavior)) {
-                    let outCbs = [];
-                    for (let idxCb = 0; idxCb < data.combat_behavior.length; idxCb++) {
-                        let cb = data.combat_behavior[idxCb];
-                        let outCb = {
-                            weaponCategories: cb.weapon_categories || [],
-                            style: cb.style || "common",
-                            behaviorRoots: []
-                        };
-
-                        if (cb.behavior_series) {
-                            for (let idxS = 0; idxS < cb.behavior_series.length; idxS++) {
-                                let series = cb.behavior_series[idxS];
-                                let root = {
-                                    rootName: "BehaviorRoot_" + idxS,
-                                    weight: series.weight || 1.0,
-                                    maxCooldown: series.cooldown || 0,
-                                    firstBehaviors: [] // 根据 CE 参考文件，根节点使用的是 firstBehaviors
-                                };
-
-                                if (series.behaviors && series.behaviors.length > 0) {
-                                    let first = convertBehavior(series.behaviors[0]);
-                                    first.behaviorName = "Action_" + idxS + "_0";
-                                    let current = first;
-                                    for (let i = 1; i < series.behaviors.length; i++) {
-                                        let next = convertBehavior(series.behaviors[i]);
-                                        next.behaviorName = "Action_" + idxS + "_" + i;
-                                        current.nextBehaviors = [next];
-                                        current = next;
-                                    }
-                                    root.firstBehaviors.push(first);
-                                }
-                                outCb.behaviorRoots.push(root);
-                            }
-                        }
-                        outCbs.push(outCb);
-                    }
-                    out.combatBehaviors = outCbs;
-                }
-                return out;
-            }
-
-            function customStringify(obj, indentLevel = 0) {
-                if (obj === undefined) return undefined;
-                if (obj === null) return "null";
-                
-                const indent = "\\t".repeat(indentLevel);
-                const nextIndent = "\\t".repeat(indentLevel + 1);
-                
-                if (Array.isArray(obj)) {
-                    if (obj.length === 0) return "[]";
-                    let allSimple = obj.every(item => typeof item !== 'object' || item === null);
-                    if (allSimple) {
-                        return "[" + obj.map(item => JSON.stringify(item)).join(", ") + "]";
-                    }
-                    
-                    let items = [];
-                    for (let i = 0; i < obj.length; i++) {
-                        let itemStr = "";
-                        let item = obj[i];
-                        if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
-                            if (Object.keys(item).length <= 4 && !Object.values(item).some(v => typeof v === 'object' && v !== null)) {
-                                itemStr = JSON.stringify(item);
-                            } else {
-                                itemStr = customStringify(item, indentLevel + 1);
-                            }
-                        } else {
-                            itemStr = customStringify(item, indentLevel + 1);
-                        }
-                        
-                        if (itemStr !== undefined) {
-                            items.push(nextIndent + itemStr);
-                        } else {
-                            items.push(nextIndent + "null");
-                        }
-                    }
-                    return "[\\n" + items.join(",\\n") + "\\n" + indent + "]";
-                } else if (typeof obj === 'object') {
-                    let keys = Object.keys(obj);
-                    if (keys.length === 0) return "{}";
-                    
-                    let items = [];
-                    for (let i = 0; i < keys.length; i++) {
-                        let key = keys[i];
-                        let valStr = customStringify(obj[key], indentLevel + 1);
-                        if (valStr === undefined) continue;
-                        
-                        items.push(nextIndent + JSON.stringify(key) + ": " + valStr);
-                    }
-                    if (items.length === 0) return "{}";
-                    return "{\\n" + items.join(",\\n") + "\\n" + indent + "}";
-                } else {
-                    return JSON.stringify(obj);
-                }
-            }
-
-            function getFirstJsonChar(text) {
-                if (typeof text !== 'string') return '';
-                let s = text.replace(/^\uFEFF/, '');
-                for (let i = 0; i < s.length; i++) {
-                    const c = s[i];
-                    if (c === ' ' || c === '\\n' || c === '\\r' || c === '\\t') continue;
-                    return c;
-                }
-                return '';
-            }
-
             self.onmessage = async function(e) {
                 const file = e.data.file;
                 const jobId = e.data.jobId;
                 try {
                     let text = await file.text();
-                    const c = getFirstJsonChar(text.slice(0, 4096));
-                    if (c !== '{' && c !== '[') {
-                        throw new Error("文件内容不像 JSON（开头未发现 { 或 [）");
-                    }
-                    let json = JSON.parse(text);
-                    text = null;
+                    let { jsonStr, fileName } = await convertJsonTextToCE(text, file.name);
                     
-                    validateSchema(json);
-                    
-                    let ceJson = convertData(json);
-                    json = null;
-                    let jsonStr = customStringify(ceJson);
-                    ceJson = null;
-                    
-                    self.postMessage({ success: true, jobId: jobId, fileName: file.name, jsonStr: jsonStr });
+                    self.postMessage({ success: true, jobId: jobId, fileName: fileName, jsonStr: jsonStr });
                     jsonStr = null;
                 } catch (err) {
                     self.postMessage({ success: false, jobId: jobId, fileName: file.name, error: err.message });
@@ -1337,7 +1276,11 @@
                 URL.revokeObjectURL(workerObjectUrl);
                 workerObjectUrl = null;
             }
-            const blob = new Blob([workerCode], { type: 'application/javascript' });
+            
+            const coreScript = document.getElementById('ce-converter-core').textContent;
+            const fullWorkerCode = coreScript + '\n' + workerCode;
+            const blob = new Blob([fullWorkerCode], { type: 'application/javascript' });
+            
             try {
                 workerObjectUrl = URL.createObjectURL(blob);
                 myWorker = new Worker(workerObjectUrl);
@@ -1479,28 +1422,11 @@
                 renderFileList();
                 try {
                     let text = await file.text();
-                    const c = getFirstJsonChar(text.slice(0, 4096));
-                    if (c !== '{' && c !== '[') throw new Error("文件内容不像 JSON（开头未发现 { 或 [）");
-                    let json = JSON.parse(text);
-                    text = null;
-                    const isIndestructible = (json && typeof json === 'object') && (
-                        json.combat_behavior !== undefined ||
-                        json.attributes !== undefined ||
-                        json.humanoid_weapon_motions !== undefined ||
-                        json.custom_guard_motion !== undefined ||
-                        json.stun_animations !== undefined ||
-                        json.default_livingmotions !== undefined
-                    );
-                    if (!isIndestructible) throw new Error("文件格式不匹配，未检测到 Indestructible 特有字段");
-                    let result = await convertIndestructibleToCE(json);
-                    json = null;
-                    let jsonStr = customStringify(result);
-                    result = null;
+                    let { jsonStr, fileName } = await convertJsonTextToCE(text, file.name);
                     processedCount++;
                     updateProgress();
                     setFileStatus(file, 'success');
-                    downloadQueue.push({ fileName: file.name, jsonStr });
-                    jsonStr = null;
+                    downloadQueue.push({ fileName, jsonStr });
                     processDownloadQueue();
                 } catch (err) {
                     processedCount++;
@@ -1514,223 +1440,7 @@
             maybeFinishProcessing();
         }
 
-        async function convertIndestructibleToCE(json) {
-            const CONDITION_MAP = {
-                "epicfight:within_distance": (cond) => ({ type: "combat_evolution:target_in_distance", min: cond.min || 0, max: cond.max || 0 }),
-                "epicfight:health": (cond) => {
-                    let comp = cond.comparator || "less_ratio";
-                    if (!["less_ratio", "greater_ratio", "less_absolute", "greater_absolute"].includes(comp)) comp = "less_ratio";
-                    return { type: "combat_evolution:health_check", health: cond.health || 0, comparator: comp };
-                },
-                "indestructible:stamina": (cond) => {
-                    let comp = cond.comparator || "less_ratio";
-                    if (!["less_ratio", "greater_ratio", "less_absolute", "greater_absolute"].includes(comp)) comp = "less_ratio";
-                    return { type: "combat_evolution:stamina_check", stamina: cond.stamina || 0, comparator: comp };
-                },
-                "indestructible:attack_level": (cond) => ({ type: "combat_evolution:attack_level", min: cond.min || 1, max: cond.max || 1 }),
-                "indestructible:phase": (cond) => ({ type: "combat_evolution:phase_between", min: cond.min || 0, max: cond.max || 0 }),
-                "indestructible:guard_break": (cond) => ({ type: "combat_evolution:target_guard_break" }),
-                "epicfight:within_angle": (cond) => ({ type: "combat_evolution:current_angle", side: "all", first: 0, second: cond.max || 180 }),
-                "epicfight:within_angle_horizontal": (cond) => ({ type: "combat_evolution:current_angle", side: "all", first: 0, second: cond.max || 180 }),
-                "epicfight:within_eye_height": (cond) => null
-            };
 
-            function convertConditions(conditions) {
-                if (!conditions) return [];
-                let newConds = [];
-                for (let cond of conditions) {
-                    let pred = cond.predicate;
-                    if (pred && !pred.includes(':')) {
-                        if (CONDITION_MAP["epicfight:" + pred]) pred = "epicfight:" + pred;
-                        else if (CONDITION_MAP["indestructible:" + pred]) pred = "indestructible:" + pred;
-                    }
-                    if (CONDITION_MAP[pred]) {
-                        let mapped = CONDITION_MAP[pred](cond);
-                        if (mapped !== null) newConds.push(mapped);
-                    } else {
-                        let unmapped = { type: pred, ...cond };
-                        delete unmapped.predicate;
-                        newConds.push(unmapped);
-                    }
-                }
-                return newConds;
-            }
-
-            function convertCommandList(cmdList) {
-                if (!cmdList) return [];
-                return cmdList.map(cmd => {
-                    let time = cmd.time || 0;
-                    let onTarget = cmd.execute_at_target || false;
-                    let command = cmd.command || "";
-                    if (!command.startsWith("/")) command = "/" + command;
-                    if (time > 0) return { type: "in_time", timeStart: time, onTarget: onTarget, command: command };
-                    else return { type: "tick", onTarget: onTarget, command: command };
-                });
-            }
-
-            function convertHitCommandList(cmdList) {
-                if (!cmdList) return [];
-                return cmdList.map(cmd => {
-                    let onTarget = cmd.execute_at_target || false;
-                    let command = cmd.command || "";
-                    if (!command.startsWith("/")) command = "/" + command;
-                    return { type: "success", phase: -1, onTarget: onTarget, command: command };
-                });
-            }
-
-            function convertBehavior(b) {
-                let outB = {};
-                if (b.conditions) {
-                    let conds = convertConditions(b.conditions);
-                    if (conds.length > 0) outB.conditions = conds;
-                }
-                if (b.animation) {
-                    outB.behaviorType = "action";
-                    outB.animation = b.animation;
-                    let params = {};
-                    if (b.convert_time !== undefined) params.transitionTime = b.convert_time;
-                    if (b.play_speed !== undefined) params.playSpeed = b.play_speed;
-                    if (Object.keys(params).length > 0) outB.animationParams = params;
-                    if (b.command_list) {
-                        let te = convertCommandList(b.command_list);
-                        if (te.length > 0) outB.timeEvents = te;
-                    }
-                    if (b.hit_command_list) {
-                        let he = convertHitCommandList(b.hit_command_list);
-                        if (he.length > 0) outB.hitEvents = he;
-                    }
-                    if (b.damage_modifier && typeof b.damage_modifier === 'object') {
-                        let phaseParam = { phase: -1 };
-                        let mod = b.damage_modifier;
-                        if (mod.damage !== undefined) phaseParam.damageMultiplier = mod.damage;
-                        if (mod.impact !== undefined) phaseParam.impactMultiplier = mod.impact;
-                        if (mod.armor_negation !== undefined) phaseParam.armorNegationMultiplier = mod.armor_negation;
-                        if (mod.stun_type !== undefined) phaseParam.stunType = mod.stun_type;
-                        if (Object.keys(phaseParam).length > 1) {
-                            outB.animationParams = outB.animationParams || {};
-                            outB.animationParams.phaseParams = [phaseParam];
-                        }
-                    }
-                    if (b.set_phase !== undefined) outB.setPhase = b.set_phase;
-                } else if (b.guard !== undefined) {
-                    outB.behaviorType = "guard";
-                    outB.guardTime = b.guard;
-                    if (b.counter) {
-                        outB.counterAnimation = b.counter;
-                        outB.counterType = "random";
-                        outB.counterChance = b.counter_chance || 0.3;
-                    }
-                } else if (b.wander !== undefined) {
-                    outB.behaviorType = "wander";
-                    outB.wanderTime = b.wander;
-                    if (b.x_axis !== undefined) outB.strafe = b.x_axis;
-                    if (b.z_axis !== undefined) outB.forward = b.z_axis;
-                }
-                if (b.stamina !== undefined && b.stamina > 0) outB.addStamina = -b.stamina;
-                return outB;
-            }
-
-            function convertData(data) {
-                let out = {
-                    faction: data.faction || "neutral",
-                    renderer: data.renderer || "skeleton",
-                    model: data.model || "skeleton",
-                    armature: data.armature || "epicfight:entity/biped",
-                    humanoid: data.isHumanoid !== undefined ? data.isHumanoid : true
-                };
-
-                if (data.attributes && typeof data.attributes === 'object') {
-                    let attrs = data.attributes;
-                    if (attrs.chasing_speed !== undefined) out.chasingSpeed = attrs.chasing_speed;
-                    if (attrs.scale !== undefined) out.scale = attrs.scale;
-                    if (attrs.stamina_regan_delay !== undefined) out.staminaRegenDelay = attrs.stamina_regan_delay;
-                    if (attrs.stamina_lose_multiply !== undefined) out.hurtImpact = attrs.stamina_lose_multiply;
-                    let outAttrs = [];
-                    if (attrs.max_stamina !== undefined) outAttrs.push({ attribute: "epicfight:staminar", value: attrs.max_stamina });
-                    if (attrs.stamina_regan_multiply !== undefined) outAttrs.push({ attribute: "epicfight:stamina_regen", value: attrs.stamina_regan_multiply });
-                    if (attrs.impact !== undefined) outAttrs.push({ attribute: "epicfight:impact", value: attrs.impact });
-                    if (attrs.armor_negation !== undefined) outAttrs.push({ attribute: "epicfight:armor_negation", value: attrs.armor_negation });
-                    if (outAttrs.length > 0) out.attributes = outAttrs;
-                }
-
-                if (data.stun_animations && Array.isArray(data.stun_animations)) out.stunAnimations = data.stun_animations;
-                let defaultMotions = (data.default_livingmotions && typeof data.default_livingmotions === 'object') ? data.default_livingmotions : {};
-                if (data.humanoid_weapon_motions && Array.isArray(data.humanoid_weapon_motions)) {
-                    out.weaponLivingMotions = [];
-                    for (let wm of data.humanoid_weapon_motions) {
-                        if (!wm || typeof wm !== 'object') continue;
-                        let combinedMotions = Object.assign({}, defaultMotions, (wm.livingmotions && typeof wm.livingmotions === 'object') ? wm.livingmotions : {});
-                        let wMotion = {
-                            weaponCategories: Array.isArray(wm.weapon_categories) ? wm.weapon_categories : [],
-                            style: wm.style || "common",
-                            livingMotions: combinedMotions
-                        };
-                        out.weaponLivingMotions.push(wMotion);
-                    }
-                } else if (Object.keys(defaultMotions).length > 0) {
-                    out.weaponLivingMotions = [{
-                        weaponCategories: [],
-                        style: "common",
-                        livingMotions: defaultMotions
-                    }];
-                }
-
-                if (data.custom_guard_motion && Array.isArray(data.custom_guard_motion)) {
-                    out.guardHitAnimation = [];
-                    for (let gm of data.custom_guard_motion) {
-                        if (!gm || typeof gm !== 'object') continue;
-                        let gHit = {
-                            weaponCategories: Array.isArray(gm.weapon_categories) ? gm.weapon_categories : [],
-                            style: gm.style || "common",
-                            animations: Array.isArray(gm.parry_animation) ? gm.parry_animation : []
-                        };
-                        if (gHit.animations.length === 0 && gm.guard) gHit.animations.push(gm.guard);
-                        if (gHit.animations.length > 0) out.guardHitAnimation.push(gHit);
-                    }
-                }
-
-                if (data.combat_behavior && Array.isArray(data.combat_behavior)) {
-                    let outCbs = [];
-                    for (let idxCb = 0; idxCb < data.combat_behavior.length; idxCb++) {
-                        let cb = data.combat_behavior[idxCb];
-                        let outCb = {
-                            weaponCategories: cb.weapon_categories || [],
-                            style: cb.style || "common",
-                            behaviorRoots: []
-                        };
-                        if (cb.behavior_series) {
-                            for (let idxS = 0; idxS < cb.behavior_series.length; idxS++) {
-                                let series = cb.behavior_series[idxS];
-                                let root = {
-                                    rootName: "BehaviorRoot_" + idxS,
-                                    weight: series.weight || 1.0,
-                                    maxCooldown: series.cooldown || 0,
-                                    firstBehaviors: []
-                                };
-                                if (series.behaviors && series.behaviors.length > 0) {
-                                    let first = convertBehavior(series.behaviors[0]);
-                                    first.behaviorName = "Action_" + idxS + "_0";
-                                    let current = first;
-                                    for (let i = 1; i < series.behaviors.length; i++) {
-                                        let next = convertBehavior(series.behaviors[i]);
-                                        next.behaviorName = "Action_" + idxS + "_" + i;
-                                        current.nextBehaviors = [next];
-                                        current = next;
-                                    }
-                                    root.firstBehaviors.push(first);
-                                }
-                                outCb.behaviorRoots.push(root);
-                            }
-                        }
-                        outCbs.push(outCb);
-                    }
-                    out.combatBehaviors = outCbs;
-                }
-                return out;
-            }
-
-            return convertData(json);
-        }
 
         function maybeFinishProcessing() {
             const allResultsReceived = totalCount > 0 && processedCount >= totalCount;

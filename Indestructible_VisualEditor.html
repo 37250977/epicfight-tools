@@ -138,7 +138,10 @@
         <div class="top">
             <div>
                 <div style="display:flex; flex-direction:column; gap:10px;">
-                    <h2>{{ t('Indestructible 数据包可视化编辑器') }}</h2>
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                        <h2 style="margin:0;">{{ t('Indestructible 数据包可视化编辑器') }}</h2>
+                        <a href="https://www.ifdian.net/a/zidou" target="_blank" class="btn" style="background-color: #f7b92a; color: #fff; text-decoration: none; padding: 4px 8px; font-size: 12px; font-weight: bold; display: flex; align-items: center; border: none; border-radius: 4px;">{{ t('赞助作者') }}</a>
+                    </div>
                     <div style="display:flex; gap:10px; flex-wrap:wrap;">
                         <a href="index.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('Trail 调节器') }}</a>
                         <a href="CE_VisualEditor.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('CE 动作') }}</a>
@@ -520,17 +523,21 @@
     <!-- 悬浮窗: 3D 动画预览 -->
     <div id="floating-3d-window" class="floating-window" style="display: none;">
         <div id="floating-3d-header" class="floating-header">
-            <span>3D 动画预览</span>
-            <button class="btn secondary mini" style="margin-left: auto; cursor: pointer;" onclick="document.getElementById('floating-3d-window').style.display='none'">关闭</button>
+            <span>{{ t('3D 动画预览') }}</span>
+            <button class="btn secondary mini" style="margin-left: auto; cursor: pointer;" onclick="document.getElementById('floating-3d-window').style.display='none'">{{ t('关闭') }}</button>
         </div>
         <div style="padding:10px; background:#fff; display:flex; flex-direction:column; flex:1; height: calc(100% - 40px);">
             <div style="margin-bottom:10px; display:flex; align-items:center; gap:8px; flex-shrink:0;">
-                <label style="font-size:13px; font-weight:bold; white-space:nowrap;">武器模型:</label>
-                <input type="text" id="weapon-model-input" class="animation-path-input" autocomplete="off" spellcheck="false" placeholder="epicfight:item/dagger" style="flex:1;">
+                <label style="font-size:13px; font-weight:bold; white-space:nowrap;">{{ t('武器模型:') }}</label>
+                <input type="text" id="weapon-model-input" class="animation-path-input" autocomplete="off" spellcheck="false" :placeholder="t('例如: epicfight:item/dagger')" style="flex:1;">
+            </div>
+            <div style="margin-bottom:10px; display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                <label style="font-size:13px; font-weight:bold; white-space:nowrap;">{{ t('UV材质:') }}</label>
+                <input type="file" id="preview-texture-file" accept=".png" style="flex:1; font-size:13px;">
             </div>
             <div id="preview-container" style="flex:1; background:#1e1e1e; border-radius:8px; margin-bottom:0; position:relative; overflow:hidden;">
                 <div id="preview-overlay" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#aaa; font-size:13px; text-align:center; pointer-events:none;">
-                    <div id="preview-msg">点击动画输入框旁的“预览”按钮加载</div>
+                    <div id="preview-msg">{{ t('点击动画输入框旁的“预览”按钮加载') }}</div>
                 </div>
             </div>
         </div>
@@ -1003,6 +1010,12 @@ const messages = {
         "已复制到剪贴板！": "Copied to clipboard!",
         "JSON 错误:": "JSON Error:",
         "JSON 解析失败:": "JSON Parsing Failed:",
+        "3D 动画预览": "3D Animation Preview",
+        "关闭": "Close",
+        "武器模型:": "Weapon Model:",
+        "UV材质:": "UV Texture:",
+        "点击动画输入框旁的“预览”按钮加载": "Click 'Preview' next to animation input to load",
+        "例如: epicfight:item/dagger": "e.g., epicfight:item/dagger",
         "请输入导出的文件名称:": "Please enter export file name:",
         "折叠": "Collapse",
         "展开": "Expand",
@@ -1017,7 +1030,8 @@ const messages = {
         "尚未导入动画资源索引。": "No animation resource index imported yet.",
         "导入资源目录后，动画路径输入框会出现分组联想和高亮匹配。": "After importing resources, animation path inputs will show grouped suggestions and highlighted matches.",
         "Attributes (属性配置)": "Attributes",
-        "combat_behavior 必须是数组": "combat_behavior must be an array"
+        "combat_behavior 必须是数组": "combat_behavior must be an array",
+        "赞助作者": "Sponsor Author"
     }
 };
 
@@ -1618,6 +1632,24 @@ createApp({
     }
 
     async function parseAndBuildModel(fileObj, isWeapon) {
+        let texture = null;
+        try {
+            const manualTexInput = document.getElementById('preview-texture-file');
+            if (manualTexInput && manualTexInput.files && manualTexInput.files[0]) {
+                const texFile = manualTexInput.files[0];
+                const url = URL.createObjectURL(texFile);
+                texture = await new Promise((res, rej) => {
+                    new THREE.TextureLoader().load(url, res, undefined, rej);
+                });
+                texture.magFilter = THREE.NearestFilter;
+                texture.minFilter = THREE.NearestFilter;
+                texture.colorSpace = THREE.SRGBColorSpace;
+                texture.flipY = false;
+            }
+        } catch (e) {
+            console.warn('Failed to load local texture:', e);
+        }
+
         return new Promise((resolve, reject) => {
             const fileName = fileObj.name.toLowerCase();
             
@@ -1634,9 +1666,12 @@ createApp({
                         
                         // 为 OBJ 分配材质
                         const material = new THREE.MeshStandardMaterial({
-                            color: isWeapon ? 0x88aaff : 0xcccccc,
-                            roughness: 0.5,
-                            metalness: 0.5,
+                            color: texture ? 0xffffff : (isWeapon ? 0x88aaff : 0xcccccc),
+                            roughness: 0.6,
+                            metalness: 0.1,
+                            map: texture,
+                            transparent: true,
+                            alphaTest: 0.1,
                             side: THREE.DoubleSide
                         });
                         
@@ -1679,9 +1714,12 @@ createApp({
                     const localBonesMap = {};
 
                     const material = new THREE.MeshStandardMaterial({
-                        color: isWeapon ? 0x88aaff : 0xcccccc,
-                        roughness: 0.5,
-                        metalness: 0.5,
+                        color: texture ? 0xffffff : (isWeapon ? 0x88aaff : 0xcccccc),
+                        roughness: 0.6,
+                        metalness: 0.1,
+                        map: texture,
+                        transparent: true,
+                        alphaTest: 0.1,
                         side: THREE.DoubleSide
                     });
 
@@ -1832,9 +1870,12 @@ createApp({
                         rootGroup.add(rootBone);
 
                         const material = new THREE.MeshStandardMaterial({
-                            color: isWeapon ? 0x88aaff : 0xcccccc,
-                            roughness: 0.5,
-                            metalness: 0.5,
+                            color: texture ? 0xffffff : (isWeapon ? 0x88aaff : 0xcccccc),
+                            roughness: 0.6,
+                            metalness: 0.1,
+                            map: texture,
+                            transparent: true,
+                            alphaTest: 0.1,
                             side: THREE.DoubleSide
                         });
 
@@ -1912,6 +1953,12 @@ createApp({
                                 }
                             }
                             
+                            // 尝试使用用户手动添加的贴图（如果有）
+                            const manualTexInput = document.getElementById('preview-texture-file');
+                            if (!texFile && manualTexInput && manualTexInput.files && manualTexInput.files[0]) {
+                                texFile = manualTexInput.files[0];
+                            }
+                            
                             if (texFile) {
                                 try {
                                     const extrudedGroup = await createExtrudedMeshFromImage(texFile);
@@ -1932,11 +1979,12 @@ createApp({
                         }
                         
                         function createPlaceholderSword() {
-                            // 如果只是 2D 物品模型但找不到材质，生成一个简单的占位剑形几何体
-                            const box = new THREE.BoxGeometry(0.1, 1.0, 0.1);
-                            const boxMesh = new THREE.Mesh(box, material);
-                            boxMesh.position.set(0, 0.5, 0); // 握把在底部
-                            mcGroup.add(boxMesh);
+                            // 为了不影响其他功能的结构，这里保留原本会创建的层级结构（mcGroup本身已经存在），
+                            // 但不再生成可见的占位长条几何体，避免视觉干扰。
+                            // const box = new THREE.BoxGeometry(0.1, 1.0, 0.1);
+                            // const boxMesh = new THREE.Mesh(box, material);
+                            // boxMesh.position.set(0, 0.5, 0); // 握把在底部
+                            // mcGroup.add(boxMesh);
                         }
 
                         rootGroup.add(mcGroup);
@@ -2019,9 +2067,12 @@ createApp({
                         }
                         
                         const material = new THREE.MeshStandardMaterial({
-                            color: isWeapon ? 0x88aaff : 0xcccccc, // 武器用偏蓝色区分
-                            roughness: 0.5,
-                            metalness: 0.5,
+                            color: texture ? 0xffffff : (isWeapon ? 0x88aaff : 0xcccccc), // 武器用偏蓝色区分
+                            roughness: 0.6,
+                            metalness: 0.1,
+                            map: texture,
+                            transparent: true,
+                            alphaTest: 0.1,
                             side: THREE.DoubleSide
                         });
 
@@ -2077,29 +2128,72 @@ createApp({
                     }
 
                     const tracks = [];
+                    const mat = new THREE.Matrix4();
+                    const p = new THREE.Vector3();
+                    const q = new THREE.Quaternion();
+                    const s = new THREE.Vector3();
+                    const isAttributes = data.format === "attributes";
+
                     for (let trackData of data.animation) {
                         const boneName = trackData.name;
+                        const bone = bonesMap[boneName];
+                        if (!bone) continue;
 
                         const times = trackData.time;
+                        const transforms = trackData.transform;
+                        if (!times || !transforms || times.length === 0 || transforms.length === 0) continue;
+                        
+                        const len = Math.min(times.length, transforms.length);
+                        if (len <= 0) continue;
+                        
                         const positions = [];
                         const quaternions = [];
                         const scales = [];
 
-                        for (let arr of trackData.transform) {
-                            const mat = new THREE.Matrix4().fromArray(arr).transpose();
-                            const p = new THREE.Vector3();
-                            const q = new THREE.Quaternion();
-                            const s = new THREE.Vector3();
-                            mat.decompose(p, q, s);
+                        const restMat = new THREE.Matrix4();
+                        restMat.compose(bone.position, bone.quaternion, bone.scale);
 
-                            positions.push(p.x, p.y, p.z);
-                            quaternions.push(q.x, q.y, q.z, q.w);
-                            scales.push(s.x, s.y, s.z);
+                        const animMat = new THREE.Matrix4();
+                        const finalMat = new THREE.Matrix4();
+                        const tempP = new THREE.Vector3();
+                        const tempQ = new THREE.Quaternion();
+                        const tempS = new THREE.Vector3();
+
+                        for (let i = 0; i < len; i++) {
+                            const t = transforms[i];
+                            if (Array.isArray(t) && t.length === 16) {
+                                mat.fromArray(t).transpose();
+                                mat.decompose(p, q, s);
+                                positions.push(p.x, p.y, p.z);
+                                quaternions.push(q.x, q.y, q.z, q.w);
+                                scales.push(s.x, s.y, s.z);
+                            } else {
+                                const l = t && Array.isArray(t.loc) ? t.loc : [0, 0, 0];
+                                const r = t && Array.isArray(t.rot) ? t.rot : [1, 0, 0, 0];
+                                const sc = t && Array.isArray(t.sca) ? t.sca : [1, 1, 1];
+                                
+                                tempP.set(l[0], l[1], l[2]);
+                                tempQ.set(r[1], r[2], r[3], r[0]).normalize();
+                                tempS.set(sc[0], sc[1], sc[2]);
+
+                                animMat.compose(tempP, tempQ, tempS);
+
+                                if (isAttributes) {
+                                    finalMat.multiplyMatrices(restMat, animMat);
+                                } else {
+                                    finalMat.copy(animMat);
+                                }
+
+                                finalMat.decompose(p, q, s);
+                                positions.push(p.x, p.y, p.z);
+                                quaternions.push(q.x, q.y, q.z, q.w);
+                                scales.push(s.x, s.y, s.z);
+                            }
                         }
 
-                        tracks.push(new THREE.VectorKeyframeTrack(`${boneName}.position`, times, positions));
-                        tracks.push(new THREE.QuaternionKeyframeTrack(`${boneName}.quaternion`, times, quaternions));
-                        tracks.push(new THREE.VectorKeyframeTrack(`${boneName}.scale`, times, scales));
+                        tracks.push(new THREE.VectorKeyframeTrack(`${boneName}.position`, times.slice(0, len), positions));
+                        tracks.push(new THREE.QuaternionKeyframeTrack(`${boneName}.quaternion`, times.slice(0, len), quaternions));
+                        tracks.push(new THREE.VectorKeyframeTrack(`${boneName}.scale`, times.slice(0, len), scales));
                     }
 
                     const clip = new THREE.AnimationClip('EpicFightAnim', -1, tracks);

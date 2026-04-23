@@ -102,7 +102,8 @@
         .xyz-group { background: var(--panel-bg); border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-bottom: 20px; }
         
         #preview-container { flex: 1; border-radius: 8px; overflow: hidden; background: #1e1e1e; position: relative; min-height: 400px; border: 1px solid var(--border); }
-        #preview-overlay { position: absolute; top: 10px; left: 10px; color: #fff; font-size: 12px; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 4px; pointer-events: none; }
+        #preview-overlay { position: absolute; top: 10px; left: 10px; color: #fff; font-size: 12px; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 4px; pointer-events: none; z-index: 10; }
+        #preview-overlay button, #preview-overlay input, #preview-overlay label { pointer-events: auto; }
         
         /* AutoComplete Styles */
         .animation-autocomplete-panel {
@@ -205,6 +206,7 @@
                     {{ lang === 'zh' ? '🇺🇸 English' : '🇨🇳 中文' }}
                 </button>
                 <button class="btn secondary" @click="toggleTheme" style="padding:4px 8px; font-size:12px;">{{ isDarkMode ? '☀️' : '🌙' }}</button>
+                <a href="https://www.ifdian.net/a/zidou" target="_blank" class="btn" style="background-color: #f7b92a; color: #fff; text-decoration: none; padding: 4px 8px; font-size: 12px; font-weight: bold; display: flex; align-items: center; border: none; border-radius: 4px;">{{ t('赞助作者') }}</a>
             </div>
         </div>
 
@@ -217,7 +219,7 @@
             <input type="file" id="assetFolderInput" webkitdirectory directory multiple @change="importAnimationResources" style="display:none" aria-label="导入资源文件夹">
             <input type="file" id="assetFolderInputFallback" multiple accept=".json,.obj,.geo" @change="importAnimationResources" style="display:none" aria-label="导入多个资源文件 (兜底)">
             <input type="file" id="assetZipInput" accept=".zip,.jar" multiple @change="importZipResources" style="display:none" aria-label="导入 ZIP/JAR 文件">
-            <div style="font-size:12px; color:#666; margin-bottom:10px;">{{ t('已加载模型:') }} {{availableModels.length}} {{ lang === 'zh' ? '个 动画:' : 'Animations:' }} {{availableAnimations.length}}</div>
+            <div style="font-size:12px; color:#666; margin-bottom:10px;">{{ t('已加载模型:') }} {{availableModels.length}} | {{ t('已加载动画:') }} {{availableAnimations.length}}</div>
             
             <div class="form-group">
                 <label>{{ t('Armature (骨架，默认 epicfight:entity/biped)') }}</label>
@@ -369,11 +371,15 @@
 
     <!-- 右侧 3D 预览区 -->
     <div class="panel" style="padding: 0; position: sticky; top: 20px; height: calc(100vh - 40px);" id="preview-panel">
-        <div id="preview-container" style="height: 100%; border: none;">
+        <div id="preview-container" style="height: 100%; border: none; position: relative;">
             <div id="preview-overlay">
                 <span>{{ t('左键旋转 | 右键平移 | 滚轮缩放') }}</span><br>
                 <span style="color:#9cdcfe; font-size:11px;">{{ t('骨骼: ') }}{{ joint || t('默认 (武器根节点)') }} | {{ t('武器: ') }}{{ previewWeapon || t('未加载') }}</span>
                 <button class="btn secondary" @click="toggleFullscreen" style="margin-left:15px; padding:2px 8px; font-size:12px; background:rgba(255,255,255,0.2); border:1px solid rgba(255,255,255,0.4); color:#fff; cursor:pointer;">{{ t('全屏/退出') }}</button>
+                <div style="margin-top: 5px; display: flex; align-items: center; gap: 8px;">
+                    <label style="font-size: 11px; color: #fff;">{{ t('UV材质:') }}</label>
+                    <input type="file" id="preview-texture-file" accept=".png" style="font-size: 11px; color: #fff; width: 160px;">
+                </div>
             </div>
         </div>
     </div>
@@ -396,6 +402,13 @@
             "重置参数": "Reset Params",
             "动画资源导入与预览": "Animation Resources Import & Preview",
             "导入资源文件夹 (包含 animmodels)": "Import Resource Folder (contains animmodels)",
+            "导入资源文件夹": "Import Resource Folder",
+            "导入本地文件夹（推荐）": "Import Local Folder (Recommended)",
+            "支持直接导入 Mod jar 或资源包 zip 文件": "Supports direct import of Mod jar or resource pack zip",
+            "导入 ZIP/JAR": "Import ZIP/JAR",
+            "已加载模型:": "Loaded Models:",
+            "已加载动画:": "Loaded Animations:",
+            "UV材质:": "UV Texture:",
             "Armature (骨架，默认 epicfight:entity/biped)": "Armature (default epicfight:entity/biped)",
             "Model (人物模型，默认 epicfight:entity/biped)": "Model (default epicfight:entity/biped)",
             "Weapon (武器模型, 可选)": "Weapon (Optional)",
@@ -424,7 +437,8 @@
             "默认 (武器根节点)": "Default (Weapon Root)",
             "武器: ": "Weapon: ",
             "未加载": "Not Loaded",
-            "全屏/退出": "Fullscreen/Exit"
+            "全屏/退出": "Fullscreen/Exit",
+            "赞助作者": "Sponsor Author"
         }
     };
 
@@ -829,6 +843,7 @@
         swordGeo.translate(0, 0.75, 0); // 底部对齐原点
         const swordMat = new THREE.MeshStandardMaterial({ color: 0x888888, transparent: true, opacity: 0.5 });
         const dummySword = new THREE.Mesh(swordGeo, swordMat);
+        dummySword.visible = false; // 隐藏占位模型，避免视觉干扰，但保留 weaponGroup 用于轨迹计算
         weaponGroup.add(dummySword);
 
         window.addEventListener('resize', onWindowResize);
@@ -1583,6 +1598,24 @@
     }
 
     async function parseAndBuildModel(fileObj, isWeapon) {
+        let texture = null;
+        try {
+            const manualTexInput = document.getElementById('preview-texture-file');
+            if (manualTexInput && manualTexInput.files && manualTexInput.files[0]) {
+                const texFile = manualTexInput.files[0];
+                const url = URL.createObjectURL(texFile);
+                texture = await new Promise((res, rej) => {
+                    new THREE.TextureLoader().load(url, res, undefined, rej);
+                });
+                texture.magFilter = THREE.NearestFilter;
+                texture.minFilter = THREE.NearestFilter;
+                texture.colorSpace = THREE.SRGBColorSpace;
+                texture.flipY = false;
+            }
+        } catch (e) {
+            console.warn('Failed to load local texture:', e);
+        }
+
         return new Promise((resolve, reject) => {
             const fileName = fileObj.name.toLowerCase();
             
@@ -1599,9 +1632,12 @@
                         
                         // 为 OBJ 分配材质
                         const material = new THREE.MeshStandardMaterial({
-                            color: isWeapon ? 0x88aaff : 0xcccccc,
-                            roughness: 0.5,
-                            metalness: 0.5,
+                            color: texture ? 0xffffff : (isWeapon ? 0x88aaff : 0xcccccc),
+                            roughness: 0.6,
+                            metalness: 0.1,
+                            map: texture,
+                            transparent: true,
+                            alphaTest: 0.1,
                             side: THREE.DoubleSide
                         });
                         
@@ -1644,9 +1680,12 @@
                     const localBonesMap = {};
 
                     const material = new THREE.MeshStandardMaterial({
-                        color: isWeapon ? 0x88aaff : 0xcccccc,
-                        roughness: 0.5,
-                        metalness: 0.5,
+                        color: texture ? 0xffffff : (isWeapon ? 0x88aaff : 0xcccccc),
+                        roughness: 0.6,
+                        metalness: 0.1,
+                        map: texture,
+                        transparent: true,
+                        alphaTest: 0.1,
                         side: THREE.DoubleSide
                     });
 
@@ -1797,9 +1836,12 @@
                         rootGroup.add(rootBone);
 
                         const material = new THREE.MeshStandardMaterial({
-                            color: isWeapon ? 0x88aaff : 0xcccccc,
-                            roughness: 0.5,
-                            metalness: 0.5,
+                            color: texture ? 0xffffff : (isWeapon ? 0x88aaff : 0xcccccc),
+                            roughness: 0.6,
+                            metalness: 0.1,
+                            map: texture,
+                            transparent: true,
+                            alphaTest: 0.1,
                             side: THREE.DoubleSide
                         });
 
@@ -1877,6 +1919,12 @@
                                 }
                             }
                             
+                            // 尝试使用用户手动添加的贴图（如果有）
+                            const manualTexInput = document.getElementById('preview-texture-file');
+                            if (!texFile && manualTexInput && manualTexInput.files && manualTexInput.files[0]) {
+                                texFile = manualTexInput.files[0];
+                            }
+                            
                             if (texFile) {
                                 try {
                                     const extrudedGroup = await createExtrudedMeshFromImage(texFile);
@@ -1897,11 +1945,12 @@
                         }
                         
                         function createPlaceholderSword() {
-                            // 如果只是 2D 物品模型但找不到材质，生成一个简单的占位剑形几何体
-                            const box = new THREE.BoxGeometry(0.1, 1.0, 0.1);
-                            const boxMesh = new THREE.Mesh(box, material);
-                            boxMesh.position.set(0, 0.5, 0); // 握把在底部
-                            mcGroup.add(boxMesh);
+                            // 为了不影响其他功能的结构，这里保留原本会创建的层级结构（mcGroup本身已经存在），
+                            // 但不再生成可见的占位长条几何体，避免视觉干扰。
+                            // const box = new THREE.BoxGeometry(0.1, 1.0, 0.1);
+                            // const boxMesh = new THREE.Mesh(box, material);
+                            // boxMesh.position.set(0, 0.5, 0); // 握把在底部
+                            // mcGroup.add(boxMesh);
                         }
 
                         rootGroup.add(mcGroup);
@@ -1984,9 +2033,12 @@
                         }
                         
                         const material = new THREE.MeshStandardMaterial({
-                            color: isWeapon ? 0x88aaff : 0xcccccc, // 武器用偏蓝色区分
-                            roughness: 0.5,
-                            metalness: 0.5,
+                            color: texture ? 0xffffff : (isWeapon ? 0x88aaff : 0xcccccc), // 武器用偏蓝色区分
+                            roughness: 0.6,
+                            metalness: 0.1,
+                            map: texture,
+                            transparent: true,
+                            alphaTest: 0.1,
                             side: THREE.DoubleSide
                         });
 
@@ -2042,29 +2094,72 @@
                     }
 
                     const tracks = [];
+                    const mat = new THREE.Matrix4();
+                    const p = new THREE.Vector3();
+                    const q = new THREE.Quaternion();
+                    const s = new THREE.Vector3();
+                    const isAttributes = data.format === "attributes";
+
                     for (let trackData of data.animation) {
                         const boneName = trackData.name;
+                        const bone = bonesMap[boneName];
+                        if (!bone) continue;
 
                         const times = trackData.time;
+                        const transforms = trackData.transform;
+                        if (!times || !transforms || times.length === 0 || transforms.length === 0) continue;
+                        
+                        const len = Math.min(times.length, transforms.length);
+                        if (len <= 0) continue;
+                        
                         const positions = [];
                         const quaternions = [];
                         const scales = [];
 
-                        for (let arr of trackData.transform) {
-                            const mat = new THREE.Matrix4().fromArray(arr).transpose();
-                            const p = new THREE.Vector3();
-                            const q = new THREE.Quaternion();
-                            const s = new THREE.Vector3();
-                            mat.decompose(p, q, s);
+                        const restMat = new THREE.Matrix4();
+                        restMat.compose(bone.position, bone.quaternion, bone.scale);
 
-                            positions.push(p.x, p.y, p.z);
-                            quaternions.push(q.x, q.y, q.z, q.w);
-                            scales.push(s.x, s.y, s.z);
+                        const animMat = new THREE.Matrix4();
+                        const finalMat = new THREE.Matrix4();
+                        const tempP = new THREE.Vector3();
+                        const tempQ = new THREE.Quaternion();
+                        const tempS = new THREE.Vector3();
+
+                        for (let i = 0; i < len; i++) {
+                            const t = transforms[i];
+                            if (Array.isArray(t) && t.length === 16) {
+                                mat.fromArray(t).transpose();
+                                mat.decompose(p, q, s);
+                                positions.push(p.x, p.y, p.z);
+                                quaternions.push(q.x, q.y, q.z, q.w);
+                                scales.push(s.x, s.y, s.z);
+                            } else {
+                                const l = t && Array.isArray(t.loc) ? t.loc : [0, 0, 0];
+                                const r = t && Array.isArray(t.rot) ? t.rot : [1, 0, 0, 0];
+                                const sc = t && Array.isArray(t.sca) ? t.sca : [1, 1, 1];
+                                
+                                tempP.set(l[0], l[1], l[2]);
+                                tempQ.set(r[1], r[2], r[3], r[0]).normalize();
+                                tempS.set(sc[0], sc[1], sc[2]);
+
+                                animMat.compose(tempP, tempQ, tempS);
+
+                                if (isAttributes) {
+                                    finalMat.multiplyMatrices(restMat, animMat);
+                                } else {
+                                    finalMat.copy(animMat);
+                                }
+
+                                finalMat.decompose(p, q, s);
+                                positions.push(p.x, p.y, p.z);
+                                quaternions.push(q.x, q.y, q.z, q.w);
+                                scales.push(s.x, s.y, s.z);
+                            }
                         }
 
-                        tracks.push(new THREE.VectorKeyframeTrack(`${boneName}.position`, times, positions));
-                        tracks.push(new THREE.QuaternionKeyframeTrack(`${boneName}.quaternion`, times, quaternions));
-                        tracks.push(new THREE.VectorKeyframeTrack(`${boneName}.scale`, times, scales));
+                        tracks.push(new THREE.VectorKeyframeTrack(`${boneName}.position`, times.slice(0, len), positions));
+                        tracks.push(new THREE.QuaternionKeyframeTrack(`${boneName}.quaternion`, times.slice(0, len), quaternions));
+                        tracks.push(new THREE.VectorKeyframeTrack(`${boneName}.scale`, times.slice(0, len), scales));
                     }
 
                     const clip = new THREE.AnimationClip('EpicFightAnim', -1, tracks);
