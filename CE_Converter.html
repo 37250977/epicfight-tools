@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -82,6 +82,25 @@
                 if (!command.startsWith("/")) command = "/" + command;
                 return { type: "success", phase: -1, onTarget: onTarget, command: command };
             });
+        }
+
+        function getDefaultLivingMotions(data) {
+            if (data.default_livingmotions && typeof data.default_livingmotions === 'object' && !Array.isArray(data.default_livingmotions)) {
+                return { ...data.default_livingmotions };
+            }
+
+            const isHumanoid = data.isHumanoid !== undefined ? data.isHumanoid : true;
+            if (!isHumanoid) return {};
+
+            return {
+                idle: "epicfight:biped/living/idle",
+                walk: "epicfight:biped/living/walk",
+                chase: "epicfight:biped/living/walk",
+                mount: "epicfight:biped/living/mount",
+                float: "epicfight:biped/living/float",
+                fall: "epicfight:biped/living/fall",
+                death: "epicfight:biped/living/death"
+            };
         }
 
         function convertBehavior(b) {
@@ -171,7 +190,10 @@
 
             if (data.stun_animations && Array.isArray(data.stun_animations)) out.stunAnimations = data.stun_animations;
             
-            let defaultMotions = (data.default_livingmotions && typeof data.default_livingmotions === 'object') ? data.default_livingmotions : {};
+            let defaultMotions = getDefaultLivingMotions(data);
+            if (Object.keys(defaultMotions).length > 0) {
+                out.default_livingmotions = { ...defaultMotions };
+            }
             
             if (data.humanoid_weapon_motions && Array.isArray(data.humanoid_weapon_motions)) {
                 out.weaponLivingMotions = [];
