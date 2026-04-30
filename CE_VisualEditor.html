@@ -2346,7 +2346,13 @@
                     reader.onload = (e) => {
                         try {
                             const imported = JSON.parse(e.target.result);
-                            
+
+                            if (imported.weaponLivingMotions) {
+                                imported.weaponLivingMotions = imported.weaponLivingMotions.filter(
+                                    wlm => wlm.livingMotions && wlm.weaponCategories
+                                );
+                            }
+
                             // 清除将导入转 JSON 字符串的代码
                             if (imported.combatBehaviors) {
                                 imported.combatBehaviors.forEach(cb => {
