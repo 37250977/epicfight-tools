@@ -1992,11 +1992,33 @@
 
         const app = createApp({
             data() {
-                let savedConfig = null;
-                try {
-                    const savedStr = localStorage.getItem('ce_autosave_config');
-                    if (savedStr) savedConfig = JSON.parse(savedStr);
-                } catch (e) { console.warn("Failed to load autosave config", e); }
+                    let savedConfig = null;
+                    try {
+                        const savedStr = localStorage.getItem('ce_autosave_config');
+                        if (savedStr) savedConfig = JSON.parse(savedStr);
+                    } catch (e) { console.warn("Failed to load autosave config", e); }
+
+                    if (window.location.hash === '#reset') {
+                        localStorage.removeItem('ce_autosave_config');
+                        savedConfig = null;
+                        window.location.hash = '';
+                    }
+
+                    let config = savedConfig || getDefaultConfig();
+                    if (config.weaponLivingMotions) {
+                        config.weaponLivingMotions.forEach((wlm, i) => {
+                            if (!wlm.livingMotions) {
+                                config.weaponLivingMotions[i].livingMotions = {
+                                    idle: "",
+                                    walk: "",
+                                    run: "",
+                                    chase: "",
+                                    death: "",
+                                    block: ""
+                                };
+                            }
+                        });
+                    }
                 
                 return {
                     isDarkMode: localStorage.getItem('ce_theme') === 'dark',
@@ -2015,7 +2037,7 @@
                     previewWeaponModel: '',
                     jsonPreviewText: '',
                     searchBehaviorKeyword: '',
-                    config: savedConfig || getDefaultConfig()
+                    config
                 }
             },
             computed: {
