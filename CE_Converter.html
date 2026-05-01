@@ -20,8 +20,8 @@
             "indestructible:attack_level": (cond) => ({ type: "combat_evolution:attack_level", min: cond.min || 1, max: cond.max || 1 }),
             "indestructible:phase": (cond) => ({ type: "combat_evolution:phase_between", min: cond.min || 0, max: cond.max || 0 }),
             "indestructible:guard_break": (cond) => ({ type: "combat_evolution:target_guard_break" }),
-            "epicfight:within_angle": (cond) => ({ type: "combat_evolution:current_angle", side: "all", first: 0, second: cond.max || 180 }),
-            "epicfight:within_angle_horizontal": (cond) => ({ type: "combat_evolution:current_angle", side: "all", first: 0, second: cond.max || 180 }),
+            "epicfight:within_angle": (cond) => ({ type: "combat_evolution:current_angle", side: "round", first: cond.min || 0, second: cond.max || 180 }),
+            "epicfight:within_angle_horizontal": (cond) => ({ type: "combat_evolution:current_angle", side: "round", first: cond.min || 0, second: cond.max || 180 }),
             "epicfight:within_eye_height": (cond) => null // CE无直接等价，丢弃
         };
 
