@@ -386,10 +386,59 @@
                                 <!-- Conditions -->
                                 <div class="form-group">
                                     <label>Conditions (前置条件)</label>
-                                    <div class="row3" v-for="(cond, cIdx) in bhv.conditions" :key="'cond-'+cIdx">
-                                        <input type="text" v-model="cond.predicate" placeholder="epicfight:within_distance">
-                                        <input type="text" :value="JSON.stringify(cond)" @change="updateCondition(cond, $event.target.value)" placeholder='额外参数如 {"min":0,"max":5}'>
-                                        <button class="btn danger mini" @click="bhv.conditions.splice(cIdx,1)">删</button>
+                                    <div v-for="(cond, cIdx) in bhv.conditions" :key="'cond-'+cIdx" style="border:1px solid #e2e8f0;padding:8px;margin-bottom:6px;border-radius:4px;">
+                                        <div style="display:flex;gap:6px;margin-bottom:6px;">
+                                            <select v-model="cond.predicate" @change="changeConditionType(cond)" style="flex:1;">
+                                                <option value="epicfight:within_distance">范围内 (within_distance)</option>
+                                                <option value="epicfight:within_eye_height">在眼前 (within_eye_height)</option>
+                                                <option value="epicfight:within_angle">角度 (within_angle)</option>
+                                                <option value="epicfight:within_angle_horizontal">水平角度 (within_angle_horizontal)</option>
+                                                <option value="epicfight:health">生命值 (health)</option>
+                                                <option value="epicfight:random_chance">随机概率 (random_chance)</option>
+                                                <option value="indestructible:guard_break">目标破防 (guard_break)</option>
+                                                <option value="indestructible:knock_down">目标倒地 (knock_down)</option>
+                                                <option value="indestructible:attack_level">攻击等级 (attack_level)</option>
+                                                <option value="indestructible:stamina">耐力值 (stamina)</option>
+                                                <option value="indestructible:using_item">使用物品 (using_item)</option>
+                                                <option value="indestructible:phase">自定义阶段 (phase)</option>
+                                            </select>
+                                            <button class="btn danger mini" @click="bhv.conditions.splice(cIdx,1)">删</button>
+                                        </div>
+
+                                        <!-- within_distance / within_angle / within_angle_horizontal / attack_level / phase -->
+                                        <div v-if="cond.predicate==='epicfight:within_distance'||cond.predicate==='epicfight:within_angle'||cond.predicate==='epicfight:within_angle_horizontal'||cond.predicate==='indestructible:attack_level'||cond.predicate==='indestructible:phase'" style="display:flex;gap:10px;">
+                                            <div class="form-group" style="margin-bottom:0;"><label>Min</label><input type="number" step="0.1" v-model.number="cond.min"></div>
+                                            <div class="form-group" style="margin-bottom:0;"><label>Max</label><input type="number" step="0.1" v-model.number="cond.max"></div>
+                                        </div>
+
+                                        <!-- health / stamina -->
+                                        <div v-if="cond.predicate==='epicfight:health'||cond.predicate==='indestructible:stamina'" style="display:flex;gap:10px;">
+                                            <div class="form-group" style="margin-bottom:0;"><label>Value</label><input type="number" step="0.01" :value="cond.predicate==='epicfight:health'?cond.health:cond.stamina" @input="setConditionValue(cond,$event.target.value)"></div>
+                                            <div class="form-group" style="margin-bottom:0;"><label>Comparator</label>
+                                                <select v-model="cond.comparator">
+                                                    <option value="greater_ratio">大于百分比</option>
+                                                    <option value="less_ratio">小于百分比</option>
+                                                    <option value="greater_absolute">大于绝对值</option>
+                                                    <option value="less_absolute">小于绝对值</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <!-- random_chance -->
+                                        <div v-if="cond.predicate==='epicfight:random_chance'" class="form-group" style="margin-bottom:0;">
+                                            <label>Chance (概率 0~1)</label>
+                                            <input type="number" step="0.01" min="0" max="1" v-model.number="cond.chance">
+                                        </div>
+
+                                        <!-- guard_break / knock_down -->
+                                        <div v-if="cond.predicate==='indestructible:guard_break'||cond.predicate==='indestructible:knock_down'" class="form-group" style="margin-bottom:0;">
+                                            <label class="checkline"><input type="checkbox" v-model="cond.invert"> 反向检测 (invert)</label>
+                                        </div>
+
+                                        <!-- using_item -->
+                                        <div v-if="cond.predicate==='indestructible:using_item'" class="form-group" style="margin-bottom:0;">
+                                            <label class="checkline"><input type="checkbox" v-model="cond.edible"> 仅食物/药水 (edible)</label>
+                                        </div>
                                     </div>
                                     <button class="btn mini" style="margin-top:4px;" @click="addCondition(bhv)">新增条件</button>
                                 </div>
@@ -1182,8 +1231,21 @@ createApp({
         addBehavior(series){series.behaviors.push({_type:'animation',conditions:[],animation:'',play_speed:1,stamina:0,convert_time:0,end_by_hurt_level:2,_enable_set_phase:false,set_phase:0,_enable_damage_modifier:false,damage_modifier:{damage:1,impact:1,armor_negation:1,stun_type:'short'},command_list:[],hit_command_list:[],blocked_command_list:[]})},
         addCommandListItem(bhv,listName){if(listName==='blocked_command_list')bhv[listName].push({command:'',is_parry:false,execute_at_target:true});else if(listName==='command_list')bhv[listName].push({time:0,command:'',execute_at_target:true});else bhv[listName].push({command:'',execute_at_target:true})},
         syncBehaviorType(bhv){if(bhv._type==='animation'){delete bhv.guard;delete bhv.counter;delete bhv.counter_chance;delete bhv.counter_cost;delete bhv.counter_speed;delete bhv.parry;delete bhv.wander;delete bhv.inaction_time;delete bhv.x_axis;delete bhv.z_axis;delete bhv.stun_immunity_time;delete bhv.specific_guard_motion;delete bhv.cancel_after_counter;delete bhv.parry_time;bhv._enable_damage_modifier=false;bhv.damage_modifier={damage:1,impact:1,armor_negation:1,stun_type:'short'};bhv.command_list=[];bhv.hit_command_list=[];bhv.blocked_command_list=[]}else if(bhv._type==='guard'){delete bhv.animation;delete bhv.play_speed;delete bhv.stamina;delete bhv.convert_time;delete bhv.damage_modifier;delete bhv.wander;delete bhv.inaction_time;delete bhv.x_axis;delete bhv.z_axis;delete bhv.command_list;delete bhv.hit_command_list;delete bhv.blocked_command_list;bhv.guard=60;bhv._enable_counter=false;bhv.counter='';bhv.counter_chance=0.3;bhv.counter_cost=3;bhv.counter_speed=1;bhv.cancel_after_counter=true;bhv.parry=false;bhv.parry_time=0;bhv._enable_stun_immunity_time=false;bhv.stun_immunity_time=30;bhv._enable_specific_guard_motion=false;bhv.specific_guard_motion={guard:'',stamina_cost_multiply:1,can_block_projectile:false,parry_cost_multiply:0.5,parry_animation:[]}}else if(bhv._type==='wander'){delete bhv.animation;delete bhv.play_speed;delete bhv.stamina;delete bhv.convert_time;delete bhv.damage_modifier;delete bhv.guard;delete bhv.counter;delete bhv.counter_chance;delete bhv.counter_cost;delete bhv.counter_speed;delete bhv.parry;delete bhv.stun_immunity_time;delete bhv.specific_guard_motion;delete bhv.cancel_after_counter;delete bhv.parry_time;delete bhv.command_list;delete bhv.hit_command_list;delete bhv.blocked_command_list;bhv.wander=300;bhv._enable_inaction_time=false;bhv.inaction_time=300;bhv._enable_x_axis=false;bhv.x_axis=1;bhv._enable_z_axis=false;bhv.z_axis=-1}},
-        addCondition(bhv){bhv.conditions.push({predicate:'epicfight:within_distance'})},
-        updateCondition(cond,valStr){try{const parsed=JSON.parse(valStr);Object.keys(cond).forEach(k=>delete cond[k]);Object.assign(cond,parsed)}catch(e){/* ignore empty or partial inputs */}},
+        addCondition(bhv){bhv.conditions.push({predicate:'epicfight:within_distance',min:0,max:5})},
+        changeConditionType(cond){
+            const type = cond.predicate;
+            Object.keys(cond).forEach(k=>{if(k!=='predicate')delete cond[k]});
+            if(type==='epicfight:within_distance'||type==='epicfight:within_angle'||type==='epicfight:within_angle_horizontal'){cond.min=0;cond.max=5}
+            else if(type==='indestructible:attack_level'||type==='indestructible:phase'){cond.min=1;cond.max=1}
+            else if(type==='epicfight:health'||type==='indestructible:stamina'){cond.health=0.5;cond.comparator='less_ratio'}
+            else if(type==='epicfight:random_chance'){cond.chance=0.5}
+            else if(type==='indestructible:guard_break'||type==='indestructible:knock_down'){cond.invert=false}
+            else if(type==='indestructible:using_item'){cond.edible=true}
+        },
+        setConditionValue(cond,val){
+            if(cond.predicate==='epicfight:health'){cond.health=parseFloat(val)}
+            else if(cond.predicate==='indestructible:stamina'){cond.stamina=parseFloat(val)}
+        },
         generateTemplate(){try{this.config.combat_behavior=processCombatBehavior(JSON.parse(defaultCombatBehaviorText()))}catch(e){alert(this.t('模板生成失败'))}},
         copyJSON(){try{navigator.clipboard.writeText(JSON.stringify(this.buildExportObject(),null,2)).then(()=>alert(this.t('已复制到剪贴板！')))}catch(err){alert(this.t('复制失败:')+' '+err.message)}},
         exportJSON(){try{
