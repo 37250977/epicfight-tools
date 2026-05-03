@@ -238,6 +238,8 @@
                 <input type="text" v-model="previewAnimation" placeholder="epicfight:biped/combat/longsword_auto1" class="animation-path-input">
             </div>
             <button class="btn primary" style="width:100%; margin-top:10px;" @click="playAnim">{{ t('播放预览') }}</button>
+            <button v-if="!isAnimationPaused" class="btn secondary" style="width:100%; margin-top:5px;" @click="togglePauseAnim">{{ t('暂停') }}</button>
+            <button v-else class="btn primary" style="width:100%; margin-top:5px;" @click="togglePauseAnim">{{ t('继续') }}</button>
         </div>
         <div class="xyz-group">
             <h3 style="font-size:1em; border-bottom:1px solid var(--border); padding-bottom:5px;">{{ t('全局滑块范围设置') }}</h3>
@@ -446,6 +448,7 @@
     const fileResourceMap = new Map();
     const textureUrlCache = new Map();
     let trailPreviewState = null;
+    let isAnimationPaused = false;
 
     function extractAnimationDescriptor(path, fileObj) {
         const p = path ? String(path).replace(/\\/g, '/').replace(/^\/+/, '') : '';
@@ -880,7 +883,14 @@
 
     function animate() {
         requestAnimationFrame(animate);
-        const dt = typeof clock !== 'undefined' ? clock.getDelta() : 0.016;
+        const rawDt = typeof clock !== 'undefined' ? clock.getDelta() : 0.016;
+        if (isAnimationPaused) {
+            if (scene) scene.updateMatrixWorld(true);
+            if (controls) controls.update();
+            if (renderer && scene && camera) renderer.render(scene, camera);
+            return;
+        }
+        const dt = rawDt;
         if (typeof mixer !== 'undefined' && mixer) mixer.update(dt);
         if (typeof currentWeaponMixer !== 'undefined' && currentWeaponMixer) currentWeaponMixer.update(dt);
         if (typeof applyCpuSkinning !== 'undefined' && typeof currentMesh !== 'undefined') {
@@ -1548,11 +1558,20 @@
         targetGroup.add(trailPoints);
     }
 
+    function catmullRomPoint(p0, p1, p2, p3, t) {
+        const t2 = t * t, t3 = t2 * t;
+        const x = 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3);
+        const y = 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
+        const z = 0.5 * ((2 * p1.z) + (-p0.z + p2.z) * t + (2 * p0.z - 5 * p1.z + 4 * p2.z - p3.z) * t2 + (-p0.z + 3 * p1.z - 3 * p2.z + p3.z) * t3);
+        return new THREE.Vector3(x, y, z);
+    }
+
     class DynamicTrailRenderer {
         constructor(sceneRef) {
             this.sceneRef = sceneRef;
             this.enabled = false;
             this.edges = [];
+            this.positionBuffer = [];
             this.lastBegin = null;
             this.lastEnd = null;
             this.texturePath = '';
@@ -1625,6 +1644,7 @@
             this.mesh.visible = next;
             if (!next) {
                 this.edges = [];
+                this.positionBuffer = [];
                 this.lastBegin = null;
                 this.lastEnd = null;
                 this.rebuild();
@@ -1638,13 +1658,24 @@
             const r = Math.min(255, Math.max(0, Number(colorArr[0] ?? 255))) / 255;
             const g = Math.min(255, Math.max(0, Number(colorArr[1] ?? 255))) / 255;
             const b = Math.min(255, Math.max(0, Number(colorArr[2] ?? 255))) / 255;
+
+            const interpChanged = this.interpolations !== interpolations;
             this.lifeTicks = lifeTicks;
             this.interpolations = interpolations;
             this.color.setRGB(r, g, b);
+
             const texPath = String(params.trailTexturePath || '').trim();
             if (texPath !== this.texturePath) {
                 this.texturePath = texPath;
                 this.pendingTexturePath = texPath || '';
+            }
+
+            if (interpChanged && this.enabled) {
+                this.edges = [];
+                this.positionBuffer = [];
+                this.lastBegin = null;
+                this.lastEnd = null;
+                this.rebuild();
             }
         }
 
@@ -1786,16 +1817,32 @@
             const currBegin = sample.begin;
             const currEnd = sample.end;
 
-            if (this.lastBegin && this.lastEnd) {
-                const steps = Math.max(1, Math.floor(this.interpolations));
-                for (let i = 1; i <= steps; i++) {
-                    const t = i / steps;
-                    const b = this.lastBegin.clone().lerp(currBegin, t);
-                    const e = this.lastEnd.clone().lerp(currEnd, t);
+            this.positionBuffer.push({ begin: currBegin.clone(), end: currEnd.clone() });
+            if (this.positionBuffer.length > 8) {
+                this.positionBuffer.splice(0, this.positionBuffer.length - 8);
+            }
+
+            if (this.positionBuffer.length >= 2) {
+                const buf = this.positionBuffer;
+                const steps = Math.max(1, this.interpolations);
+                const pairIdx = buf.length - 2;
+
+                const p0b = buf[Math.max(0, pairIdx - 1)].begin;
+                const p1b = buf[pairIdx].begin;
+                const p2b = buf[pairIdx + 1].begin;
+                const p3b = buf[Math.min(pairIdx + 2, buf.length - 1)].begin;
+
+                const p0e = buf[Math.max(0, pairIdx - 1)].end;
+                const p1e = buf[pairIdx].end;
+                const p2e = buf[pairIdx + 1].end;
+                const p3e = buf[Math.min(pairIdx + 2, buf.length - 1)].end;
+
+                for (let j = 1; j <= steps; j++) {
+                    const t = j / (steps + 1);
+                    const b = catmullRomPoint(p0b, p1b, p2b, p3b, t);
+                    const e = catmullRomPoint(p0e, p1e, p2e, p3e, t);
                     this.pushEdge(b, e);
                 }
-            } else {
-                this.pushEdge(currBegin.clone(), currEnd.clone());
             }
 
             this.lastBegin = currBegin.clone();
@@ -3020,6 +3067,7 @@
                 staticTrailOpacity: saved?.staticTrailOpacity ?? 0.6,
                 staticTrailThickness: saved?.staticTrailThickness ?? 0.05,
                 showDynamicTrail: saved?.showDynamicTrail ?? false,
+                isAnimationPaused: false,
                 trailLifetime: saved?.trailLifetime ?? 6,
                 trailInterpolations: saved?.trailInterpolations ?? 4,
                 trailTexturePath: saved?.trailTexturePath ?? 'epicfight:textures/particle/swing_trail.png',
@@ -3184,6 +3232,10 @@
                 } else {
                     clearStaticTrail();
                 }
+                if (dynamicTrailRenderer) {
+                    dynamicTrailRenderer.setEnabled(!!this.showDynamicTrail);
+                    dynamicTrailRenderer.setParams(this);
+                }
             },
             resetParams() {
                 if (!confirm('确定要重置所有参数到默认值吗？')) return;
@@ -3250,10 +3302,21 @@
                     document.exitFullscreen();
                 }
             },
+            togglePauseAnim() {
+                this.isAnimationPaused = !this.isAnimationPaused;
+                isAnimationPaused = this.isAnimationPaused;
+                if (!this.isAnimationPaused && typeof clock !== 'undefined') {
+                    clock.start();
+                }
+            },
                         playAnim() {
                 if (!this.previewAnimation) {
                     alert('请填写动画 ID');
                     return;
+                }
+                if (this.isAnimationPaused) {
+                    this.isAnimationPaused = false;
+                    isAnimationPaused = false;
                 }
                 const modelId = this.previewModel || 'epicfight:entity/biped';
                 const weaponId = this.previewWeapon || null;
