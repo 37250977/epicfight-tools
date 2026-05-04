@@ -241,6 +241,13 @@
             <button v-if="!isAnimationPaused" class="btn secondary" style="width:100%; margin-top:5px;" @click="togglePauseAnim">{{ t('暂停') }}</button>
             <button v-else class="btn primary" style="width:100%; margin-top:5px;" @click="togglePauseAnim">{{ t('继续') }}</button>
         </div>
+        <div class="xyz-group" v-if="animationDuration > 0">
+            <div class="slider-row">
+                <span style="font-size:11px; opacity:0.7; min-width:50px;">{{ formatTime(animationProgress * animationDuration) }}</span>
+                <input type="range" min="0" max="1" step="0.001" v-model.number="animationProgress" @input="seekAnim" style="flex:1;">
+                <span style="font-size:11px; opacity:0.7; min-width:50px;">{{ formatTime(animationDuration) }}</span>
+            </div>
+        </div>
         <div class="xyz-group">
             <h3 style="font-size:1em; border-bottom:1px solid var(--border); padding-bottom:5px;">{{ t('全局滑块范围设置') }}</h3>
             <div class="slider-row">
@@ -449,6 +456,7 @@
     const textureUrlCache = new Map();
     let trailPreviewState = null;
     let isAnimationPaused = false;
+    let animationDuration = 0;
 
     function extractAnimationDescriptor(path, fileObj) {
         const p = path ? String(path).replace(/\\/g, '/').replace(/^\/+/, '') : '';
@@ -884,23 +892,24 @@
     function animate() {
         requestAnimationFrame(animate);
         const rawDt = typeof clock !== 'undefined' ? clock.getDelta() : 0.016;
-        if (isAnimationPaused) {
+        if (!isAnimationPaused) {
+            const dt = rawDt;
+            if (typeof mixer !== 'undefined' && mixer) mixer.update(dt);
+            if (typeof currentWeaponMixer !== 'undefined' && currentWeaponMixer) currentWeaponMixer.update(dt);
+            if (typeof applyCpuSkinning !== 'undefined' && typeof currentMesh !== 'undefined') {
+                applyCpuSkinning(currentMesh, currentRootGroup, currentBindToOrigin);
+                applyCpuSkinning(currentWeaponMesh, currentWeaponGroup, currentWeaponBindToOrigin);
+            }
             if (scene) scene.updateMatrixWorld(true);
-            if (controls) controls.update();
-            if (renderer && scene && camera) renderer.render(scene, camera);
-            return;
+            if (dynamicTrailRenderer && trailPreviewState) dynamicTrailRenderer.update(dt, trailPreviewState);
+        } else if (scene) {
+            scene.updateMatrixWorld(true);
         }
-        const dt = rawDt;
-        if (typeof mixer !== 'undefined' && mixer) mixer.update(dt);
-        if (typeof currentWeaponMixer !== 'undefined' && currentWeaponMixer) currentWeaponMixer.update(dt);
-        if (typeof applyCpuSkinning !== 'undefined' && typeof currentMesh !== 'undefined') {
-            applyCpuSkinning(currentMesh, currentRootGroup, currentBindToOrigin);
-            applyCpuSkinning(currentWeaponMesh, currentWeaponGroup, currentWeaponBindToOrigin);
-        }
-        if (scene) scene.updateMatrixWorld(true);
-        if (dynamicTrailRenderer && trailPreviewState) dynamicTrailRenderer.update(dt, trailPreviewState);
         if (controls) controls.update();
         if (renderer && scene && camera) renderer.render(scene, camera);
+        if (trailPreviewState && typeof mixer !== 'undefined' && mixer && animationDuration > 0) {
+            trailPreviewState.animationProgress = Math.min(1, (mixer.time % animationDuration) / animationDuration);
+        }
     }
 
     function clearStaticTrail() {
@@ -2836,6 +2845,9 @@
                     }
 
                     const clip = new THREE.AnimationClip('EpicFightAnim', -1, tracks);
+                    animationDuration = clip.duration;
+                    const rootVm = trailPreviewState;
+                    if (rootVm) { rootVm.animationDuration = clip.duration; rootVm.animationProgress = 0; }
                     mixer.clipAction(clip).play();
                     if (currentWeaponMixer) {
                         currentWeaponMixer.clipAction(clip).play();
@@ -2850,6 +2862,11 @@
     }
 
     window.playAnimationPreview = async function(modelId, animationId, weaponId) {
+        animationDuration = 0;
+        if (trailPreviewState) {
+            trailPreviewState.animationDuration = 0;
+            trailPreviewState.animationProgress = 0;
+        }
         
         
         
@@ -3068,6 +3085,8 @@
                 staticTrailThickness: saved?.staticTrailThickness ?? 0.05,
                 showDynamicTrail: saved?.showDynamicTrail ?? false,
                 isAnimationPaused: false,
+                animationDuration: 0,
+                animationProgress: 0,
                 trailLifetime: saved?.trailLifetime ?? 6,
                 trailInterpolations: saved?.trailInterpolations ?? 4,
                 trailTexturePath: saved?.trailTexturePath ?? 'epicfight:textures/particle/swing_trail.png',
@@ -3307,6 +3326,27 @@
                 isAnimationPaused = this.isAnimationPaused;
                 if (!this.isAnimationPaused && typeof clock !== 'undefined') {
                     clock.start();
+                }
+            },
+            formatTime(seconds) {
+                if (!seconds || !Number.isFinite(seconds)) return '0:00';
+                const m = Math.floor(seconds / 60);
+                const s = Math.floor(seconds % 60);
+                return m + ':' + (s < 10 ? '0' : '') + s;
+            },
+            seekAnim() {
+                const t = this.animationProgress * this.animationDuration;
+                if (typeof mixer !== 'undefined' && mixer) mixer.setTime(t);
+                if (typeof currentWeaponMixer !== 'undefined' && currentWeaponMixer) currentWeaponMixer.setTime(t);
+                if (scene) scene.updateMatrixWorld(true);
+                if (typeof applyCpuSkinning !== 'undefined') {
+                    applyCpuSkinning(currentMesh, currentRootGroup, currentBindToOrigin);
+                    applyCpuSkinning(currentWeaponMesh, currentWeaponGroup, currentWeaponBindToOrigin);
+                }
+                if (dynamicTrailRenderer) {
+                    dynamicTrailRenderer.lastBegin = null;
+                    dynamicTrailRenderer.lastEnd = null;
+                    dynamicTrailRenderer.positionBuffer = [];
                 }
             },
                         playAnim() {
