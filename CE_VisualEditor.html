@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -359,6 +359,72 @@
             color: #64748b;
             font-size: 12px;
         }
+        body.dark-mode .animation-autocomplete-panel {
+            background: #1e293b;
+            border-color: #334155;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        }
+        body.dark-mode .animation-autocomplete-item {
+            border-bottom-color: #334155;
+            color: #f8fafc;
+        }
+        body.dark-mode .animation-autocomplete-item:hover,
+        body.dark-mode .animation-autocomplete-item.active {
+            background: #0f172a;
+            color: #60a5fa;
+        }
+        body.dark-mode .animation-autocomplete-group {
+            border-bottom-color: #334155;
+        }
+        body.dark-mode .animation-autocomplete-group-title {
+            background: #1e293b;
+            color: #94a3b8;
+            border-bottom-color: #334155;
+        }
+        body.dark-mode .animation-autocomplete-highlight {
+            background: #3b82f6;
+            color: #ffffff;
+        }
+        body.dark-mode .animation-autocomplete-empty {
+            color: #94a3b8;
+        }
+        body.dark-mode .array-item {
+            background: var(--panel-bg);
+        }
+        body.dark-mode .behavior-node {
+            border-left-color: var(--border);
+        }
+        body.dark-mode .tooltip {
+            color: #94a3b8;
+        }
+        body.dark-mode .tree-node {
+            background: var(--card);
+        }
+        body.dark-mode .node-header {
+            background: var(--panel-bg);
+        }
+        body.dark-mode .sub-panel {
+            border-color: var(--border);
+            background: var(--panel-bg);
+        }
+        body.dark-mode .sub-panel h5 {
+            color: var(--text);
+        }
+        body.dark-mode .resource-import-box {
+            background: var(--panel-bg);
+            border-color: var(--border);
+        }
+        body.dark-mode .resource-import-summary {
+            color: var(--text);
+        }
+        body.dark-mode .resource-tag {
+            background: #1e3a5f;
+            color: #60a5fa;
+            border-color: #1e40af;
+        }
+        body.dark-mode .preview-overlay {
+            color: #64748b;
+        }
         .preview-container-box {
             width: 100%;
             height: 360px;
@@ -417,6 +483,7 @@
                     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                         <h2 style="margin:0;">{{ t('CE 数据包可视化编辑器') }}</h2>
                         <a href="https://www.ifdian.net/a/zidou" target="_blank" class="btn" style="background-color: #f7b92a; color: #fff; text-decoration: none; padding: 4px 8px; font-size: 12px; font-weight: bold; display: flex; align-items: center; border: none; border-radius: 4px;">{{ t('赞助作者') }}</a>
+                        <a href="https://www.patreon.com/16025000/join" target="_blank" class="btn" style="background-color: #f7b92a; color: #fff; text-decoration: none; padding: 4px 8px; font-size: 12px; font-weight: bold; display: flex; align-items: center; border: none; border-radius: 4px;">Patreon</a>
                     </div>
                     <div style="display:flex; gap:10px; flex-wrap:wrap;">
                         <a href="index.html" class="btn btn-secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('Trail 调节器') }}</a>
@@ -729,7 +796,10 @@
         <div class="panel preview-panel">
             <div class="top-bar">
                 <h2>{{ t('实时 JSON 预览') }}</h2>
-                <button class="btn" @click="copyJSON">{{ t('复制代码') }}</button>
+                <div style="display:flex;gap:8px;">
+                    <button class="btn btn-secondary" @click="resetAll" style="font-size:12px;padding:6px 10px;">{{ t('重置') }}</button>
+                    <button class="btn" @click="copyJSON">{{ t('复制代码') }}</button>
+                </div>
             </div>
             <div class="code-preview" style="height: calc(100vh - 120px); overflow-y: auto;">{{ jsonPreviewText }}</div>
         </div>
@@ -740,7 +810,7 @@
                 <span>{{ t('3D 动画预览') }}</span>
                 <button class="btn btn-secondary" style="padding:2px 6px; font-size:12px; margin-left: auto; cursor: pointer;" onclick="document.getElementById('floating-3d-window').style.display='none'">{{ t('关闭') }}</button>
             </div>
-            <div style="padding:10px; background:#fff; display:flex; flex-direction:column; flex:1; height: calc(100% - 40px);">
+            <div style="padding:10px; background:var(--card); display:flex; flex-direction:column; flex:1; height: calc(100% - 40px);">
                 <div style="margin-bottom:10px; display:flex; align-items:center; gap:8px; flex-shrink:0;">
                     <label style="font-size:13px; font-weight:bold; white-space:nowrap;">{{ t('武器模型:') }}</label>
                     <input type="text" class="animation-path-input" style="flex:1;" v-model="previewWeaponModel" :placeholder="t('例如: epicfight:weapon/greatsword')">
@@ -1206,7 +1276,7 @@
                     </div>
                     
                     <div v-if="expanded" style="margin-top:10px;">
-                        <div class="form-group" style="display:flex;gap:10px;margin-bottom:15px;align-items:center;background:#f1f5f9;padding:10px;border-radius:4px;">
+                        <div class="form-group" style="display:flex;gap:10px;margin-bottom:15px;align-items:center;background:var(--panel-bg);padding:10px;border-radius:4px;">
                             <label style="margin:0;white-space:nowrap;">行为类型快速切换：</label>
                             <select :value="nodeType" @change="changeNodeType($event.target.value)" style="width:auto;">
                                 <option value="Animation">动画行为 (Animation)</option>
@@ -1960,6 +2030,7 @@
                 "添加子行为": "Add First Behavior",
                 "实时 JSON 预览": "Real-time JSON Preview",
                 "复制代码": "Copy Code",
+                "重置": "Reset",
                 "3D 动画预览": "3D Animation Preview",
                 "武器模型:": "Weapon Model:",
                 "点击动画输入框旁的“预览”按钮加载": "Click the Preview button next to the animation input to load",
@@ -2525,7 +2596,12 @@
                     this.matchedAnimationFileCount = matchedFileCount;
 
                     if (animationAutocompleteController) animationAutocompleteController.refresh();
-                }
+                },
+                resetAll() {
+                    if (confirm(this.t('确认重置所有数据？此操作不可撤销。'))) {
+                        this.config = getDefaultConfig();
+                    }
+                },
             },
             mounted() {
                 if (this.isDarkMode) {

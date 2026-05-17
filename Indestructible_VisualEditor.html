@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -103,6 +103,16 @@
         .animation-autocomplete-group-title{position:sticky;top:0;z-index:1;padding:6px 10px;background:#f8fafc;color:#475569;font-size:12px;font-weight:600;border-bottom:1px solid #e2e8f0}
         .animation-autocomplete-highlight{background:#fef3c7;color:#92400e;font-weight:700;border-radius:2px;padding:0 1px}
         .animation-autocomplete-empty{padding:8px 10px;color:#64748b;font-size:12px}
+        body.dark-mode .animation-autocomplete-panel{background:#1e293b;border-color:#334155;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+        body.dark-mode .animation-autocomplete-item{border-bottom-color:#334155;color:#f8fafc}
+        body.dark-mode .animation-autocomplete-item:hover,body.dark-mode .animation-autocomplete-item.active{background:#0f172a;color:#60a5fa}
+        body.dark-mode .animation-autocomplete-group{border-bottom-color:#334155}
+        body.dark-mode .animation-autocomplete-group-title{background:#1e293b;color:#94a3b8;border-bottom-color:#334155}
+        body.dark-mode .animation-autocomplete-highlight{background:#3b82f6;color:#fff}
+        body.dark-mode .animation-autocomplete-empty{color:#94a3b8}
+        body.dark-mode .resource-box,body.dark-mode .info{border-color:#334155;background:#1e293b}
+        body.dark-mode .info{background:#0f172a;color:#94a3b8}
+        body.dark-mode .code{background:#0d1117;color:#c9d1d9;border:1px solid #334155}
         .floating-window {
             position: fixed;
             right: 20px;
@@ -141,6 +151,7 @@
                     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                         <h2 style="margin:0;">{{ t('Indestructible 数据包可视化编辑器') }}</h2>
                         <a href="https://www.ifdian.net/a/zidou" target="_blank" class="btn" style="background-color: #f7b92a; color: #fff; text-decoration: none; padding: 4px 8px; font-size: 12px; font-weight: bold; display: flex; align-items: center; border: none; border-radius: 4px;">{{ t('赞助作者') }}</a>
+                        <a href="https://www.patreon.com/16025000/join" target="_blank" class="btn" style="background-color: #f7b92a; color: #fff; text-decoration: none; padding: 4px 8px; font-size: 12px; font-weight: bold; display: flex; align-items: center; border: none; border-radius: 4px;">Patreon</a>
                     </div>
                     <div style="display:flex; gap:10px; flex-wrap:wrap;">
                         <a href="index.html" class="btn secondary" style="text-decoration:none; padding:4px 8px; font-size:12px; display:flex; align-items:center;">{{ t('Trail 调节器') }}</a>
@@ -359,13 +370,13 @@
                             <div class="form-group" style="display:flex;align-items:center;"><label class="checkline"><input type="checkbox" v-model="series.looping"> looping</label></div>
                         </div>
 
-                        <div class="sub-panel" style="background:#fff;">
+                        <div class="sub-panel">
                             <div class="section-head">
                                 <h5>Behaviors (具体行为)</h5>
                                 <button class="btn mini" @click="addBehavior(series)">新增 Action</button>
                             </div>
                             
-                            <div class="array-item" style="background:#f8fafc;" v-for="(bhv, bIdx) in series.behaviors" :key="'bhv-'+cbIdx+'-'+sIdx+'-'+bIdx">
+                            <div class="array-item" v-for="(bhv, bIdx) in series.behaviors" :key="'bhv-'+cbIdx+'-'+sIdx+'-'+bIdx">
                                 <button class="btn danger mini remove-btn" @click="series.behaviors.splice(bIdx,1)">X</button>
                                 
                                 <div class="grid2">
@@ -559,13 +570,14 @@
 
     <div class="panel preview">
         <div style="display:flex;justify-content:space-between;align-items:center;">
-            <h3>导出预览</h3>
+            <h3>{{ t('导出预览') }}</h3>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <button class="btn mini" @click="copyJSON">复制</button>
-                <button class="btn secondary mini" @click="exportJSON">下载</button>
+                <button class="btn danger mini" @click="resetConfig">{{ t('重置') }}</button>
+                <button class="btn mini" @click="copyJSON">{{ t('复制') }}</button>
+                <button class="btn secondary mini" @click="exportJSON">{{ t('下载') }}</button>
             </div>
         </div>
-        <div class="hint">右侧展示最终导出的纯 JSON；若 `combat_behavior` 不合法，这里会显示错误信息。</div>
+        <div class="hint">{{ t('右侧展示最终导出的纯 JSON；若 `combat_behavior` 不合法，这里会显示错误信息。') }}</div>
         <div class="code" style="height: calc(100vh - 120px); overflow-y: auto;">{{ generatedJSON }}</div>
     </div>
     
@@ -575,7 +587,7 @@
             <span>{{ t('3D 动画预览') }}</span>
             <button class="btn secondary mini" style="margin-left: auto; cursor: pointer;" onclick="document.getElementById('floating-3d-window').style.display='none'">{{ t('关闭') }}</button>
         </div>
-        <div style="padding:10px; background:#fff; display:flex; flex-direction:column; flex:1; height: calc(100% - 40px);">
+        <div style="padding:10px; background:var(--card); display:flex; flex-direction:column; flex:1; height: calc(100% - 40px);">
             <div style="margin-bottom:10px; display:flex; align-items:center; gap:8px; flex-shrink:0;">
                 <label style="font-size:13px; font-weight:bold; white-space:nowrap;">{{ t('武器模型:') }}</label>
                 <input type="text" id="weapon-model-input" class="animation-path-input" autocomplete="off" spellcheck="false" :placeholder="t('例如: epicfight:item/dagger')" style="flex:1;">
@@ -1074,6 +1086,7 @@ const messages = {
         "新增": "Add",
         "删除": "Delete",
         "导出预览": "Export Preview",
+        "重置": "Reset",
         "右侧展示最终导出的纯 JSON；若 `combat_behavior` 不合法，这里会显示错误信息。": "Right side shows final JSON; if `combat_behavior` is invalid, errors will show here.",
         "复制": "Copy",
         "下载": "Download",
@@ -1160,6 +1173,11 @@ createApp({
                 return messages[this.lang] && messages[this.lang][key] ? messages[this.lang][key] : key;
             }
             return key;
+        },
+        resetConfig() {
+            if (confirm(this.t('确认重置所有数据？此操作不可撤销。'))) {
+                this.config = defaultConfig();
+            }
         },
         toggleLang() {
             this.lang = this.lang === 'zh' ? 'en' : 'zh';

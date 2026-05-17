@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -134,6 +134,7 @@
                     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                         <h2 style="margin:0;">{{ t('Invincible 数据包可视化编辑器') }}</h2>
                         <a href="https://www.ifdian.net/a/zidou" target="_blank" class="btn" style="background-color: #f7b92a; color: #fff; text-decoration: none; padding: 4px 8px; font-size: 12px; font-weight: bold; display: flex; align-items: center; border: none; border-radius: 4px;">{{ t('赞助作者') }}</a>
+                        <a href="https://www.patreon.com/16025000/join" target="_blank" class="btn" style="background-color: #f7b92a; color: #fff; text-decoration: none; padding: 4px 8px; font-size: 12px; font-weight: bold; display: flex; align-items: center; border: none; border-radius: 4px;">Patreon</a>
                     </div>
                     <p class="hint">{{ t('用于创建/编辑 invincible 连段技能数据包（支持 JSON 注释导入）。') }}</p>
                 </div>
@@ -317,6 +318,7 @@
                     <p class="hint">{{ t('导出时会自动清理空字段与临时字段。') }}</p>
                 </div>
                 <div class="toolbar">
+                    <button class="btn danger" @click="resetAll">{{ t('重置') }}</button>
                     <button class="btn secondary" @click="copyJSON">{{ t('复制 JSON') }}</button>
                 </div>
             </div>
