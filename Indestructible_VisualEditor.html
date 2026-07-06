@@ -766,6 +766,98 @@ function defaultCombatBehaviorText(){return JSON.stringify([{weapon_categories:[
 function getBehaviorType(b){if(b.guard!==undefined)return'guard';if(b.wander!==undefined)return'wander';return'animation'}
 function processCombatBehavior(cbArray){if(!Array.isArray(cbArray))return[];return cbArray.map(cb=>({weapon_categories:Array.isArray(cb.weapon_categories)?cb.weapon_categories:[],style:cb.style||'common',behavior_series:Array.isArray(cb.behavior_series)?cb.behavior_series.map(s=>({weight:s.weight??1.5,canBeInterrupted:!!s.canBeInterrupted,looping:!!s.looping,cooldown:s.cooldown??60,behaviors:Array.isArray(s.behaviors)?s.behaviors.map(b=>({...b,_type:getBehaviorType(b),conditions:Array.isArray(b.conditions)?b.conditions:[],_enable_set_phase:b.set_phase!==undefined,_enable_damage_modifier:b.damage_modifier!==undefined,_enable_counter:b.counter!==undefined,_enable_stun_immunity_time:b.stun_immunity_time!==undefined,_enable_specific_guard_motion:b.specific_guard_motion!==undefined,_enable_inaction_time:b.inaction_time!==undefined,_enable_x_axis:b.x_axis!==undefined,_enable_z_axis:b.z_axis!==undefined,damage_modifier:b.damage_modifier||{damage:1,impact:1,armor_negation:1,stun_type:'short'},command_list:Array.isArray(b.command_list)?b.command_list:[],hit_command_list:Array.isArray(b.hit_command_list)?b.hit_command_list:[],blocked_command_list:Array.isArray(b.blocked_command_list)?b.blocked_command_list:[],specific_guard_motion:b.specific_guard_motion||{guard:'',stamina_cost_multiply:1,can_block_projectile:false,parry_cost_multiply:0.5,parry_animation:[]}})):[]})):[]}))}
 function finalizeBehavior(b){const out={...b};delete out._type;delete out._enable_set_phase;delete out._enable_damage_modifier;delete out._enable_counter;delete out._enable_stun_immunity_time;delete out._enable_specific_guard_motion;delete out._enable_inaction_time;delete out._enable_x_axis;delete out._enable_z_axis;if(!b._enable_set_phase)delete out.set_phase;if(!b._enable_damage_modifier)delete out.damage_modifier;if(!b._enable_counter){delete out.counter;delete out.counter_chance;delete out.counter_cost;delete out.counter_speed;delete out.cancel_after_counter}if(!b._enable_stun_immunity_time)delete out.stun_immunity_time;if(!b._enable_specific_guard_motion)delete out.specific_guard_motion;if(!b._enable_inaction_time)delete out.inaction_time;if(!b._enable_x_axis)delete out.x_axis;if(!b._enable_z_axis)delete out.z_axis;if(!out.parry)delete out.parry_time;if(!out.command_list||out.command_list.length===0)delete out.command_list;if(!out.hit_command_list||out.hit_command_list.length===0)delete out.hit_command_list;if(!out.blocked_command_list||out.blocked_command_list.length===0)delete out.blocked_command_list;return out}
+function calibrateConfig(raw){
+    const fixes=[],warnings=[];
+    const base=defaultConfig();
+    if(!raw||typeof raw!=='object'||Array.isArray(raw)){fixes.push('root: not object -> default config');return{config:base,fixes,warnings}}
+    const knownTop=['model','armature','renderer','isHumanoid','faction','hit_sound','hit_particle','swing_sound','boss_bar','custom_texture','custom_name','advanced','attributes','default_livingmotions','humanoid_weapon_motions','custom_guard_motion','stun_animations','stun_command_list','combat_behavior'];
+    Object.keys(raw).forEach(k=>{if(!knownTop.includes(k)&&!k.startsWith('_'))warnings.push(`unknown top field: "${k}"`)});
+    const tb=(v,f,d)=>{if(typeof v==='boolean')return v;if(v===undefined||v===null){fixes.push(`${f}: missing -> default ${d}`);return d}if(v==='true'){fixes.push(`${f}: "true" -> true`);return true}if(v==='false'){fixes.push(`${f}: "false" -> false`);return false}if(typeof v==='number'){fixes.push(`${f}: number ${v} -> boolean ${!!v}`);return!!v}fixes.push(`${f}: invalid type -> default ${d}`);return d};
+    const ts=(v,f,d)=>{if(typeof v==='string')return v;if(typeof v==='number'){fixes.push(`${f}: number -> string`);return String(v)}if(v===undefined||v===null){fixes.push(`${f}: missing -> default`);return d}fixes.push(`${f}: invalid type -> default`);return d};
+    const tn=(v,f,d)=>{if(typeof v==='number'&&!isNaN(v))return v;if(typeof v==='string'&&v.trim()!==''&&!isNaN(Number(v))){fixes.push(`${f}: string -> number`);return Number(v)}if(v===undefined||v===null){fixes.push(`${f}: missing -> default ${d}`);return d}fixes.push(`${f}: invalid type -> default ${d}`);return d};
+    const isHumanoid=tb(raw.isHumanoid,'isHumanoid',base.isHumanoid);
+    const boss_bar=tb(raw.boss_bar,'boss_bar',base.boss_bar);
+    const advanced=tb(raw.advanced,'advanced',base.advanced);
+    const model=ts(raw.model,'model',base.model);
+    const armature=ts(raw.armature,'armature',base.armature);
+    const renderer=ts(raw.renderer,'renderer',base.renderer);
+    const faction=ts(raw.faction,'faction',base.faction);
+    const hit_sound=ts(raw.hit_sound,'hit_sound',base.hit_sound);
+    const hit_particle=ts(raw.hit_particle,'hit_particle',base.hit_particle);
+    const swing_sound=ts(raw.swing_sound,'swing_sound',base.swing_sound);
+    const custom_texture=ts(raw.custom_texture,'custom_texture',base.custom_texture);
+    const custom_name=ts(raw.custom_name,'custom_name',base.custom_name);
+    let attributes={...base.attributes};
+    if(raw.attributes&&typeof raw.attributes==='object'&&!Array.isArray(raw.attributes)){
+        const knownAttr=Object.keys(base.attributes);
+        Object.keys(raw.attributes).forEach(k=>{if(!knownAttr.includes(k))warnings.push(`attributes: unknown field "${k}"`)});
+        knownAttr.forEach(k=>{attributes[k]=tn(raw.attributes[k],`attributes.${k}`,base.attributes[k])})
+    }else if(raw.attributes!==undefined){fixes.push('attributes: not object -> default')}
+    let default_livingmotions={...base.default_livingmotions};
+    if(raw.default_livingmotions&&typeof raw.default_livingmotions==='object'&&!Array.isArray(raw.default_livingmotions)){
+        Object.keys(raw.default_livingmotions).forEach(k=>{if(!Object.keys(base.default_livingmotions).includes(k))warnings.push(`default_livingmotions: unknown key "${k}" (kept)`);default_livingmotions[k]=ts(raw.default_livingmotions[k],`default_livingmotions.${k}`,base.default_livingmotions[k]||'')})
+    }else if(raw.default_livingmotions!==undefined){fixes.push('default_livingmotions: not object -> default')}
+    let stun_animations={...base.stun_animations};
+    if(raw.stun_animations&&typeof raw.stun_animations==='object'&&!Array.isArray(raw.stun_animations)){
+        Object.keys(raw.stun_animations).forEach(k=>{stun_animations[k]=ts(raw.stun_animations[k],`stun_animations.${k}`,base.stun_animations[k]||'')})
+    }else if(raw.stun_animations!==undefined){fixes.push('stun_animations: not object -> default')}
+    let humanoid_weapon_motions;
+    if(Array.isArray(raw.humanoid_weapon_motions)){
+        humanoid_weapon_motions=raw.humanoid_weapon_motions.map((item,i)=>{
+            if(!item||typeof item!=='object'||Array.isArray(item)){fixes.push(`humanoid_weapon_motions[${i}]: not object -> skipped`);return null}
+            return{weapon_categories:Array.isArray(item.weapon_categories)?item.weapon_categories:(fixes.push(`humanoid_weapon_motions[${i}].weapon_categories: not array -> []`),[]),style:typeof item.style==='string'?item.style:(fixes.push(`humanoid_weapon_motions[${i}].style: not string -> "common"`),'common'),livingmotions:item.livingmotions&&typeof item.livingmotions==='object'&&!Array.isArray(item.livingmotions)?item.livingmotions:(item.livingmotions!==undefined?(fixes.push(`humanoid_weapon_motions[${i}].livingmotions: not object -> {}`),{}):{})}
+        }).filter(x=>x!==null);
+        if(humanoid_weapon_motions.length===0){fixes.push('humanoid_weapon_motions: empty after calibrate -> default');humanoid_weapon_motions=base.humanoid_weapon_motions}
+    }else{fixes.push('humanoid_weapon_motions: not array -> default');humanoid_weapon_motions=base.humanoid_weapon_motions}
+    let custom_guard_motion;
+    if(Array.isArray(raw.custom_guard_motion)){
+        custom_guard_motion=raw.custom_guard_motion.map((item,i)=>{
+            if(!item||typeof item!=='object'||Array.isArray(item)){fixes.push(`custom_guard_motion[${i}]: not object -> skipped`);return null}
+            return{weapon_categories:Array.isArray(item.weapon_categories)?item.weapon_categories:(fixes.push(`custom_guard_motion[${i}].weapon_categories: not array -> []`),[]),style:typeof item.style==='string'?item.style:(fixes.push(`custom_guard_motion[${i}].style: not string -> "common"`),'common'),guard:typeof item.guard==='string'?item.guard:(fixes.push(`custom_guard_motion[${i}].guard: not string -> ""`),''),stamina_cost_multiply:tn(item.stamina_cost_multiply,`custom_guard_motion[${i}].stamina_cost_multiply`,1),can_block_projectile:tb(item.can_block_projectile,`custom_guard_motion[${i}].can_block_projectile`,false),parry_cost_multiply:tn(item.parry_cost_multiply,`custom_guard_motion[${i}].parry_cost_multiply`,0.5),parry_animation:Array.isArray(item.parry_animation)?item.parry_animation:(fixes.push(`custom_guard_motion[${i}].parry_animation: not array -> []`),[])}
+        }).filter(x=>x!==null);
+        if(custom_guard_motion.length===0){fixes.push('custom_guard_motion: empty after calibrate -> default');custom_guard_motion=base.custom_guard_motion}
+    }else{fixes.push('custom_guard_motion: not array -> default');custom_guard_motion=base.custom_guard_motion}
+    let stun_command_list;
+    if(Array.isArray(raw.stun_command_list)){
+        stun_command_list=raw.stun_command_list.map((item,i)=>{
+            if(!item||typeof item!=='object'||Array.isArray(item)){fixes.push(`stun_command_list[${i}]: not object -> skipped`);return null}
+            return{command:ts(item.command,`stun_command_list[${i}].command`,''),stun_type:ts(item.stun_type,`stun_command_list[${i}].stun_type`,'short'),execute_at_target:tb(item.execute_at_target,`stun_command_list[${i}].execute_at_target`,false)}
+        }).filter(x=>x!==null);
+        if(stun_command_list.length===0){fixes.push('stun_command_list: empty after calibrate -> default');stun_command_list=base.stun_command_list}
+    }else{fixes.push('stun_command_list: not array -> default');stun_command_list=base.stun_command_list}
+    let combat_behavior=[];
+    if(Array.isArray(raw.combat_behavior)){
+        combat_behavior=raw.combat_behavior.map((cb,ci)=>{
+            if(!cb||typeof cb!=='object'||Array.isArray(cb)){fixes.push(`combat_behavior[${ci}]: not object -> skipped`);return null}
+            const wc=Array.isArray(cb.weapon_categories)?cb.weapon_categories:(fixes.push(`combat_behavior[${ci}].weapon_categories: not array -> []`),[]);
+            const style=typeof cb.style==='string'?cb.style:(fixes.push(`combat_behavior[${ci}].style: not string -> "common"`),'common');
+            let bs=[];
+            if(Array.isArray(cb.behavior_series)){
+                bs=cb.behavior_series.map((s,si)=>{
+                    if(!s||typeof s!=='object'||Array.isArray(s)){fixes.push(`combat_behavior[${ci}].behavior_series[${si}]: not object -> skipped`);return null}
+                    let behaviors=[];
+                    if(Array.isArray(s.behaviors)){
+                        behaviors=s.behaviors.map((b,bi)=>{
+                            if(!b||typeof b!=='object'||Array.isArray(b)){fixes.push(`combat_behavior[${ci}].behavior_series[${si}].behaviors[${bi}]: not object -> skipped`);return null}
+                            let nb={...b};
+                            if(nb.conditions!==undefined&&!Array.isArray(nb.conditions)){fixes.push(`combat_behavior[${ci}].behavior_series[${si}].behaviors[${bi}].conditions: not array -> []`);nb.conditions=[]}
+                            if(nb.damage_modifier!==undefined&&(typeof nb.damage_modifier!=='object'||Array.isArray(nb.damage_modifier))){fixes.push(`combat_behavior[${ci}].behavior_series[${si}].behaviors[${bi}].damage_modifier: not object -> reset`);nb.damage_modifier={damage:1,impact:1,armor_negation:1,stun_type:'short'}}
+                            if(nb.specific_guard_motion!==undefined&&(typeof nb.specific_guard_motion!=='object'||Array.isArray(nb.specific_guard_motion))){fixes.push(`combat_behavior[${ci}].behavior_series[${si}].behaviors[${bi}].specific_guard_motion: not object -> reset`);nb.specific_guard_motion={guard:'',stamina_cost_multiply:1,can_block_projectile:false,parry_cost_multiply:0.5,parry_animation:[]}}
+                            ['command_list','hit_command_list','blocked_command_list'].forEach(clk=>{if(nb[clk]!==undefined&&!Array.isArray(nb[clk])){fixes.push(`combat_behavior[${ci}].behavior_series[${si}].behaviors[${bi}].${clk}: not array -> []`);nb[clk]=[]}});
+                            return nb
+                        }).filter(x=>x!==null)
+                    }else if(s.behaviors!==undefined){fixes.push(`combat_behavior[${ci}].behavior_series[${si}].behaviors: not array -> []`)}
+                    return{weight:tn(s.weight,`combat_behavior[${ci}].behavior_series[${si}].weight`,1.5),canBeInterrupted:tb(s.canBeInterrupted,`combat_behavior[${ci}].behavior_series[${si}].canBeInterrupted`,false),looping:tb(s.looping,`combat_behavior[${ci}].behavior_series[${si}].looping`,false),cooldown:tn(s.cooldown,`combat_behavior[${ci}].behavior_series[${si}].cooldown`,60),behaviors}
+                }).filter(x=>x!==null)
+            }else if(cb.behavior_series!==undefined){fixes.push(`combat_behavior[${ci}].behavior_series: not array -> []`)}
+            return{weapon_categories:wc,style,behavior_series:bs}
+        }).filter(x=>x!==null)
+    }else if(raw.combat_behavior!==undefined){fixes.push('combat_behavior: not array -> []')}
+    const preserved={};
+    Object.keys(raw).forEach(k=>{if(!knownTop.includes(k)&&!k.startsWith('_'))preserved[k]=raw[k]});
+    const config={...preserved,model,armature,renderer,isHumanoid,faction,hit_sound,hit_particle,swing_sound,boss_bar,custom_texture,custom_name,advanced,attributes,default_livingmotions,humanoid_weapon_motions,custom_guard_motion,stun_animations,stun_command_list,combat_behavior:processCombatBehavior(combat_behavior)};
+    return{config,fixes,warnings}
+}
 function createAnimationAutocomplete(getAnimOptions, getModelOptions) {
             const panel = document.createElement('div');
             panel.className = 'animation-autocomplete-panel';
@@ -1116,7 +1208,11 @@ const messages = {
         "导入资源目录后，动画路径输入框会出现分组联想和高亮匹配。": "After importing resources, animation path inputs will show grouped suggestions and highlighted matches.",
         "Attributes (属性配置)": "Attributes",
         "combat_behavior 必须是数组": "combat_behavior must be an array",
-        "赞助作者": "Sponsor Author"
+        "赞助作者": "Sponsor Author",
+        "导入成功，未发现格式问题。": "Import successful. No format issues found.",
+        "导入完成，已自动校准以下问题：": "Import complete. Auto-calibrated the following:",
+        "已修复": "Fixed",
+        "警告": "Warnings"
     }
 };
 
@@ -1280,7 +1376,7 @@ createApp({
             a.click();
             URL.revokeObjectURL(url)
         }catch(err){alert(this.t('导出失败:')+' '+err.message)}},
-        importJSON(event){const file=event.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>{try{const raw=parseJsonLoose(e.target.result);const base=defaultConfig();this.config={...base,...raw,attributes:raw.attributes&&typeof raw.attributes==='object'&&!Array.isArray(raw.attributes)?{...base.attributes,...raw.attributes}:{...base.attributes},default_livingmotions:raw.default_livingmotions&&typeof raw.default_livingmotions==='object'&&!Array.isArray(raw.default_livingmotions)?{...base.default_livingmotions,...raw.default_livingmotions}:{...base.default_livingmotions},stun_animations:raw.stun_animations&&typeof raw.stun_animations==='object'&&!Array.isArray(raw.stun_animations)?{...base.stun_animations,...raw.stun_animations}:{...base.stun_animations},humanoid_weapon_motions:Array.isArray(raw.humanoid_weapon_motions)?raw.humanoid_weapon_motions.map(item=>({weapon_categories:Array.isArray(item.weapon_categories)?item.weapon_categories:[],style:item.style||'common',livingmotions:item.livingmotions&&typeof item.livingmotions==='object'&&!Array.isArray(item.livingmotions)?item.livingmotions:{}})):base.humanoid_weapon_motions,custom_guard_motion:Array.isArray(raw.custom_guard_motion)?raw.custom_guard_motion.map(item=>({weapon_categories:Array.isArray(item.weapon_categories)?item.weapon_categories:[],style:item.style||'common',guard:item.guard||'',stamina_cost_multiply:item.stamina_cost_multiply??1,can_block_projectile:!!item.can_block_projectile,parry_cost_multiply:item.parry_cost_multiply??.5,parry_animation:Array.isArray(item.parry_animation)?item.parry_animation:[]})):base.custom_guard_motion,stun_command_list:Array.isArray(raw.stun_command_list)?raw.stun_command_list.map(item=>({command:item.command||'',stun_type:item.stun_type||'short',execute_at_target:!!item.execute_at_target})):base.stun_command_list,combat_behavior:processCombatBehavior(Array.isArray(raw.combat_behavior)?raw.combat_behavior:[])}}catch(err){alert(this.t('JSON 解析失败:')+' '+err.message)}};reader.readAsText(file);event.target.value=''},
+        importJSON(event){const file=event.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>{try{const raw=parseJsonLoose(e.target.result);const r=calibrateConfig(raw);this.config=r.config;let msg;if(r.fixes.length===0&&r.warnings.length===0){msg=this.t('导入成功，未发现格式问题。')}else{const parts=[this.t('导入完成，已自动校准以下问题：'),''];if(r.fixes.length>0){parts.push(this.t('已修复')+' ('+r.fixes.length+'):'+r.fixes.map(f=>'\n  \u2713 '+f).join(''))}if(r.warnings.length>0){parts.push(this.t('警告')+' ('+r.warnings.length+'):'+r.warnings.map(w=>'\n  \u26a0 '+w).join(''))}msg=parts.join('\n\n')}alert(msg)}catch(err){alert(this.t('JSON 解析失败:')+' '+err.message)}};reader.readAsText(file);event.target.value=''},
         clearAnimationLibrary(){this.availableAnimations=[];this.availableModels=[];this.loadedAnimationMods=[];this.animationImportBatches=0;this.animationSourceFileCount=0;this.matchedAnimationFileCount=0;fileResourceMap.clear();if(animationAutocompleteController)animationAutocompleteController.refresh()},
         collectAnimationResources(files){const anims=new Set(),models=new Set(),modCounts=new Map();let matched=0;files.forEach(file=>{const d=extractAnimationDescriptor(file.webkitRelativePath||file.name, file);if(!d)return;if(d.type==='animation'){matched+=1;anims.add(d.id);modCounts.set(d.modId,(modCounts.get(d.modId)||0)+1)}else if(d.type==='model'||d.type==='texture'){models.add(d.id)}});return{animations:Array.from(anims).sort(),models:Array.from(models).sort(),modCounts:Array.from(modCounts.entries()).map(([modId,count])=>({modId,count})).sort((a,b)=>a.modId.localeCompare(b.modId)),matchedFileCount:matched}},
         mergeLoadedAnimationMods(nextMods){const merged=new Map(this.loadedAnimationMods.map(item=>[item.modId,item.count]));nextMods.forEach(item=>merged.set(item.modId,(merged.get(item.modId)||0)+item.count));this.loadedAnimationMods=Array.from(merged.entries()).map(([modId,count])=>({modId,count})).sort((a,b)=>a.modId.localeCompare(b.modId))},
