@@ -593,6 +593,9 @@
                 <h3><input type="checkbox" v-model="hasBossBar"> Boss 血条 (ceBossBar)</h3>
                 <div v-if="hasBossBar">
                     <div class="form-group">
+                        <label><input type="checkbox" v-model="config.ceBossBar.enableBossBar"> Enable Boss Bar (启用血条)</label>
+                    </div>
+                    <div class="form-group">
                         <label>Boss Bar Name (名称)</label>
                         <input type="text" v-model="config.ceBossBar.bossBarName">
                     </div>
@@ -604,6 +607,9 @@
 
                 <h3><input type="checkbox" v-model="hasBossMusic"> Boss 音乐 (ceBossMusic)</h3>
                 <div v-if="hasBossMusic">
+                    <div class="form-group">
+                        <label><input type="checkbox" v-model="config.ceBossMusic.playBGM"> Play BGM (播放音乐)</label>
+                    </div>
                     <div class="form-group">
                         <label>BGM 路径</label>
                         <input type="text" v-model="config.ceBossMusic.bgm">
@@ -618,6 +624,14 @@
                     <div class="form-group">
                         <label>Volume (音量)</label>
                         <input type="number" step="0.1" v-model.number="config.ceBossMusic.volume">
+                    </div>
+                    <div class="form-group">
+                        <label>Fade In (淡入 Tick)</label>
+                        <input type="number" v-model.number="config.ceBossMusic.fadeIn">
+                    </div>
+                    <div class="form-group">
+                        <label>Fade Out (淡出 Tick)</label>
+                        <input type="number" v-model.number="config.ceBossMusic.fadeOut">
                     </div>
                 </div>
             </div>
@@ -1325,6 +1339,10 @@
                                 <div class="form-group" style="margin:0;display:flex;align-items:flex-end;">
                                     <label title="[可选] 当存在全局行为且该选项为true时，能够将全局行为视作自身的子节点"><input type="checkbox" v-model="node.canInsertGlobalBehavior"> 可插入全局行为</label>
                                 </div>
+                                <div class="form-group" style="margin:0;">
+                                    <label title="[可选] 可以插入的全局节点名称；空值表示不限制">Allowed Global Name List (逗号分隔)</label>
+                                    <input type="text" :value="node.allowedGlobalNameList?.join(', ')" @input="setCommaList('allowedGlobalNameList', $event.target.value)">
+                                </div>
                             </div>
                         </div>
 
@@ -1422,6 +1440,18 @@
                             </div>
                         </div>
 
+                        <div class="sub-panel">
+                            <h5>行为开始事件 (OnBehaviorStart)</h5>
+                            <div class="form-group">
+                                <label>行为开始额外指令 <button class="btn" style="padding:2px 6px;font-size:10px;" @click="addEvent('onBehaviorStart')">+</button></label>
+                                <div v-for="(ex, idx) in node.onBehaviorStart" :key="'ex'+idx" style="display:flex;gap:5px;margin-bottom:5px;">
+                                    <input type="checkbox" v-model="ex.onTarget" title="是否对目标执行">
+                                    <input type="text" v-model="ex.command" placeholder="/say ...">
+                                    <button class="btn btn-danger" style="padding:2px 6px;font-size:10px;" @click="node.onBehaviorStart.splice(idx,1)">X</button>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- 动画行为属性 -->
                         <template v-if="nodeType === 'Animation'">
                             <div class="form-group">
@@ -1472,6 +1502,10 @@
                                                 <label>Stun Type</label>
                                                 <input type="text" v-model="phase.stunType" placeholder="default">
                                             </div>
+                                            <div class="form-group">
+                                                <label>Damage Tags (逗号分隔)</label>
+                                                <input type="text" :value="phase.damage_tags?.join(', ')" @input="setPhaseDamageTags(phase, $event.target.value)">
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -1480,14 +1514,6 @@
                             <!-- 指令与事件 -->
                             <div class="sub-panel">
                                 <h5>指令与额外事件 (Events)</h5>
-                                <div class="form-group">
-                                    <label>ExBehavior (行为开始额外指令) <button class="btn" style="padding:2px 6px;font-size:10px;" @click="addEvent('exBehavior')">+</button></label>
-                                    <div v-for="(ex, idx) in node.exBehavior" :key="'ex'+idx" style="display:flex;gap:5px;margin-bottom:5px;">
-                                        <input type="checkbox" v-model="ex.onTarget" title="是否对目标执行">
-                                        <input type="text" v-model="ex.command" placeholder="/say ...">
-                                        <button class="btn btn-danger" style="padding:2px 6px;font-size:10px;" @click="node.exBehavior.splice(idx,1)">X</button>
-                                    </div>
-                                </div>
                                 <div class="form-group">
                                     <label>TimeEvents (时间戳事件) <button class="btn" style="padding:2px 6px;font-size:10px;" @click="addEvent('timeEvents')">+</button></label>
                                     <div v-for="(te, idx) in node.timeEvents" :key="'te'+idx" style="display:flex;gap:5px;margin-bottom:5px;align-items:center;">
@@ -1542,10 +1568,36 @@
                                 <label><input type="checkbox" v-model="node.resetGuardTime"> Reset Guard Time (重置防御时间)</label>
                             </div>
                             <div class="form-group">
+                                <label>Guard Cost (防御耐力消耗百分比)</label>
+                                <input type="number" step="0.1" v-model.number="node.guardCost">
+                            </div>
+                            <div class="form-group">
                                 <label>Counter Animation (反击动画)</label>
                                 <div style="display:flex;gap:4px;">
                                     <input type="text" class="animation-path-input" v-model="node.counterAnimation" autocomplete="off" spellcheck="false" placeholder="例如: combat_evolution:biped/skill/shield_counter/shield_counter">
                                     <button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" :title="$root.t('预览动画')" @click="window.playAnimationPreview ? window.playAnimationPreview(window.appConfig.armature, node.counterAnimation, previewWeaponModel) : alert($root.t('3D预览环境尚未加载完成'))">▶</button>
+                                </div>
+                            </div>
+                            <div class="sub-panel">
+                                <h5>
+                                    <span>反击动画参数 (Animation Params)</span>
+                                    <button class="btn" style="padding:2px 6px;font-size:12px;" @click="toggleAnimParams">{{ hasAnimParams ? $root.t('关闭') : $root.t('开启') }}</button>
+                                </h5>
+                                <div v-if="hasAnimParams">
+                                    <div class="form-group"><label>Play Speed (播放速度)</label><input type="number" step="0.1" v-model.number="node.animationParams.playSpeed"></div>
+                                    <div class="form-group"><label>Transition Time (过渡时间)</label><input type="number" step="0.05" v-model.number="node.animationParams.transitionTime"></div>
+                                    <h6>Phase Params (段数属性修改) <button class="btn" style="padding:2px 6px;font-size:10px;" @click="addPhaseParam">+</button></h6>
+                                    <div v-for="(phase, pIdx) in node.animationParams.phaseParams" :key="'guardPhase'+pIdx" class="array-item">
+                                        <button class="btn btn-danger remove-btn" style="padding:2px 6px;font-size:10px;" @click="node.animationParams.phaseParams.splice(pIdx, 1)">X</button>
+                                        <div class="form-group"><label>Phase (段数, -1为全部)</label><input type="number" v-model.number="phase.phase"></div>
+                                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                                            <div class="form-group"><label>Damage 倍率</label><input type="number" step="0.1" v-model.number="phase.damageMultiplier"></div>
+                                            <div class="form-group"><label>Impact 倍率</label><input type="number" step="0.1" v-model.number="phase.impactMultiplier"></div>
+                                            <div class="form-group"><label>Armor Negation</label><input type="number" step="0.1" v-model.number="phase.armorNegationMultiplier"></div>
+                                            <div class="form-group"><label>Stun Type</label><input type="text" v-model="phase.stunType" placeholder="default"></div>
+                                            <div class="form-group"><label>Damage Tags (逗号分隔)</label><input type="text" :value="phase.damage_tags?.join(', ')" @input="setPhaseDamageTags(phase, $event.target.value)"></div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             <div class="form-group">
@@ -1718,15 +1770,14 @@
                     this.expanded = true;
                 },
                 changeNodeType(newType) {
-                    // 清理旧类型特有的属性
-                    delete this.node.animation;
-                    delete this.node.animationParams;
-                    delete this.node.exBehavior;
-                    delete this.node.hitEvents;
-                    delete this.node.guardTime;
-                    delete this.node.wanderTime;
-                    delete this.node.guardWithWander;
-                    delete this.node.counterChance;
+                    // 清理所有行为类型专属属性，避免切换后残留混合节点
+                    [
+                        'behaviorType', 'animation', 'animationParams', 'timeEvents', 'hitEvents', 'blockedEvents', 'onHurtEvent',
+                        'guardTime', 'resetGuardTime', 'guardCost', 'counterAnimation', 'counterType', 'counterChance',
+                        'maxGuardHit', 'onGuardHit', 'beforeCounter', 'onCounterStart',
+                        'wanderTime', 'guardWithWander', 'guardAnimation', 'forward', 'strafe'
+                    ].forEach(key => delete this.node[key]);
+                    this.hasAnimParams = false;
                     
                     // 根据新类型赋予默认属性
                     if (newType === 'Animation') {
@@ -1745,6 +1796,16 @@
                         this.node.counterType = "random";
                         this.node.counterChance = 0.15;
                     }
+                },
+                setCommaList(key, value) {
+                    const values = value.split(',').map(s => s.trim()).filter(Boolean);
+                    if (values.length) this.node[key] = values;
+                    else delete this.node[key];
+                },
+                setPhaseDamageTags(phase, value) {
+                    const values = value.split(',').map(s => s.trim()).filter(Boolean);
+                    if (values.length) phase.damage_tags = values;
+                    else delete phase.damage_tags;
                 },
                 toggleConditions() {
                     this.hasConditions = !this.hasConditions;
@@ -1873,6 +1934,40 @@
                     }
                 ]
             };
+        }
+
+        function normalizeImportedConfig(config) {
+            const legacyBehaviorKey = 'exBehavior';
+            function normalizeNode(node) {
+                if (!node || typeof node !== 'object') return;
+                if (Array.isArray(node[legacyBehaviorKey])) {
+                    node.onBehaviorStart = (node.onBehaviorStart || []).concat(node[legacyBehaviorKey]);
+                    delete node[legacyBehaviorKey];
+                }
+                if (Array.isArray(node.children)) {
+                    node.nextBehaviors = (node.nextBehaviors || []).concat(node.children);
+                    delete node.children;
+                }
+                if (Array.isArray(node.nextBehaviors)) node.nextBehaviors.forEach(normalizeNode);
+            }
+            (config.combatBehaviors || []).forEach(cb => {
+                if (!Array.isArray(cb.behaviorRoots)) cb.behaviorRoots = [];
+                cb.behaviorRoots.forEach(root => {
+                    if (!Array.isArray(root.firstBehaviors)) root.firstBehaviors = [];
+                    root.firstBehaviors.forEach(normalizeNode);
+                });
+            });
+            return config;
+        }
+
+        function cleanUIFields(value) {
+            if (Array.isArray(value)) return value.map(cleanUIFields);
+            if (!value || typeof value !== 'object') return value;
+            const cleaned = {};
+            Object.keys(value).forEach(key => {
+                if (!key.startsWith('_')) cleaned[key] = cleanUIFields(value[key]);
+            });
+            return cleaned;
         }
 
         function deepEqual(a, b) {
@@ -2075,7 +2170,10 @@
                         window.location.hash = '';
                     }
 
-                    let config = savedConfig || getDefaultConfig();
+                    let config = normalizeImportedConfig(savedConfig || getDefaultConfig());
+                    const defaults = getDefaultConfig();
+                    config.ceBossBar = { ...defaults.ceBossBar, ...(config.ceBossBar || {}) };
+                    config.ceBossMusic = { ...defaults.ceBossMusic, ...(config.ceBossMusic || {}) };
                     if (config.weaponLivingMotions) {
                         config.weaponLivingMotions.forEach((wlm, i) => {
                             if (!wlm.livingMotions) {
@@ -2243,14 +2341,14 @@
                                 found = true;
                                 return;
                             }
-                            if (node.children) searchNodes(node.children);
+                            if (node.nextBehaviors) searchNodes(node.nextBehaviors);
                         }
                     }
                     searchNodes(root.firstBehaviors);
                     return found;
                 },
                 updateJSONPreview() {
-                    let out = JSON.parse(JSON.stringify(this.config));
+                    let out = cleanUIFields(JSON.parse(JSON.stringify(this.config)));
                     let defaultCfg = getDefaultConfig();
                     
                     if (!this.hasBossBar) delete out.ceBossBar;
@@ -2416,7 +2514,7 @@
                     const reader = new FileReader();
                     reader.onload = (e) => {
                         try {
-                            const imported = JSON.parse(e.target.result);
+                            const imported = normalizeImportedConfig(JSON.parse(e.target.result));
 
                             if (imported.weaponLivingMotions) {
                                 imported.weaponLivingMotions = imported.weaponLivingMotions.filter(
@@ -2441,9 +2539,9 @@
                             this.hasBossBar = Object.prototype.hasOwnProperty.call(imported, 'ceBossBar');
                             this.hasBossMusic = Object.prototype.hasOwnProperty.call(imported, 'ceBossMusic');
                             
-                            // 保证基础结构存在，防止 v-if 报错
-                            if (!this.config.ceBossBar) this.config.ceBossBar = baseConfig.ceBossBar;
-                            if (!this.config.ceBossMusic) this.config.ceBossMusic = baseConfig.ceBossMusic;
+                            // 保证已知 Boss 嵌套对象字段完整，防止编辑控件出现空值
+                            this.config.ceBossBar = { ...baseConfig.ceBossBar, ...(imported.ceBossBar || {}) };
+                            this.config.ceBossMusic = { ...baseConfig.ceBossMusic, ...(imported.ceBossMusic || {}) };
                             
                             // 保证部分对象存在
                             if (!this.config.stunAnimations) this.config.stunAnimations = {};
