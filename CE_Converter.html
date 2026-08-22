@@ -5,83 +5,171 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title data-i18n="Indestructible 转 CombatEvolution 格式工具">Indestructible 转 CombatEvolution 格式工具</title>
     <script id="ce-converter-core">
-        const CONDITION_MAP = {
-            "epicfight:within_distance": (cond) => ({ type: "combat_evolution:target_in_distance", min: cond.min || 0, max: cond.max || 0 }),
-            "epicfight:health": (cond) => {
-                let comp = cond.comparator || "less_ratio";
-                if (!["less_ratio", "greater_ratio", "less_absolute", "greater_absolute"].includes(comp)) comp = "less_ratio";
-                return { type: "combat_evolution:health_check", health: cond.health || 0, comparator: comp };
-            },
-            "indestructible:stamina": (cond) => {
-                let comp = cond.comparator || "less_ratio";
-                if (!["less_ratio", "greater_ratio", "less_absolute", "greater_absolute"].includes(comp)) comp = "less_ratio";
-                return { type: "combat_evolution:stamina_check", stamina: cond.stamina || 0, comparator: comp };
-            },
-            "indestructible:attack_level": (cond) => ({ type: "combat_evolution:attack_level", min: cond.min || 1, max: cond.max || 1 }),
-            "indestructible:phase": (cond) => ({ type: "combat_evolution:phase_between", min: cond.min || 0, max: cond.max || 0 }),
-            "indestructible:guard_break": (cond) => ({ type: "combat_evolution:target_guard_break" }),
-            "epicfight:within_angle": (cond) => ({ type: "combat_evolution:current_angle", side: "round", first: cond.min || 0, second: cond.max || 180 }),
-            "epicfight:within_angle_horizontal": (cond) => ({ type: "combat_evolution:current_angle", side: "round", first: cond.min || 0, second: cond.max || 180 }),
-            "epicfight:within_eye_height": (cond) => null // CE无直接等价，丢弃
-        };
+        const COMPARATORS = new Set([
+            "greater_absolute", "greater_absolute_contain", "greater_ratio", "greater_ratio_contain",
+            "less_absolute", "less_absolute_contain", "less_ratio", "less_ratio_contain"
+        ]);
+        const CE_CONDITION_TYPES = new Set([
+            "combat_evolution:target_in_distance", "combat_evolution:phase_between", "combat_evolution:phase_contain",
+            "combat_evolution:entity_tag", "combat_evolution:current_angle", "combat_evolution:health_check",
+            "combat_evolution:stamina_check", "combat_evolution:attack_level",
+            "combat_evolution:attack_level_contain", "combat_evolution:target_guard_break",
+            "epicfight:within_distance"
+        ]);
+        const COMMON_BEHAVIOR_FIELDS = [
+            "priority", "weight", "stopByStun", "interruptType", "interruptedWindow",
+            "canInterruptParent", "canInsertGlobalBehavior", "allowedGlobalNameList", "addCoolDown",
+            "setCoolDown", "waitTime", "addStamina", "setStamina", "setPhase", "addPhase"
+        ];
+
+        function isPlainObject(value) {
+            if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+            const proto = Object.getPrototypeOf(value);
+            return proto === Object.prototype || proto === null;
+        }
+
+        function firstDefined(...values) {
+            return values.find(value => value !== undefined && value !== null);
+        }
+
+        function normalizeCommand(command) {
+            if (typeof command !== "string") return "";
+            return command.startsWith("/") ? command : "/" + command;
+        }
+
+        function normalizeComparator(value) {
+            return COMPARATORS.has(value) ? value : "less_ratio";
+        }
+
+        function convertAngleCondition(cond) {
+            const min = firstDefined(cond.min, cond.first, 0);
+            const max = firstDefined(cond.max, cond.second, 180);
+            if (typeof min !== "number" || typeof max !== "number") return null;
+            if (cond.side === "left" || cond.side === "right") {
+                return { type: "combat_evolution:current_angle", side: cond.side, first: min, second: max };
+            }
+            if (min <= 0 && max <= 0) {
+                return { type: "combat_evolution:current_angle", side: "left", first: Math.min(Math.abs(max), Math.abs(min)), second: Math.max(Math.abs(max), Math.abs(min)) };
+            }
+            if (min >= 0 && max >= 0) {
+                return { type: "combat_evolution:current_angle", side: "right", first: Math.min(min, max), second: Math.max(min, max) };
+            }
+            const side = Math.abs(min) > Math.abs(max) ? "left" : "right";
+            return { type: "combat_evolution:current_angle", side, first: 0, second: side === "left" ? Math.abs(min) : Math.abs(max) };
+        }
 
         function validateSchema(data) {
-            const isIndestructible = data.combat_behavior !== undefined || 
-                                     data.attributes !== undefined || 
-                                     data.humanoid_weapon_motions !== undefined || 
-                                     data.custom_guard_motion !== undefined ||
-                                     data.stun_animations !== undefined ||
-                                     data.default_livingmotions !== undefined;
-            if (!isIndestructible) {
-                throw new Error("文件格式不匹配，未检测到 Indestructible 特有字段");
-            }
+            if (!isPlainObject(data)) throw new Error("输入 JSON 根必须是普通对象，不能是数组、null 或其他类型");
+            const payload = isPlainObject(data.data) ? data.data : data;
+            const isConvertible = payload.combat_behavior !== undefined || payload.combatBehaviors !== undefined || payload.attributes !== undefined ||
+                payload.humanoid_weapon_motions !== undefined || payload.custom_guard_motion !== undefined ||
+                payload.stun_animations !== undefined || payload.default_livingmotions !== undefined ||
+                payload.stun_command_list !== undefined || payload.boss_bar !== undefined;
+            if (!isConvertible) throw new Error("文件格式不匹配，未检测到可转换字段");
+            if (payload.combat_behavior !== undefined && !Array.isArray(payload.combat_behavior)) throw new Error("combat_behavior 必须是数组");
+            if (payload.attributes !== undefined && !isPlainObject(payload.attributes) && !Array.isArray(payload.attributes)) throw new Error("attributes 必须是对象或数组");
+            if (payload.humanoid_weapon_motions !== undefined && !Array.isArray(payload.humanoid_weapon_motions)) throw new Error("humanoid_weapon_motions 必须是数组");
+            if (payload.stun_command_list !== undefined && !Array.isArray(payload.stun_command_list)) throw new Error("stun_command_list 必须是数组");
+        }
+
+        function copyJson(value) {
+            return JSON.parse(JSON.stringify(value));
         }
 
         function convertConditions(conditions) {
-            if (!conditions) return [];
-            let newConds = [];
-            for (let cond of conditions) {
-                let pred = cond.predicate;
-                if (pred && !pred.includes(':')) {
-                    if (CONDITION_MAP["epicfight:" + pred]) {
-                        pred = "epicfight:" + pred;
-                    } else if (CONDITION_MAP["indestructible:" + pred]) {
-                        pred = "indestructible:" + pred;
-                    }
+            if (conditions === undefined) return [];
+            if (!Array.isArray(conditions)) return null;
+            const converted = [];
+            for (const cond of conditions) {
+                if (!isPlainObject(cond) || cond.invert === true) return null;
+                let type = cond.type || cond.predicate;
+                if (typeof type !== "string") return null;
+                if (!type.includes(":")) {
+                    if (["within_distance", "health", "within_angle", "within_angle_horizontal", "within_eye_height"].includes(type)) type = "epicfight:" + type;
+                    else type = "indestructible:" + type;
                 }
-                
-                if (CONDITION_MAP[pred]) {
-                    let mapped = CONDITION_MAP[pred](cond);
-                    if (mapped !== null) newConds.push(mapped);
-                } else {
-                    let unmapped = { type: pred, ...cond };
-                    delete unmapped.predicate;
-                    newConds.push(unmapped);
+                if (type === "epicfight:within_eye_height") continue;
+                let mapped = null;
+                if (type === "epicfight:within_distance" || type === "combat_evolution:target_in_distance") {
+                    mapped = { type: "combat_evolution:target_in_distance", min: firstDefined(cond.min, 0), max: firstDefined(cond.max, 0) };
+                } else if (type === "epicfight:health" || type === "combat_evolution:health_check") {
+                    mapped = { type: "combat_evolution:health_check", health: firstDefined(cond.health, 0), comparator: normalizeComparator(cond.comparator) };
+                } else if (type === "indestructible:stamina" || type === "combat_evolution:stamina_check") {
+                    mapped = { type: "combat_evolution:stamina_check", stamina: firstDefined(cond.stamina, 0), comparator: normalizeComparator(cond.comparator) };
+                } else if (type === "indestructible:attack_level" || type === "combat_evolution:attack_level") {
+                    mapped = { type: "combat_evolution:attack_level", min: firstDefined(cond.min, 1), max: firstDefined(cond.max, 1) };
+                } else if (type === "indestructible:phase" || type === "combat_evolution:phase_between") {
+                    mapped = { type: "combat_evolution:phase_between", min: firstDefined(cond.min, 0), max: firstDefined(cond.max, 0) };
+                } else if (type === "indestructible:guard_break" || type === "combat_evolution:target_guard_break") {
+                    mapped = { type: "combat_evolution:target_guard_break" };
+                } else if (["epicfight:within_angle", "epicfight:within_angle_horizontal", "combat_evolution:current_angle"].includes(type)) {
+                    mapped = convertAngleCondition(cond);
+                } else if (CE_CONDITION_TYPES.has(type)) {
+                    mapped = { ...cond, type };
+                    delete mapped.predicate;
                 }
+                if (!mapped) return null;
+                converted.push(mapped);
             }
-            return newConds;
+            return converted;
+        }
+
+        function normalizeSimpleEvent(event) {
+            if (!isPlainObject(event)) return null;
+            const command = normalizeCommand(event.command);
+            if (!command) return null;
+            return { onTarget: firstDefined(event.onTarget, event.execute_at_target, false), command };
         }
 
         function convertCommandList(cmdList) {
-            if (!cmdList) return [];
-            return cmdList.map(cmd => {
-                let time = cmd.time || 0;
-                let onTarget = cmd.execute_at_target || false;
-                let command = cmd.command || "";
-                if (!command.startsWith("/")) command = "/" + command;
-                if (time > 0) return { type: "in_time", timeStart: time, onTarget: onTarget, command: command };
-                else return { type: "tick", onTarget: onTarget, command: command };
-            });
+            if (!Array.isArray(cmdList)) return [];
+            const events = [];
+            for (const cmd of cmdList) {
+                const base = normalizeSimpleEvent(cmd);
+                if (!base) continue;
+                let type = cmd.type;
+                if (!type) type = cmd.time_end !== undefined || cmd.timeEnd !== undefined ? "between_times" : (cmd.time !== undefined ? "in_time" : "tick");
+                if (type === "between_times") events.push({ type, timeStart: firstDefined(cmd.timeStart, cmd.time, 0), timeEnd: firstDefined(cmd.timeEnd, cmd.time_end, 0), ...base });
+                else if (type === "in_time") events.push({ type, timeStart: firstDefined(cmd.timeStart, cmd.time, 0), ...base });
+                else if (type === "tick") events.push({ type, ...base });
+            }
+            return events;
         }
 
         function convertHitCommandList(cmdList) {
-            if (!cmdList) return [];
-            return cmdList.map(cmd => {
-                let onTarget = cmd.execute_at_target || false;
-                let command = cmd.command || "";
-                if (!command.startsWith("/")) command = "/" + command;
-                return { type: "success", phase: -1, onTarget: onTarget, command: command };
-            });
+            if (!Array.isArray(cmdList)) return [];
+            const events = [];
+            for (const cmd of cmdList) {
+                const base = normalizeSimpleEvent(cmd);
+                if (!base) continue;
+                const type = ["success", "blocked", "missed"].includes(cmd.type) ? cmd.type : "success";
+                events.push({ type, phase: firstDefined(cmd.phase, -1), ...base });
+            }
+            return events;
+        }
+
+        function convertBlockedCommandList(cmdList) {
+            if (!Array.isArray(cmdList)) return [];
+            const events = [];
+            for (const cmd of cmdList) {
+                const base = normalizeSimpleEvent(cmd);
+                if (!base) continue;
+                events.push({ parried: firstDefined(cmd.parried, cmd.is_parry, false), phase: firstDefined(cmd.phase, -1), ...base });
+            }
+            return events;
+        }
+
+        function normalizeEventList(value) {
+            if (!Array.isArray(value)) return [];
+            return value.map(normalizeSimpleEvent).filter(Boolean);
+        }
+
+        function normalizeSingleEvent(value, extraFields = []) {
+            const base = normalizeSimpleEvent(value);
+            if (!base) return null;
+            const out = {};
+            for (const field of extraFields) if (value[field] !== undefined) out[field] = value[field];
+            return { ...out, ...base };
         }
 
         function getDefaultLivingMotions(data) {
@@ -89,7 +177,7 @@
                 return { ...data.default_livingmotions };
             }
 
-            const isHumanoid = data.isHumanoid !== undefined ? data.isHumanoid : true;
+            const isHumanoid = firstDefined(data.humanoid, data.isHumanoid, true);
             if (!isHumanoid) return {};
 
             return {
@@ -103,173 +191,282 @@
             };
         }
 
-        function convertBehavior(b) {
-            let outB = {};
-            if (b.conditions) {
-                let conds = convertConditions(b.conditions);
-                if (conds.length > 0) outB.conditions = conds;
-            }
-            
-            if (b.animation) {
-                outB.behaviorType = "action";
-                outB.animation = b.animation; 
-                
-                let params = {};
-                if (b.convert_time !== undefined) params.transitionTime = b.convert_time;
-                if (b.play_speed !== undefined) params.playSpeed = b.play_speed;
-                if (Object.keys(params).length > 0) outB.animationParams = params;
+        function normalizeDamageTags(value) {
+            if (!Array.isArray(value)) return [];
+            const resourceLocation = /^[a-z0-9_.-]+:[a-z0-9_./-]+$/;
+            return value.filter(tag => typeof tag === "string").map(tag => tag.trim()).filter(tag => resourceLocation.test(tag));
+        }
 
-                if (b.command_list) {
-                    let te = convertCommandList(b.command_list);
-                    if (te.length > 0) outB.timeEvents = te;
-                }
-                if (b.hit_command_list) {
-                    let he = convertHitCommandList(b.hit_command_list);
-                    if (he.length > 0) outB.hitEvents = he;
-                }
-                if (b.damage_modifier && typeof b.damage_modifier === 'object') {
-                    let phaseParam = { phase: -1 }; 
-                    let mod = b.damage_modifier;
+        function normalizePhaseParam(value) {
+            if (!isPlainObject(value)) return null;
+            const out = {};
+            for (const field of ["phase", "damageMultiplier", "impactMultiplier", "armorNegationMultiplier", "stunType"]) {
+                if (value[field] !== undefined) out[field] = value[field];
+            }
+            const tags = normalizeDamageTags(firstDefined(value.damage_tags, value.damageTags));
+            if (tags.length > 0) out.damage_tags = tags;
+            return Object.keys(out).length > 0 ? out : null;
+        }
+
+        function normalizeAnimationParams(value) {
+            if (!isPlainObject(value)) return {};
+            const out = {};
+            if (value.transitionTime !== undefined) out.transitionTime = value.transitionTime;
+            if (value.playSpeed !== undefined) out.playSpeed = value.playSpeed;
+            if (Array.isArray(value.phaseParams)) {
+                const phaseParams = value.phaseParams.map(normalizePhaseParam).filter(Boolean);
+                if (phaseParams.length > 0) out.phaseParams = phaseParams;
+            }
+            return out;
+        }
+
+        function convertBehavior(b) {
+            if (!isPlainObject(b)) return null;
+            const typeFlags = [
+                b.animation !== undefined,
+                b.guard !== undefined || b.guardTime !== undefined,
+                b.wander !== undefined || b.wanderTime !== undefined,
+                b.guardWithWander !== undefined
+            ];
+            if (typeFlags.filter(Boolean).length !== 1) return null;
+
+            const outB = {};
+            if (typeof b.behaviorName === "string") outB.behaviorName = b.behaviorName;
+            for (const field of COMMON_BEHAVIOR_FIELDS) if (b[field] !== undefined) outB[field] = copyJson(b[field]);
+            if (b.setPhase === undefined && b.set_phase !== undefined) outB.setPhase = b.set_phase;
+            if (b.addStamina === undefined && b.stamina !== undefined) outB.addStamina = -b.stamina;
+
+            const conds = convertConditions(b.conditions);
+            if (conds === null) return null;
+            if (conds.length > 0) outB.conditions = conds;
+
+            const animationParams = normalizeAnimationParams(b.animationParams);
+            if (b.convert_time !== undefined && animationParams.transitionTime === undefined) animationParams.transitionTime = b.convert_time;
+            if (b.play_speed !== undefined && animationParams.playSpeed === undefined) animationParams.playSpeed = b.play_speed;
+
+            if (b.animation !== undefined) {
+                if (typeof b.animation !== "string" || !b.animation.trim()) return null;
+                outB.animation = b.animation;
+                const mod = isPlainObject(b.damage_modifier) ? b.damage_modifier : null;
+                if (mod) {
+                    const phaseParam = { phase: firstDefined(mod.phase, -1) };
                     if (mod.damage !== undefined) phaseParam.damageMultiplier = mod.damage;
                     if (mod.impact !== undefined) phaseParam.impactMultiplier = mod.impact;
                     if (mod.armor_negation !== undefined) phaseParam.armorNegationMultiplier = mod.armor_negation;
                     if (mod.stun_type !== undefined) phaseParam.stunType = mod.stun_type;
-                    if (Object.keys(phaseParam).length > 1) {
-                        outB.animationParams = outB.animationParams || {};
-                        outB.animationParams.phaseParams = [phaseParam];
-                    }
+                    const tags = normalizeDamageTags(firstDefined(mod.damage_tags, mod.damageTags));
+                    if (tags.length > 0) phaseParam.damage_tags = tags;
+                    if (Object.keys(phaseParam).length > 1) animationParams.phaseParams = (animationParams.phaseParams || []).concat(phaseParam);
                 }
-                if (b.set_phase !== undefined) {
-                    outB.setPhase = b.set_phase;
-                }
-            } else if (b.guard !== undefined) {
-                outB.behaviorType = "guard";
-                outB.guardTime = b.guard;
-                if (b.counter) {
-                    outB.counterAnimation = b.counter; 
-                    outB.counterType = "random";
-                    outB.counterChance = b.counter_chance || 0.3;
-                }
-            } else if (b.wander !== undefined) {
-                outB.behaviorType = "wander";
-                outB.wanderTime = b.wander;
-                if (b.x_axis !== undefined) outB.strafe = b.x_axis;
-                if (b.z_axis !== undefined) outB.forward = b.z_axis;
+            } else if (typeFlags[1]) {
+                outB.guardTime = firstDefined(b.guardTime, b.guard);
+                for (const field of ["resetGuardTime", "guardCost", "counterType", "counterChance", "maxGuardHit"]) if (b[field] !== undefined) outB[field] = b[field];
+                if (b.counterAnimation !== undefined || b.counter !== undefined) outB.counterAnimation = firstDefined(b.counterAnimation, b.counter);
+                if (outB.counterAnimation !== undefined && outB.counterType === undefined) outB.counterType = "random";
+                if (outB.counterType === "random" && outB.counterChance === undefined) outB.counterChance = firstDefined(b.counter_chance, 0.25);
+                if (b.counter_speed !== undefined && animationParams.playSpeed === undefined) animationParams.playSpeed = b.counter_speed;
+            } else if (typeFlags[2]) {
+                outB.wanderTime = firstDefined(b.wanderTime, b.wander);
+                if (b.strafe !== undefined || b.x_axis !== undefined) outB.strafe = firstDefined(b.strafe, b.x_axis);
+                if (b.forward !== undefined || b.z_axis !== undefined) outB.forward = firstDefined(b.forward, b.z_axis);
+            } else {
+                outB.guardWithWander = b.guardWithWander;
+                for (const field of ["guardAnimation", "counterAnimation", "counterType", "counterChance", "maxGuardHit", "forward", "strafe"]) if (b[field] !== undefined) outB[field] = b[field];
+                if (outB.counterAnimation !== undefined && outB.counterType === undefined) outB.counterType = "random";
+                if (outB.counterType === "random" && outB.counterChance === undefined) outB.counterChance = firstDefined(b.counter_chance, 0.25);
             }
+            if (Object.keys(animationParams).length > 0 && (outB.animation !== undefined || outB.guardTime !== undefined || outB.guardWithWander !== undefined)) outB.animationParams = animationParams;
 
-            if (b.stamina !== undefined && b.stamina > 0) {
-                outB.addStamina = -b.stamina;
-            }
+            const timeEvents = convertCommandList(firstDefined(b.timeEvents, b.command_list));
+            const hitEvents = convertHitCommandList(firstDefined(b.hitEvents, b.hit_command_list));
+            const blockedEvents = convertBlockedCommandList(firstDefined(b.blockedEvents, b.blocked_command_list));
+            const onBehaviorStart = normalizeEventList(b.onBehaviorStart).concat(normalizeEventList(b.exBehavior));
+            const onHurtEvent = normalizeSingleEvent(b.onHurtEvent, ["returnResult", "damage"]);
+            const onGuardHit = normalizeEventList(b.onGuardHit);
+            const onCounterStart = normalizeEventList(b.onCounterStart);
+            const beforeCounter = normalizeSingleEvent(b.beforeCounter, ["cancelHitAnimation"]);
+            if (timeEvents.length > 0) outB.timeEvents = timeEvents;
+            if (hitEvents.length > 0) outB.hitEvents = hitEvents;
+            if (blockedEvents.length > 0) outB.blockedEvents = blockedEvents;
+            if (onBehaviorStart.length > 0) outB.onBehaviorStart = onBehaviorStart;
+            if (onHurtEvent) outB.onHurtEvent = onHurtEvent;
+            if (onGuardHit.length > 0) outB.onGuardHit = onGuardHit;
+            if (beforeCounter) outB.beforeCounter = beforeCounter;
+            if (onCounterStart.length > 0) outB.onCounterStart = onCounterStart;
+
+            const branchSource = [];
+            if (Array.isArray(b.nextBehaviors)) branchSource.push(...b.nextBehaviors);
+            if (Array.isArray(b.children)) branchSource.push(...b.children);
+            const branches = branchSource.map(convertBehavior).filter(Boolean);
+            if (branches.length > 0) outB.nextBehaviors = branches;
             return outB;
         }
 
-        function convertData(data) {
-            let out = {
-                faction: data.faction || "neutral",
-                renderer: data.renderer || "skeleton",
-                model: data.model || "skeleton",
-                armature: data.armature || "epicfight:entity/biped",
-                humanoid: data.isHumanoid !== undefined ? data.isHumanoid : true
-            };
-
-            if (data.attributes && typeof data.attributes === 'object') {
-                let attrs = data.attributes;
-                if (attrs.chasing_speed !== undefined) out.chasingSpeed = attrs.chasing_speed;
-                if (attrs.scale !== undefined) out.scale = attrs.scale;
-                if (attrs.stamina_regan_delay !== undefined) out.staminaRegenDelay = attrs.stamina_regan_delay;
-                if (attrs.stamina_lose_multiply !== undefined) out.hurtImpact = attrs.stamina_lose_multiply;
-                
-                let outAttrs = [];
-                if (attrs.max_stamina !== undefined) outAttrs.push({ attribute: "epicfight:staminar", value: attrs.max_stamina });
-                if (attrs.stamina_regan_multiply !== undefined) outAttrs.push({ attribute: "epicfight:stamina_regen", value: attrs.stamina_regan_multiply });
-                if (attrs.impact !== undefined) outAttrs.push({ attribute: "epicfight:impact", value: attrs.impact });
-                if (attrs.armor_negation !== undefined) outAttrs.push({ attribute: "epicfight:armor_negation", value: attrs.armor_negation });
-                
-                if (outAttrs.length > 0) out.attributes = outAttrs;
-            }
-
-            if (data.stun_animations && Array.isArray(data.stun_animations)) out.stunAnimations = data.stun_animations;
-            
-            let defaultMotions = getDefaultLivingMotions(data);
-            if (Object.keys(defaultMotions).length > 0) {
-                out.default_livingmotions = { ...defaultMotions };
-            }
-            
-            if (data.humanoid_weapon_motions && Array.isArray(data.humanoid_weapon_motions)) {
-                out.weaponLivingMotions = [];
-                for (let wm of data.humanoid_weapon_motions) {
-                    if (!wm || typeof wm !== 'object') continue;
-                    let combinedMotions = Object.assign({}, defaultMotions, (wm.livingmotions && typeof wm.livingmotions === 'object') ? wm.livingmotions : {});
-                    let wMotion = {
-                        weaponCategories: Array.isArray(wm.weapon_categories) ? wm.weapon_categories : [],
-                        style: wm.style || "common",
-                        livingMotions: combinedMotions
-                    };
-                    out.weaponLivingMotions.push(wMotion);
-                }
-            } else if (Object.keys(defaultMotions).length > 0) {
-                out.weaponLivingMotions = [{
-                    weaponCategories: [], 
-                    style: "common",
-                    livingMotions: defaultMotions
-                }];
-            }
-            
-            if (data.custom_guard_motion && Array.isArray(data.custom_guard_motion)) {
-                out.guardHitAnimation = [];
-                for (let gm of data.custom_guard_motion) {
-                    if (!gm || typeof gm !== 'object') continue;
-                    let gHit = {
-                        weaponCategories: Array.isArray(gm.weapon_categories) ? gm.weapon_categories : [],
-                        style: gm.style || "common",
-                        animations: Array.isArray(gm.parry_animation) ? gm.parry_animation : [] 
-                    };
-                    if (gHit.animations.length === 0 && gm.guard) {
-                        gHit.animations.push(gm.guard);
-                    }
-                    if (gHit.animations.length > 0) out.guardHitAnimation.push(gHit);
+        function convertBehaviorSequence(behaviors, seriesIndex) {
+            if (!Array.isArray(behaviors)) return [];
+            const converted = behaviors.map(convertBehavior).filter(Boolean);
+            for (let i = 0; i < converted.length; i++) {
+                if (converted[i].behaviorName === undefined) converted[i].behaviorName = "Action_" + seriesIndex + "_" + i;
+                if (i + 1 < converted.length) {
+                    converted[i].nextBehaviors = (converted[i].nextBehaviors || []).concat(converted[i + 1]);
                 }
             }
+            return converted.length > 0 ? [converted[0]] : [];
+        }
 
-            if (data.combat_behavior && Array.isArray(data.combat_behavior)) {
-                let outCbs = [];
-                for (let idxCb = 0; idxCb < data.combat_behavior.length; idxCb++) {
-                    let cb = data.combat_behavior[idxCb];
-                    let outCb = {
-                        weaponCategories: cb.weapon_categories || [],
-                        style: cb.style || "common",
-                        behaviorRoots: []
-                    };
-
-                    if (cb.behavior_series) {
-                        for (let idxS = 0; idxS < cb.behavior_series.length; idxS++) {
-                            let series = cb.behavior_series[idxS];
-                            let root = {
-                                rootName: "BehaviorRoot_" + idxS,
-                                weight: series.weight || 1.0,
-                                maxCooldown: series.cooldown || 0,
-                                firstBehaviors: []
-                            };
-
-                            if (series.behaviors && series.behaviors.length > 0) {
-                                let first = convertBehavior(series.behaviors[0]);
-                                first.behaviorName = "Action_" + idxS + "_0";
-                                let current = first;
-                                for (let i = 1; i < series.behaviors.length; i++) {
-                                    let next = convertBehavior(series.behaviors[i]);
-                                    next.behaviorName = "Action_" + idxS + "_" + i;
-                                    current.nextBehaviors = [next];
-                                    current = next;
-                                }
-                                root.firstBehaviors.push(first);
-                            }
-                            outCb.behaviorRoots.push(root);
-                        }
-                    }
-                    outCbs.push(outCb);
-                }
-                out.combatBehaviors = outCbs;
+        function convertStunAnimations(value) {
+            if (isPlainObject(value)) return { ...value };
+            if (!Array.isArray(value)) return null;
+            const out = {};
+            for (const entry of value) {
+                if (!isPlainObject(entry)) continue;
+                const type = firstDefined(entry.stun_type, entry.stunType, entry.type);
+                const animation = firstDefined(entry.animation, entry.value);
+                if (typeof type === "string" && typeof animation === "string") out[type] = animation;
             }
+            return Object.keys(out).length > 0 ? out : null;
+        }
+
+        function convertStunEvents(value) {
+            if (!Array.isArray(value)) return {};
+            const out = {};
+            for (const event of value) {
+                if (!isPlainObject(event) || typeof event.stun_type !== "string") continue;
+                const normalized = normalizeSimpleEvent(event);
+                if (!normalized) continue;
+                (out[event.stun_type] ||= []).push(normalized);
+            }
+            return out;
+        }
+
+        function normalizeCurrentCombatBehaviors(value) {
+            if (!Array.isArray(value)) return [];
+            const result = [];
+            for (const cb of value) {
+                if (!isPlainObject(cb)) continue;
+                const weaponCategories = Array.isArray(cb.weaponCategories) ? cb.weaponCategories.filter(item => typeof item === "string" && item.trim()) : [];
+                if (weaponCategories.length === 0 || !Array.isArray(cb.behaviorRoots)) continue;
+                const behaviorRoots = [];
+                for (const root of cb.behaviorRoots) {
+                    if (!isPlainObject(root) || !Array.isArray(root.firstBehaviors)) continue;
+                    const firstBehaviors = root.firstBehaviors.map(convertBehavior).filter(Boolean);
+                    if (firstBehaviors.length === 0) continue;
+                    const outRoot = { firstBehaviors };
+                    for (const field of ["rootName", "priority", "weight", "maxCooldown", "cooldown", "isGlobal", "backAfterFinished"]) if (root[field] !== undefined) outRoot[field] = copyJson(root[field]);
+                    behaviorRoots.push(outRoot);
+                }
+                if (behaviorRoots.length === 0) continue;
+                const outCb = { weaponCategories, style: firstDefined(cb.style, "common"), behaviorRoots };
+                if (isPlainObject(cb.stunEvents) && Object.keys(cb.stunEvents).length > 0) outCb.stunEvents = copyJson(cb.stunEvents);
+                result.push(outCb);
+            }
+            return result;
+        }
+
+        function convertLegacyCombatBehaviors(data) {
+            if (!Array.isArray(data.combat_behavior)) return [];
+            const result = [];
+            const stunEvents = convertStunEvents(data.stun_command_list);
+            for (let idxCb = 0; idxCb < data.combat_behavior.length; idxCb++) {
+                const cb = data.combat_behavior[idxCb];
+                if (!isPlainObject(cb)) continue;
+                if (cb.behavior_series !== undefined && !Array.isArray(cb.behavior_series)) throw new Error("combat_behavior[" + idxCb + "].behavior_series 必须是数组");
+                const weaponCategories = Array.isArray(cb.weapon_categories) ? cb.weapon_categories.filter(item => typeof item === "string" && item.trim()) : [];
+                if (weaponCategories.length === 0) continue;
+                const behaviorRoots = [];
+                for (let idxS = 0; idxS < (cb.behavior_series || []).length; idxS++) {
+                    const series = cb.behavior_series[idxS];
+                    if (!isPlainObject(series)) continue;
+                    if (series.behaviors !== undefined && !Array.isArray(series.behaviors)) throw new Error("behavior_series[" + idxS + "].behaviors 必须是数组");
+                    const firstBehaviors = convertBehaviorSequence(series.behaviors, idxS);
+                    if (firstBehaviors.length === 0) continue;
+                    const root = {
+                        rootName: firstDefined(series.rootName, "BehaviorRoot_" + idxS),
+                        weight: firstDefined(series.weight, 1),
+                        maxCooldown: firstDefined(series.maxCooldown, series.cooldown, 0),
+                        firstBehaviors
+                    };
+                    for (const field of ["priority", "isGlobal", "backAfterFinished"]) if (series[field] !== undefined) root[field] = series[field];
+                    if (series.maxCooldown !== undefined && series.cooldown !== undefined) root.cooldown = series.cooldown;
+                    behaviorRoots.push(root);
+                }
+                if (behaviorRoots.length === 0) continue;
+                const outCb = { weaponCategories, style: firstDefined(cb.style, "common"), behaviorRoots };
+                if (Object.keys(stunEvents).length > 0) outCb.stunEvents = copyJson(stunEvents);
+                result.push(outCb);
+            }
+            return result;
+        }
+
+        function convertData(input) {
+            const nested = isPlainObject(input.data) ? input.data : {};
+            const data = { ...nested, ...input };
+            delete data.data;
+            const out = {};
+            const scalarFields = ["faction", "renderer", "model", "armature", "humanoid", "chasingSpeed", "scale", "breakTime", "recoverTime", "staminaRegenDelay", "beParriedDamage", "guardHitImpact", "hurtImpact"];
+            for (const field of scalarFields) if (data[field] !== undefined) out[field] = copyJson(data[field]);
+            out.faction = firstDefined(out.faction, "neutral");
+            out.renderer = firstDefined(out.renderer, "skeleton");
+            out.model = firstDefined(out.model, "skeleton");
+            out.armature = firstDefined(out.armature, "epicfight:entity/biped");
+            out.humanoid = firstDefined(out.humanoid, data.isHumanoid, true);
+
+            for (const field of ["attributes", "weaponLivingMotions", "guardHitAnimation", "stunAnimations", "ceBossBar", "ceBossMusic"]) {
+                if (data[field] !== undefined) out[field] = copyJson(data[field]);
+            }
+            if (isPlainObject(data.attributes)) {
+                const attrs = data.attributes;
+                if (out.chasingSpeed === undefined && attrs.chasing_speed !== undefined) out.chasingSpeed = attrs.chasing_speed;
+                if (out.scale === undefined && attrs.scale !== undefined) out.scale = attrs.scale;
+                if (out.staminaRegenDelay === undefined && attrs.stamina_regan_delay !== undefined) out.staminaRegenDelay = attrs.stamina_regan_delay;
+                if (out.hurtImpact === undefined && attrs.stamina_lose_multiply !== undefined) out.hurtImpact = attrs.stamina_lose_multiply;
+                const mapped = [];
+                if (attrs.max_stamina !== undefined) mapped.push({ attribute: "epicfight:staminar", value: attrs.max_stamina });
+                if (attrs.stamina_regan_multiply !== undefined) mapped.push({ attribute: "epicfight:stamina_regen", value: attrs.stamina_regan_multiply });
+                if (attrs.impact !== undefined) mapped.push({ attribute: "epicfight:impact", value: attrs.impact });
+                if (attrs.armor_negation !== undefined) mapped.push({ attribute: "epicfight:armor_negation", value: attrs.armor_negation });
+                if (mapped.length > 0) out.attributes = mapped;
+                else delete out.attributes;
+            }
+
+            if (out.stunAnimations === undefined) {
+                const stunAnimations = convertStunAnimations(data.stun_animations);
+                if (stunAnimations) out.stunAnimations = stunAnimations;
+            }
+            if (out.ceBossBar === undefined && data.boss_bar === true) {
+                out.ceBossBar = { enableBossBar: true };
+                if (data.custom_name !== undefined) out.ceBossBar.bossBarName = data.custom_name;
+                if (data.custom_texture !== undefined) out.ceBossBar.bossBarTextures = data.custom_texture;
+            }
+
+            if (out.weaponLivingMotions === undefined && Array.isArray(data.humanoid_weapon_motions)) {
+                const defaultMotions = getDefaultLivingMotions(data);
+                out.weaponLivingMotions = data.humanoid_weapon_motions.map(wm => {
+                    if (!isPlainObject(wm)) return null;
+                    const weaponCategories = Array.isArray(wm.weapon_categories) ? wm.weapon_categories.filter(item => typeof item === "string" && item.trim()) : [];
+                    if (weaponCategories.length === 0) return null;
+                    return { weaponCategories, style: firstDefined(wm.style, "common"), livingMotions: { ...defaultMotions, ...(isPlainObject(wm.livingmotions) ? wm.livingmotions : {}) } };
+                }).filter(Boolean);
+            }
+            if (out.guardHitAnimation === undefined && Array.isArray(data.custom_guard_motion)) {
+                out.guardHitAnimation = data.custom_guard_motion.map(gm => {
+                    if (!isPlainObject(gm)) return null;
+                    const weaponCategories = Array.isArray(gm.weapon_categories) ? gm.weapon_categories.filter(item => typeof item === "string" && item.trim()) : [];
+                    const animations = Array.isArray(gm.parry_animation) ? gm.parry_animation.filter(item => typeof item === "string" && item.trim()) : [];
+                    if (animations.length === 0 && typeof gm.guard === "string" && gm.guard.trim()) animations.push(gm.guard);
+                    return weaponCategories.length > 0 && animations.length > 0 ? { weaponCategories, style: firstDefined(gm.style, "common"), animations } : null;
+                }).filter(Boolean);
+            }
+
+            if (Array.isArray(out.weaponLivingMotions)) {
+                out.weaponLivingMotions = out.weaponLivingMotions.filter(item => isPlainObject(item) && Array.isArray(item.weaponCategories) && item.weaponCategories.length > 0 && isPlainObject(item.livingMotions));
+            }
+            if (Array.isArray(out.guardHitAnimation)) {
+                out.guardHitAnimation = out.guardHitAnimation.filter(item => isPlainObject(item) && Array.isArray(item.weaponCategories) && item.weaponCategories.length > 0 && Array.isArray(item.animations) && item.animations.length > 0);
+            }
+            out.combatBehaviors = data.combatBehaviors !== undefined ? normalizeCurrentCombatBehaviors(data.combatBehaviors) : convertLegacyCombatBehaviors(data);
+            for (const field of ["attributes", "weaponLivingMotions", "guardHitAnimation"]) if (Array.isArray(out[field]) && out[field].length === 0) delete out[field];
+            if (out.combatBehaviors.length === 0) throw new Error("转换后没有有效的 combatBehaviors");
             return out;
         }
 
@@ -408,6 +605,7 @@
                "2. 点击“批量转换并下载”，浏览器会自动将它们转换为 ": "2. Click “Batch Convert & Download”; the browser will convert them to ",
                " 格式并下载。": " format and download.",
                "准备就绪... 等待选择或拖放文件。": "Ready... waiting for file selection or drag & drop.",
+               "仅输出最新版 CE 字段；含无法可靠映射条件的行为节点会被安全跳过。": "Only current CE fields are exported; legacy conditions and parameters without a reliable mapping are safely ignored.",
                "赞助作者": "Sponsor Author"
            },
     "zh":  {
@@ -430,6 +628,7 @@
                "已成功转换并打包为":  "已成功转换并打包为",
                "切换主题":  "切换主题",
                "转换已取消！":  "转换已取消！",
+               "仅输出最新版 CE 字段；含无法可靠映射条件的行为节点会被安全跳过。": "仅输出最新版 CE 字段；含无法可靠映射条件的行为节点会被安全跳过。",
                "设置":  "设置",
                "已取消":  "已取消",
                "移除":  "移除",
@@ -693,7 +892,8 @@
         </div>
         <p>
             <span data-i18n="1. 点击下方按钮选择需要转换的 ">1. 点击下方按钮选择需要转换的 </span><b>Indestructible</b><span data-i18n=" 数据包 (.json)。"> 数据包 (.json)。</span><br>
-            <span data-i18n="2. 点击“批量转换并下载”，浏览器会自动将它们转换为 ">2. 点击“批量转换并下载”，浏览器会自动将它们转换为 </span><b>CombatEvolution</b><span data-i18n=" 格式并下载。"> 格式并下载。</span>
+            <span data-i18n="2. 点击“批量转换并下载”，浏览器会自动将它们转换为 ">2. 点击“批量转换并下载”，浏览器会自动将它们转换为 </span><b>CombatEvolution</b><span data-i18n=" 格式并下载。"> 格式并下载。</span><br>
+            <span class="muted" data-i18n="仅输出最新版 CE 字段；含无法可靠映射条件的行为节点会被安全跳过。">仅输出最新版 CE 字段；含无法可靠映射条件的行为节点会被安全跳过。</span>
         </p>
         
         <div class="prefix-suffix-group">

@@ -720,7 +720,7 @@
             <div class="section">
                 <h3>{{ t('Combat Behaviors (战斗行为)') }} <button class="btn" @click="addBehavior" style="font-size:12px;padding:2px 8px">+</button></h3>
                 <div class="tooltip">{{ t('行为树逻辑复杂，建议使用源码编辑或仅做基本修改。') }}</div>
-                <div v-for="(cb, index) in config.combatBehaviors" :key="index" class="array-item">
+                <div v-for="(cb, index) in config.combatBehaviors" :key="cb._uiId" class="array-item">
                     <button class="btn btn-danger remove-btn" @click="config.combatBehaviors.splice(index, 1)">X</button>
                     <div class="form-group">
                         <label>Weapon Categories (逗号分隔)</label>
@@ -796,7 +796,7 @@
                         <div class="form-group">
                             <label>First Behaviors (子行为)</label>
                             <button class="btn" @click="addNode(root.firstBehaviors)" style="font-size:12px;padding:2px 8px;margin-bottom:10px;">添加子行为</button>
-                            <behavior-node v-for="(node, nIdx) in root.firstBehaviors" :key="nIdx" :node="node" @remove="root.firstBehaviors.splice(nIdx, 1)"></behavior-node>
+                            <behavior-node v-for="(node, nIdx) in root.firstBehaviors" :key="node._uiId" :node="node" @remove="root.firstBehaviors.splice(nIdx, 1)"></behavior-node>
                         </div>
                     </div>
                 </div>
@@ -1323,8 +1323,8 @@
                                 <div class="form-group" style="margin:0;"><label title="[可选] 设置特殊的条件Phase">Add Phase</label><input type="number" v-model.number="node.addPhase"></div>
                                 <div class="form-group" style="margin:0;"><label title="[可选] 设置特殊的条件Phase">Set Phase</label><input type="number" v-model.number="node.setPhase"></div>
                                 <div class="form-group" style="margin:0;"><label title="[可选] 被特殊子行为打断的类型。Level:在实体的Level为对应值时打断; Time:根据动画播放时间打断">Interrupt Type</label>
-                                    <select v-model="node.interruptType">
-                                        <option :value="undefined">无 (None)</option>
+                                    <select :value="node.interruptType" @change="changeInterruptType($event.target.value)">
+                                        <option value="">无 (None)</option>
                                         <option value="level">Level</option>
                                         <option value="time">Time</option>
                                     </select>
@@ -1350,7 +1350,7 @@
                         <div class="sub-panel">
                             <h5>
                                 <span>Conditions (执行条件)</span>
-                                <button class="btn" style="padding:2px 6px;font-size:12px;" @click="toggleConditions">{{ hasConditions ? $root.t('关闭') : $root.t('开启') }}</button>
+                                <button class="btn" style="padding:2px 6px;font-size:12px;" @click="toggleConditions">{{ hasConditions ? $root.t('折叠') : $root.t('展开') }}</button>
                             </h5>
                             <div v-if="hasConditions">
                                 <button class="btn" style="padding:2px 6px;font-size:10px;margin-bottom:10px;" @click="addCondition">添加条件</button>
@@ -1466,7 +1466,7 @@
                             <div class="sub-panel">
                                 <h5>
                                     <span>动画参数 (Animation Params)</span>
-                                    <button class="btn" style="padding:2px 6px;font-size:12px;" @click="toggleAnimParams">{{ hasAnimParams ? $root.t('关闭') : $root.t('开启') }}</button>
+                                    <button class="btn" style="padding:2px 6px;font-size:12px;" @click="toggleAnimParams">{{ hasAnimParams ? $root.t('折叠') : $root.t('展开') }}</button>
                                 </h5>
                                 <div v-if="hasAnimParams">
                                     <div class="form-group">
@@ -1517,7 +1517,7 @@
                                 <div class="form-group">
                                     <label>TimeEvents (时间戳事件) <button class="btn" style="padding:2px 6px;font-size:10px;" @click="addEvent('timeEvents')">+</button></label>
                                     <div v-for="(te, idx) in node.timeEvents" :key="'te'+idx" style="display:flex;gap:5px;margin-bottom:5px;align-items:center;">
-                                        <select v-model="te.type" style="width:90px;"><option value="tick">Tick</option><option value="in_time">In Time</option><option value="between_times">Between</option></select>
+                                        <select :value="te.type" @change="changeTimeEventType(te, $event.target.value)" style="width:90px;"><option value="tick">Tick</option><option value="in_time">In Time</option><option value="between_times">Between</option></select>
                                         <input v-if="te.type !== 'tick'" type="number" step="0.05" v-model.number="te.timeStart" placeholder="Start" style="width:60px;">
                                         <input v-if="te.type === 'between_times'" type="number" step="0.05" v-model.number="te.timeEnd" placeholder="End" style="width:60px;">
                                         <input type="checkbox" v-model="te.onTarget" title="对目标">
@@ -1581,7 +1581,7 @@
                             <div class="sub-panel">
                                 <h5>
                                     <span>反击动画参数 (Animation Params)</span>
-                                    <button class="btn" style="padding:2px 6px;font-size:12px;" @click="toggleAnimParams">{{ hasAnimParams ? $root.t('关闭') : $root.t('开启') }}</button>
+                                    <button class="btn" style="padding:2px 6px;font-size:12px;" @click="toggleAnimParams">{{ hasAnimParams ? $root.t('折叠') : $root.t('展开') }}</button>
                                 </h5>
                                 <div v-if="hasAnimParams">
                                     <div class="form-group"><label>Play Speed (播放速度)</label><input type="number" step="0.1" v-model.number="node.animationParams.playSpeed"></div>
@@ -1602,7 +1602,7 @@
                             </div>
                             <div class="form-group">
                                 <label>Counter Type (反击类型 random/end/never)</label>
-                                <select v-model="node.counterType">
+                                <select :value="node.counterType" @change="changeCounterType($event.target.value)">
                                     <option value="random">Random</option>
                                     <option value="end">End</option>
                                     <option value="never">Never</option>
@@ -1687,9 +1687,31 @@
                                     <button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" :title="$root.t('预览动画')" @click="window.playAnimationPreview ? window.playAnimationPreview(window.appConfig.armature, node.counterAnimation, previewWeaponModel) : alert($root.t('3D预览环境尚未加载完成'))">▶</button>
                                 </div>
                             </div>
+                            <div class="sub-panel">
+                                <h5>
+                                    <span>反击动画参数 (Animation Params)</span>
+                                    <button class="btn" style="padding:2px 6px;font-size:12px;" @click="toggleAnimParams">{{ hasAnimParams ? $root.t('折叠') : $root.t('展开') }}</button>
+                                </h5>
+                                <div v-if="hasAnimParams">
+                                    <div class="form-group"><label>Play Speed (播放速度)</label><input type="number" step="0.1" v-model.number="node.animationParams.playSpeed"></div>
+                                    <div class="form-group"><label>Transition Time (过渡时间)</label><input type="number" step="0.05" v-model.number="node.animationParams.transitionTime"></div>
+                                    <h6>Phase Params (段数属性修改) <button class="btn" style="padding:2px 6px;font-size:10px;" @click="addPhaseParam">+</button></h6>
+                                    <div v-for="(phase, pIdx) in node.animationParams.phaseParams" :key="'guardWanderPhase'+pIdx" class="array-item">
+                                        <button class="btn btn-danger remove-btn" style="padding:2px 6px;font-size:10px;" @click="node.animationParams.phaseParams.splice(pIdx, 1)">X</button>
+                                        <div class="form-group"><label>Phase (段数, -1为全部)</label><input type="number" v-model.number="phase.phase"></div>
+                                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                                            <div class="form-group"><label>Damage 倍率</label><input type="number" step="0.1" v-model.number="phase.damageMultiplier"></div>
+                                            <div class="form-group"><label>Impact 倍率</label><input type="number" step="0.1" v-model.number="phase.impactMultiplier"></div>
+                                            <div class="form-group"><label>Armor Negation</label><input type="number" step="0.1" v-model.number="phase.armorNegationMultiplier"></div>
+                                            <div class="form-group"><label>Stun Type</label><input type="text" v-model="phase.stunType" placeholder="default"></div>
+                                            <div class="form-group"><label>Damage Tags (逗号分隔)</label><input type="text" :value="phase.damage_tags?.join(', ')" @input="setPhaseDamageTags(phase, $event.target.value)"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="form-group">
                                 <label>Counter Type (反击类型 random/end/never)</label>
-                                <select v-model="node.counterType">
+                                <select :value="node.counterType" @change="changeCounterType($event.target.value)">
                                     <option value="random">Random</option>
                                     <option value="end">End</option>
                                     <option value="never">Never</option>
@@ -1698,6 +1720,10 @@
                             <div class="form-group" v-if="node.counterType === 'random'">
                                 <label>Counter Chance (反击概率 0.0-1.0)</label>
                                 <input type="number" step="0.01" v-model.number="node.counterChance">
+                            </div>
+                            <div class="form-group" v-if="node.counterType === 'end'">
+                                <label>Max Guard Hit (最大防御受击次数)</label>
+                                <input type="number" v-model.number="node.maxGuardHit">
                             </div>
                         </template>
 
@@ -1709,7 +1735,7 @@
                             <div class="tree-node-children" v-if="node.nextBehaviors && node.nextBehaviors.length > 0">
                                 <behavior-node 
                                     v-for="(child, idx) in node.nextBehaviors" 
-                                    :key="idx" 
+                                    :key="child._uiId" 
                                     :node="child"
                                     @remove="node.nextBehaviors.splice(idx, 1)">
                                 </behavior-node>
@@ -1770,31 +1796,68 @@
                     this.expanded = true;
                 },
                 changeNodeType(newType) {
-                    // 清理所有行为类型专属属性，避免切换后残留混合节点
-                    [
-                        'behaviorType', 'animation', 'animationParams', 'timeEvents', 'hitEvents', 'blockedEvents', 'onHurtEvent',
-                        'guardTime', 'resetGuardTime', 'guardCost', 'counterAnimation', 'counterType', 'counterChance',
-                        'maxGuardHit', 'onGuardHit', 'beforeCounter', 'onCounterStart',
-                        'wanderTime', 'guardWithWander', 'guardAnimation', 'forward', 'strafe'
-                    ].forEach(key => delete this.node[key]);
-                    this.hasAnimParams = false;
-                    
-                    // 根据新类型赋予默认属性
-                    if (newType === 'Animation') {
+                    const sharedCounterFields = ['counterAnimation', 'counterType', 'counterChance', 'maxGuardHit', 'onGuardHit', 'beforeCounter', 'onCounterStart'];
+                    const legalFields = {
+                        Animation: ['animation', 'animationParams', 'timeEvents', 'hitEvents', 'blockedEvents', 'onHurtEvent'],
+                        Guard: ['animationParams', 'guardTime', 'resetGuardTime', 'guardCost', ...sharedCounterFields],
+                        Wander: ['wanderTime', 'forward', 'strafe'],
+                        GuardWithWander: ['animationParams', 'guardWithWander', 'guardAnimation', 'forward', 'strafe', ...sharedCounterFields]
+                    };
+                    const allTypeFields = new Set(Object.values(legalFields).flat().concat('behaviorType'));
+                    allTypeFields.forEach(key => {
+                        if (!legalFields[newType].includes(key)) delete this.node[key];
+                    });
+                    this.hasAnimParams = !!this.node.animationParams;
+
+                    if (newType === 'Animation' && this.node.animation === undefined) {
                         this.node.animation = "epicfight:biped/combat/longsword_auto1";
                     } else if (newType === 'Guard') {
-                        this.node.guardTime = 60;
-                        this.node.counterAnimation = "combat_evolution:biped/skill/shield_counter/shield_counter";
-                        this.node.counterType = "random";
+                        if (this.node.guardTime === undefined) this.node.guardTime = 60;
+                        if (this.node.counterAnimation === undefined) this.node.counterAnimation = "combat_evolution:biped/skill/shield_counter/shield_counter";
+                        if (this.node.counterType === undefined) this.changeCounterType('random');
                     } else if (newType === 'Wander') {
-                        this.node.wanderTime = 60;
-                        this.node.forward = 0.25;
-                        this.node.strafe = 1;
+                        if (this.node.wanderTime === undefined) this.node.wanderTime = 60;
+                        if (this.node.forward === undefined) this.node.forward = 0.25;
+                        if (this.node.strafe === undefined) this.node.strafe = 1;
                     } else if (newType === 'GuardWithWander') {
-                        this.node.guardWithWander = 100;
-                        this.node.counterAnimation = "epicfight:biped/combat/tachi_auto3";
-                        this.node.counterType = "random";
-                        this.node.counterChance = 0.15;
+                        if (this.node.guardWithWander === undefined) this.node.guardWithWander = 100;
+                        if (this.node.counterAnimation === undefined) this.node.counterAnimation = "epicfight:biped/combat/tachi_auto3";
+                        if (this.node.counterType === undefined) this.changeCounterType('random');
+                    }
+                },
+                changeCounterType(newType) {
+                    this.node.counterType = newType;
+                    if (newType === 'random') {
+                        if (this.node.counterChance === undefined) this.node.counterChance = 0.25;
+                        delete this.node.maxGuardHit;
+                    } else if (newType === 'end') {
+                        if (this.node.maxGuardHit === undefined) this.node.maxGuardHit = 1;
+                        delete this.node.counterChance;
+                    } else {
+                        delete this.node.counterChance;
+                        delete this.node.maxGuardHit;
+                    }
+                },
+                changeInterruptType(newType) {
+                    if (newType) {
+                        this.node.interruptType = newType;
+                        if (!Array.isArray(this.node.interruptedWindow)) this.node.interruptedWindow = newType === 'time' ? [0, 1] : [1];
+                    } else {
+                        delete this.node.interruptType;
+                        delete this.node.interruptedWindow;
+                    }
+                },
+                changeTimeEventType(event, newType) {
+                    event.type = newType;
+                    if (newType === 'tick') {
+                        delete event.timeStart;
+                        delete event.timeEnd;
+                    } else if (newType === 'in_time') {
+                        if (event.timeStart === undefined) event.timeStart = 0;
+                        delete event.timeEnd;
+                    } else {
+                        if (event.timeStart === undefined) event.timeStart = 0;
+                        if (event.timeEnd === undefined) event.timeEnd = event.timeStart;
                     }
                 },
                 setCommaList(key, value) {
@@ -1936,10 +1999,17 @@
             };
         }
 
+        let nextUIId = 1;
+        function ensureUIId(value) {
+            if (value && typeof value === 'object' && !value._uiId) value._uiId = 'ce-ui-' + nextUIId++;
+            return value;
+        }
+
         function normalizeImportedConfig(config) {
             const legacyBehaviorKey = 'exBehavior';
             function normalizeNode(node) {
                 if (!node || typeof node !== 'object') return;
+                ensureUIId(node);
                 if (Array.isArray(node[legacyBehaviorKey])) {
                     node.onBehaviorStart = (node.onBehaviorStart || []).concat(node[legacyBehaviorKey]);
                     delete node[legacyBehaviorKey];
@@ -1951,6 +2021,7 @@
                 if (Array.isArray(node.nextBehaviors)) node.nextBehaviors.forEach(normalizeNode);
             }
             (config.combatBehaviors || []).forEach(cb => {
+                ensureUIId(cb);
                 if (!Array.isArray(cb.behaviorRoots)) cb.behaviorRoots = [];
                 cb.behaviorRoots.forEach(root => {
                     if (!Array.isArray(root.firstBehaviors)) root.firstBehaviors = [];
@@ -1965,9 +2036,46 @@
             if (!value || typeof value !== 'object') return value;
             const cleaned = {};
             Object.keys(value).forEach(key => {
-                if (!key.startsWith('_')) cleaned[key] = cleanUIFields(value[key]);
+                if (!['_uiId', '_showStunEvents'].includes(key)) cleaned[key] = cleanUIFields(value[key]);
             });
             return cleaned;
+        }
+
+        function prepareConfigForUI(source) {
+            const config = normalizeImportedConfig(JSON.parse(JSON.stringify(source || {})));
+            const defaults = getDefaultConfig();
+            const injectedDefaults = {};
+            Object.keys(defaults).forEach(key => {
+                if (config[key] === undefined) {
+                    config[key] = JSON.parse(JSON.stringify(key === 'combatBehaviors' ? [] : defaults[key]));
+                    if (key !== 'combatBehaviors') injectedDefaults[key] = JSON.parse(JSON.stringify(defaults[key]));
+                }
+            });
+            ['ceBossBar', 'ceBossMusic'].forEach(key => {
+                if (!config[key] || injectedDefaults[key]) return;
+                Object.keys(defaults[key]).forEach(childKey => {
+                    if (config[key][childKey] === undefined) {
+                        config[key][childKey] = defaults[key][childKey];
+                        injectedDefaults[key + '.' + childKey] = defaults[key][childKey];
+                    }
+                });
+            });
+            normalizeImportedConfig(config);
+            return { config, injectedDefaults };
+        }
+
+        function removeUnchangedInjectedDefaults(out, config, injectedDefaults) {
+            Object.keys(injectedDefaults || {}).forEach(path => {
+                const parts = path.split('.');
+                const key = parts.pop();
+                let outParent = out;
+                let configParent = config;
+                for (const part of parts) {
+                    outParent = outParent && outParent[part];
+                    configParent = configParent && configParent[part];
+                }
+                if (outParent && deepEqual(configParent && configParent[key], injectedDefaults[path])) delete outParent[key];
+            });
         }
 
         function deepEqual(a, b) {
@@ -2170,10 +2278,8 @@
                         window.location.hash = '';
                     }
 
-                    let config = normalizeImportedConfig(savedConfig || getDefaultConfig());
-                    const defaults = getDefaultConfig();
-                    config.ceBossBar = { ...defaults.ceBossBar, ...(config.ceBossBar || {}) };
-                    config.ceBossMusic = { ...defaults.ceBossMusic, ...(config.ceBossMusic || {}) };
+                    const prepared = savedConfig ? prepareConfigForUI(savedConfig) : { config: normalizeImportedConfig(getDefaultConfig()), injectedDefaults: {} };
+                    let config = prepared.config;
                     if (config.weaponLivingMotions) {
                         config.weaponLivingMotions.forEach((wlm, i) => {
                             if (!wlm.livingMotions) {
@@ -2195,8 +2301,9 @@
                     collapsedSections: {},
                     leftWidth: 50,
                     isDragging: false,
-                    hasBossBar: savedConfig ? !!savedConfig.ceBossBar : true,
-                    hasBossMusic: savedConfig ? !!savedConfig.ceBossMusic : true,
+                    hasBossBar: localStorage.getItem('ce_has_boss_bar') !== null ? localStorage.getItem('ce_has_boss_bar') === '1' : (savedConfig ? !!savedConfig.ceBossBar : true),
+                    hasBossMusic: localStorage.getItem('ce_has_boss_music') !== null ? localStorage.getItem('ce_has_boss_music') === '1' : (savedConfig ? !!savedConfig.ceBossMusic : true),
+                    injectedDefaults: prepared.injectedDefaults,
                     availableAnimations: [],
                     availableModels: [],
                     loadedAnimationMods: [],
@@ -2238,10 +2345,12 @@
                     deep: true,
                     immediate: true
                 },
-                hasBossBar() {
+                hasBossBar(value) {
+                    localStorage.setItem('ce_has_boss_bar', value ? '1' : '0');
                     if (this.debouncedUpdateJSON) this.debouncedUpdateJSON();
                 },
-                hasBossMusic() {
+                hasBossMusic(value) {
+                    localStorage.setItem('ce_has_boss_music', value ? '1' : '0');
                     if (this.debouncedUpdateJSON) this.debouncedUpdateJSON();
                 },
                 lang() {
@@ -2349,8 +2458,8 @@
                 },
                 updateJSONPreview() {
                     let out = cleanUIFields(JSON.parse(JSON.stringify(this.config)));
-                    let defaultCfg = getDefaultConfig();
-                    
+                    removeUnchangedInjectedDefaults(out, this.config, this.injectedDefaults);
+
                     if (!this.hasBossBar) delete out.ceBossBar;
                     if (!this.hasBossMusic) delete out.ceBossMusic;
                     
@@ -2367,24 +2476,16 @@
                     if(out.weaponLivingMotions && out.weaponLivingMotions.length === 0) delete out.weaponLivingMotions;
                     if(out.guardHitAnimation && out.guardHitAnimation.length === 0) delete out.guardHitAnimation;
 
-                    // 只把 combatBehaviors 进行深度过滤
-                    if (out.combatBehaviors) {
-                        let diffCB = getModifiedConfig({ combatBehaviors: out.combatBehaviors }, { combatBehaviors: defaultCfg.combatBehaviors });
-                        if (diffCB.combatBehaviors) {
-                            out.combatBehaviors = diffCB.combatBehaviors;
-                        } else {
-                            delete out.combatBehaviors;
-                        }
-                    }
-
+                    if (!Array.isArray(out.combatBehaviors)) out.combatBehaviors = [];
                     this.jsonPreviewText = customStringify(out);
+                    return this.jsonPreviewText;
                 },
                 addNode(list) {
                     if(!list) return;
-                    list.push({
+                    list.push(ensureUIId({
                         behaviorName: "New Behavior",
                         animation: "epicfight:biped/combat/longsword_auto1"
-                    });
+                    }));
                 },
                 addAttribute() {
                     this.config.attributes.push({ attribute: "minecraft:generic.max_health", value: 20 });
@@ -2489,18 +2590,20 @@
                     window.playAnimationPreview(this.config.armature, animationId, this.previewWeaponModel);
                 },
                 copyJSON() {
-                    navigator.clipboard.writeText(this.jsonPreviewText).then(() => {
+                    const jsonText = this.updateJSONPreview();
+                    navigator.clipboard.writeText(jsonText).then(() => {
                         alert(this.t("已复制到剪贴板！"));
                     });
                 },
                 exportJSON() {
+                    const jsonText = this.updateJSONPreview();
                     let filename = prompt(this.t("请输入导出的文件名称:"), "ce_mobpatch.json");
                     if (filename === null) return; // User cancelled
                     if (!filename.trim().toLowerCase().endsWith('.json')) {
                         filename = filename.trim() + '.json';
                     }
 
-                    const blob = new Blob([this.jsonPreviewText], { type: "application/json" });
+                    const blob = new Blob([jsonText], { type: "application/json" });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
@@ -2533,22 +2636,12 @@
                                 });
                             }
                             
-                            // 合并数据
-                            let baseConfig = getDefaultConfig();
-                            this.config = { ...baseConfig, ...imported };
+                            const prepared = prepareConfigForUI(imported);
+                            this.config = prepared.config;
+                            this.injectedDefaults = prepared.injectedDefaults;
                             this.hasBossBar = Object.prototype.hasOwnProperty.call(imported, 'ceBossBar');
                             this.hasBossMusic = Object.prototype.hasOwnProperty.call(imported, 'ceBossMusic');
-                            
-                            // 保证已知 Boss 嵌套对象字段完整，防止编辑控件出现空值
-                            this.config.ceBossBar = { ...baseConfig.ceBossBar, ...(imported.ceBossBar || {}) };
-                            this.config.ceBossMusic = { ...baseConfig.ceBossMusic, ...(imported.ceBossMusic || {}) };
-                            
-                            // 保证部分对象存在
-                            if (!this.config.stunAnimations) this.config.stunAnimations = {};
-                            if (!this.config.attributes) this.config.attributes = [];
-                            if (!this.config.combatBehaviors) this.config.combatBehaviors = [];
-                            
-                            this.debouncedUpdateJSON();
+                            this.updateJSONPreview();
                         } catch(err) {
                             alert(this.t("JSON 解析失败:") + " " + err.message);
                         }
