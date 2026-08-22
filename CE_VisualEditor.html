@@ -1458,7 +1458,7 @@
                                 <label>Animation (动画路径)</label>
                                 <div style="display:flex;gap:4px;">
                                     <input type="text" class="animation-path-input" autocomplete="off" spellcheck="false" v-model="node.animation" placeholder="epicfight:biped/combat/longsword_auto1">
-                                    <button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" :title="$root.t('预览动画')" @click="window.playAnimationPreview ? window.playAnimationPreview(window.appConfig.armature, node.animation, previewWeaponModel) : alert($root.t('3D预览环境尚未加载完成'))">▶</button>
+                                    <button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" :title="$root.t('预览动画')" @click="previewNodeAnimation(node.animation)">▶</button>
                                 </div>
                             </div>
                             
@@ -1575,7 +1575,7 @@
                                 <label>Counter Animation (反击动画)</label>
                                 <div style="display:flex;gap:4px;">
                                     <input type="text" class="animation-path-input" v-model="node.counterAnimation" autocomplete="off" spellcheck="false" placeholder="例如: combat_evolution:biped/skill/shield_counter/shield_counter">
-                                    <button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" :title="$root.t('预览动画')" @click="window.playAnimationPreview ? window.playAnimationPreview(window.appConfig.armature, node.counterAnimation, previewWeaponModel) : alert($root.t('3D预览环境尚未加载完成'))">▶</button>
+                                    <button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" :title="$root.t('预览动画')" @click="previewNodeAnimation(node.counterAnimation)">▶</button>
                                 </div>
                             </div>
                             <div class="sub-panel">
@@ -1684,7 +1684,7 @@
                                 <label>Counter Animation (反击动画)</label>
                                 <div style="display:flex;gap:4px;">
                                     <input type="text" class="animation-path-input" v-model="node.counterAnimation" autocomplete="off" spellcheck="false" placeholder="例如: epicfight:biped/combat/tachi_auto3">
-                                    <button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" :title="$root.t('预览动画')" @click="window.playAnimationPreview ? window.playAnimationPreview(window.appConfig.armature, node.counterAnimation, previewWeaponModel) : alert($root.t('3D预览环境尚未加载完成'))">▶</button>
+                                    <button class="btn btn-secondary" style="padding:2px 8px;font-size:12px;" :title="$root.t('预览动画')" @click="previewNodeAnimation(node.counterAnimation)">▶</button>
                                 </div>
                             </div>
                             <div class="sub-panel">
@@ -1779,6 +1779,13 @@
                 }
             },
             methods: {
+                previewNodeAnimation(animationId) {
+                    if (!window.playAnimationPreview) {
+                        alert(this.$root.t('3D预览环境尚未加载完成'));
+                        return;
+                    }
+                    window.playAnimationPreview(this.$root.config.armature, animationId, this.$root.previewWeaponModel);
+                },
                 toggleExpand() {
                     this.expanded = !this.expanded;
                 },
