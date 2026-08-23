@@ -98,6 +98,8 @@
         .code-preview .boolean { color: #569cd6; }
         .code-preview .null { color: #569cd6; }
         .code-preview .key { color: #9cdcfe; }
+        .json-editor { width: 100%; min-height: 260px; box-sizing: border-box; resize: vertical; line-height: 1.45; border: 1px solid #334155; outline: none; }
+        .json-editor:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25); }
         
         .xyz-group { background: var(--panel-bg); border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-bottom: 20px; }
         
@@ -367,12 +369,14 @@
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <label style="font-weight:bold; font-size:13px;">{{ t('生成的 JSON 数据:') }}</label>
                 <div style="display:flex; gap:8px;">
+                    <button class="btn primary" style="padding:4px 8px; font-size:12px;" @click="applyJSONEditor">{{ t('应用修改') }}</button>
+                    <button class="btn secondary" style="padding:4px 8px; font-size:12px;" @click="resetJSONEditor">{{ t('撤销修改') }}</button>
                     <button class="btn secondary" style="padding:4px 8px; font-size:12px;" @click="triggerImportJSON">{{ t('导入') }}</button>
                     <button class="btn secondary" style="padding:4px 8px; font-size:12px;" @click="copyJSON">{{ t('复制') }}</button>
                 </div>
                 <input type="file" id="importJsonInput" accept=".json" style="display:none" @change="importJSON">
             </div>
-            <div class="code-preview" v-html="highlightedJSON"></div>
+            <textarea class="code-preview json-editor" v-model="jsonEditorText" @input="jsonEditorDirty = true" spellcheck="false" aria-label="可编辑 JSON 数据"></textarea>
         </div>
     </div>
 
@@ -3094,7 +3098,9 @@
                 trailColor: saved?.trailColor ?? [255, 255, 255],
                 sliderRange: saved?.sliderRange ?? 3,
                 presets: saved?.presets || [],
-                selectedPreset: -1
+                selectedPreset: -1,
+                jsonEditorText: '',
+                jsonEditorDirty: false
             }
         },
         computed: {
@@ -3167,9 +3173,13 @@
             trailInterpolations: { handler() { this.saveData(); this.updateTrail(); } },
             trailTexturePath: { handler() { this.saveData(); this.updateTrail(); } },
             trailColor: { deep: true, handler() { this.saveData(); this.updateTrail(); } },
-            sliderRange: { handler() { this.saveData(); this.updateTrail(); } }
+            sliderRange: { handler() { this.saveData(); this.updateTrail(); } },
+            generatedJSON(value) {
+                if (!this.jsonEditorDirty) this.jsonEditorText = value;
+            }
         },
         mounted() {
+            this.jsonEditorText = this.generatedJSON;
             if (this.isDarkMode) document.body.classList.add('dark-mode');
             const tryInit = () => {
                 const ok = initThree();
@@ -3511,8 +3521,40 @@
                 alert("导入过程中发生错误: " + err.message);
             }
             },
+            applyJSONEditor() {
+                try {
+                    const data = JSON.parse(this.jsonEditorText);
+                    if (!data || typeof data !== 'object' || Array.isArray(data) || !data.trail || typeof data.trail !== 'object') {
+                        throw new Error('JSON 必须包含有效的 trail 对象');
+                    }
+                    const trail = data.trail;
+                    if (Array.isArray(trail.color) && trail.color.length >= 3) {
+                        this.trailColor = trail.color.slice(0, 3).map(Number);
+                    }
+                    if (Array.isArray(trail.begin_pos) && trail.begin_pos.length >= 3) {
+                        this.begin = { x: Number(trail.begin_pos[0]), y: Number(trail.begin_pos[1]), z: Number(trail.begin_pos[2]) };
+                    }
+                    if (Array.isArray(trail.end_pos) && trail.end_pos.length >= 3) {
+                        this.end = { x: Number(trail.end_pos[0]), y: Number(trail.end_pos[1]), z: Number(trail.end_pos[2]) };
+                    }
+                    if (trail.lifetime !== undefined) this.trailLifetime = Number(trail.lifetime);
+                    if (trail.interpolations !== undefined) this.trailInterpolations = Number(trail.interpolations);
+                    if (trail.texture_path !== undefined) this.trailTexturePath = String(trail.texture_path);
+                    this.jsonEditorText = this.generatedJSON;
+                    this.jsonEditorDirty = false;
+                    this.updateTrail();
+                    this.saveData();
+                    this.showToast('JSON 修改已应用');
+                } catch (err) {
+                    alert('应用失败：' + err.message);
+                }
+            },
+            resetJSONEditor() {
+                this.jsonEditorText = this.generatedJSON;
+                this.jsonEditorDirty = false;
+            },
             copyJSON() {
-                navigator.clipboard.writeText(this.generatedJSON).then(() => {
+                navigator.clipboard.writeText(this.jsonEditorText || this.generatedJSON).then(() => {
                     this.showToast('已成功复制 JSON 配置！');
                 }).catch(() => {
                     alert("复制失败，请手动复制。");
