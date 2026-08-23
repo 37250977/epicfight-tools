@@ -91,6 +91,7 @@
         .resource-box,.info{border:1px dashed #cbd5e1;background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:12px}
         .info{border-style:solid;background:#eff6ff;color:#1e3a8a}
         .code{margin-top:12px;background:#0f172a;color:#d4d4d4;border-radius:8px;padding:16px;white-space:pre;overflow:auto;font:13px/1.5 Consolas,"Courier New",monospace;flex:1}
+        .code .json-string{color:#ce9178 !important}.code .json-number{color:#b5cea8 !important}.code .json-boolean,.code .json-null{color:#569cd6 !important}.code .json-key{color:#9cdcfe !important}
         .checkline{display:flex;align-items:center;gap:8px;font-size:14px}
         .checkline input{margin:0}
         .animation-path-input{width:100%}
@@ -578,7 +579,7 @@
             </div>
         </div>
         <div class="hint">{{ t('右侧展示最终导出的纯 JSON；若 `combat_behavior` 不合法，这里会显示错误信息。') }}</div>
-        <div class="code" style="height: calc(100vh - 120px); overflow-y: auto;">{{ generatedJSON }}</div>
+        <pre class="code" style="height: calc(100vh - 120px); overflow-y: auto;" v-html="highlightedJSON"></pre>
     </div>
     
     <!-- 悬浮窗: 3D 动画预览 -->
@@ -1261,7 +1262,17 @@ createApp({
             }
             return `Indexed ${this.availableAnimations.length} animations from ${this.loadedAnimationMods.length} namespaces, imported ${this.animationImportBatches} times, scanned ${this.animationSourceFileCount} files and matched ${this.matchedAnimationFileCount} animation JSON files.`;
         },
-        generatedJSON(){try{return JSON.stringify(this.buildExportObject(),null,2)}catch(err){return`// combat_behavior 解析失败\n// ${err.message}`}}
+        generatedJSON(){try{return JSON.stringify(this.buildExportObject(),null,2)}catch(err){return`// combat_behavior 解析失败\n// ${err.message}`}},
+        highlightedJSON(){
+            const escaped = this.generatedJSON.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            return escaped.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match) => {
+                let cls = 'json-number';
+                if (/^"/.test(match)) cls = /:$/.test(match) ? 'json-key' : 'json-string';
+                else if (/true|false/.test(match)) cls = 'json-boolean';
+                else if (/null/.test(match)) cls = 'json-null';
+                return '<span class="' + cls + '">' + match + '</span>';
+            });
+        }
     },
     methods:{
         t(key) {

@@ -93,6 +93,7 @@
         .remove-btn{position:absolute;top:8px;right:8px}
         .toolbar{display:flex;gap:8px;flex-wrap:wrap}
         .code{margin-top:12px;background:#0f172a;color:#d4d4d4;border-radius:8px;padding:16px;white-space:pre;overflow:auto;font:13px/1.5 Consolas,"Courier New",monospace;flex:1}
+        .code .json-string{color:#ce9178 !important}.code .json-number{color:#b5cea8 !important}.code .json-boolean,.code .json-null{color:#569cd6 !important}.code .json-key{color:#9cdcfe !important}
         body.dark-mode .code{background:#020617}
         .inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
         .pill{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;background:var(--panel-bg);color:var(--primary);font-size:12px;border:1px solid var(--border)}
@@ -322,7 +323,7 @@
                     <button class="btn secondary" @click="copyJSON">{{ t('复制 JSON') }}</button>
                 </div>
             </div>
-            <div class="code">{{ prettyJSON }}</div>
+            <pre class="code" v-html="highlightedJSON"></pre>
         </div>
 
         <div id="floating-3d-window" class="floating-window" style="display:none;">
@@ -2094,6 +2095,17 @@
                 },
                 themeLabel() {
                     return this.isDarkMode ? this.t('主题: 暗色') : this.t('主题: 亮色');
+                },
+                highlightedJSON() {
+                    const json = this.prettyJSON || '';
+                    const escaped = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    return escaped.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match) => {
+                        let cls = 'json-number';
+                        if (/^"/.test(match)) cls = /:$/.test(match) ? 'json-key' : 'json-string';
+                        else if (/true|false/.test(match)) cls = 'json-boolean';
+                        else if (/null/.test(match)) cls = 'json-null';
+                        return '<span class="' + cls + '">' + match + '</span>';
+                    });
                 },
                 prettyJSON() {
                     const cfg = JSON.parse(JSON.stringify(this.config));

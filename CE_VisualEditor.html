@@ -180,6 +180,14 @@
             min-height: 200px;
             content-visibility: auto;
         }
+        .code-preview .json-string { color: #ce9178 !important; }
+        .code-preview .json-number { color: #b5cea8 !important; }
+        .code-preview .json-boolean, .code-preview .json-null { color: #569cd6 !important; }
+        .code-preview .json-key { color: #9cdcfe !important; }
+        .code-preview .json-error-line { background: rgba(239, 68, 68, 0.22); border-left: 3px solid #ef4444; display: inline-block; min-width: 100%; }
+        .validation-panel { margin-top: 8px; padding: 8px 10px; border-radius: 4px; font-size: 12px; white-space: normal; }
+        .validation-panel.valid { color: #86efac; background: rgba(34, 197, 94, 0.14); }
+        .validation-panel.invalid { color: #fecaca; background: rgba(239, 68, 68, 0.14); }
         .top-bar {
             display: flex;
             justify-content: space-between;
@@ -812,10 +820,12 @@
                 <h2>{{ t('实时 JSON 预览') }}</h2>
                 <div style="display:flex;gap:8px;">
                     <button class="btn btn-secondary" @click="resetAll" style="font-size:12px;padding:6px 10px;">{{ t('重置') }}</button>
+                    <button class="btn btn-secondary" @click="validateJSON" style="font-size:12px;padding:6px 10px;">{{ t('验证格式') }}</button>
                     <button class="btn" @click="copyJSON">{{ t('复制代码') }}</button>
                 </div>
             </div>
-            <div class="code-preview" style="height: calc(100vh - 120px); overflow-y: auto;">{{ jsonPreviewText }}</div>
+            <pre class="code-preview" style="height: calc(100vh - 120px); overflow-y: auto;" v-html="highlightedJSON"></pre>
+            <div v-if="validationMessage" class="validation-panel" :class="validationValid ? 'valid' : 'invalid'">{{ validationMessage }}</div>
         </div>
         
         <!-- 悬浮窗: 3D 动画预览 -->
@@ -2319,11 +2329,31 @@
                     matchedAnimationFileCount: 0,
                     previewWeaponModel: '',
                     jsonPreviewText: '',
+                    validationMessage: '',
+                    validationValid: true,
+                    validationErrorLine: 0,
                     searchBehaviorKeyword: '',
                     config
                 }
             },
             computed: {
+                highlightedJSON() {
+                    const json = this.jsonPreviewText || '';
+                    const escaped = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    const lines = escaped.split('\n');
+                    return lines.map((line, index) => {
+                        const lineNo = index + 1;
+                        const marked = this.validationErrorLine === lineNo ? ' class="json-error-line"' : '';
+                        const highlighted = line.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match) => {
+                            let cls = 'json-number';
+                            if (/^"/.test(match)) cls = /:$/.test(match) ? 'json-key' : 'json-string';
+                            else if (/true|false/.test(match)) cls = 'json-boolean';
+                            else if (/null/.test(match)) cls = 'json-null';
+                            return '<span class="' + cls + '">' + match + '</span>';
+                        });
+                        return '<span' + marked + '>' + highlighted + '</span>';
+                    }).join('\n');
+                },
                 animationLibrarySummary() {
                     if (this.availableAnimations.length === 0) {
                         return this.t('尚未导入动画资源索引。');
@@ -2463,6 +2493,31 @@
                     searchNodes(root.firstBehaviors);
                     return found;
                 },
+                validateJSON() {
+                    this.validationErrorLine = 0;
+                    try {
+                        const parsed = JSON.parse(this.jsonPreviewText);
+                        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('根对象必须是 JSON 对象');
+                        const required = ['faction', 'renderer', 'model', 'armature', 'combatBehaviors'];
+                        const missing = required.filter(key => parsed[key] === undefined);
+                        if (missing.length) throw new Error('缺少必填字段: ' + missing.join(', '));
+                        if (!Array.isArray(parsed.combatBehaviors)) throw new Error('combatBehaviors 必须是数组');
+                        parsed.combatBehaviors.forEach((group, index) => {
+                            if (!Array.isArray(group.weaponCategories) || !group.weaponCategories.length) throw new Error('combatBehaviors[' + index + '].weaponCategories 必须是非空数组');
+                            if (!group.style) throw new Error('combatBehaviors[' + index + '].style 不能为空');
+                            if (!Array.isArray(group.behaviorRoots)) throw new Error('combatBehaviors[' + index + '].behaviorRoots 必须是数组');
+                        });
+                        this.validationValid = true;
+                        this.validationMessage = '格式验证通过：JSON 结构和 CE 必填字段正确。';
+                        return true;
+                    } catch (error) {
+                        const match = String(error.message).match(/position (\d+)/i);
+                        if (match) this.validationErrorLine = this.jsonPreviewText.slice(0, Number(match[1])).split('\n').length;
+                        this.validationValid = false;
+                        this.validationMessage = '格式错误：' + error.message + (this.validationErrorLine ? '（已高亮第 ' + this.validationErrorLine + ' 行）' : '');
+                        return false;
+                    }
+                },
                 updateJSONPreview() {
                     let out = cleanUIFields(JSON.parse(JSON.stringify(this.config)));
                     removeUnchangedInjectedDefaults(out, this.config, this.injectedDefaults);
@@ -2598,6 +2653,7 @@
                 },
                 copyJSON() {
                     const jsonText = this.updateJSONPreview();
+                    this.validateJSON();
                     navigator.clipboard.writeText(jsonText).then(() => {
                         alert(this.t("已复制到剪贴板！"));
                     });

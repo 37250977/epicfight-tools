@@ -93,13 +93,17 @@
         .btn.secondary:hover { background-color: #475569; }
         
         .code-preview { background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 8px; font-family: monospace; white-space: pre; overflow-x: auto; margin-top: 20px; font-size: 13px;}
-        .code-preview .string { color: #ce9178; }
-        .code-preview .number { color: #b5cea8; }
-        .code-preview .boolean { color: #569cd6; }
-        .code-preview .null { color: #569cd6; }
-        .code-preview .key { color: #9cdcfe; }
-        .json-editor { width: 100%; min-height: 260px; box-sizing: border-box; resize: vertical; line-height: 1.45; border: 1px solid #334155; outline: none; }
-        .json-editor:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25); }
+        .code-preview .string, .json-editor-highlight .string { color: #ce9178 !important; }
+        .code-preview .number, .json-editor-highlight .number { color: #b5cea8 !important; }
+        .code-preview .boolean, .json-editor-highlight .boolean { color: #569cd6 !important; }
+        .code-preview .null, .json-editor-highlight .null { color: #569cd6 !important; }
+        .code-preview .key, .json-editor-highlight .key { color: #9cdcfe !important; }
+        .json-editor-shell { position: relative; margin-top: 20px; min-height: 260px; border: 1px solid #334155; border-radius: 8px; overflow: hidden; background: #1e1e1e; }
+        .json-editor-highlight, .json-editor-input { margin: 0; width: 100%; min-height: 260px; box-sizing: border-box; padding: 15px; font: 13px/1.45 monospace; white-space: pre; overflow: auto; tab-size: 4; }
+        .json-editor-highlight { position: absolute; inset: 0; z-index: 2; color: #d4d4d4 !important; pointer-events: none; }
+        .json-editor-input { position: relative; z-index: 1; display: block; resize: vertical; border: 0; outline: none; background: transparent !important; color: transparent !important; caret-color: #fff; -webkit-text-fill-color: transparent !important; }
+        .json-editor-input::selection { background: rgba(59, 130, 246, 0.35); }
+        .json-editor-shell:focus-within { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25); }
         
         .xyz-group { background: var(--panel-bg); border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-bottom: 20px; }
         
@@ -376,7 +380,10 @@
                 </div>
                 <input type="file" id="importJsonInput" accept=".json" style="display:none" @change="importJSON">
             </div>
-            <textarea class="code-preview json-editor" v-model="jsonEditorText" @input="jsonEditorDirty = true" spellcheck="false" aria-label="可编辑 JSON 数据"></textarea>
+            <div class="json-editor-shell">
+                <pre class="json-editor-highlight" v-html="highlightedEditorJSON"></pre>
+                <textarea class="json-editor-input" v-model="jsonEditorText" @input="jsonEditorDirty = true" @scroll="syncJSONEditorScroll" spellcheck="false" aria-label="可编辑 JSON 数据"></textarea>
+            </div>
         </div>
     </div>
 
@@ -479,11 +486,15 @@
         if (idx === -1) {
             idx = parts.indexOf('animmodels');
             if (idx !== -1 && idx + 1 < parts.length) {
-                isModel = true;
-                off = 1;
+                if (parts[idx + 1] === 'animations') {
+                    off = 2;
+                } else {
+                    isModel = true;
+                    off = 1;
+                }
             } else {
                 idx = parts.indexOf('models');
-                if (idx !== -1 && idx + 1 < parts.length) {
+                    if (idx !== -1 && idx + 1 < parts.length) {
                     isModel = true;
                     off = 1;
                 } else {
@@ -560,7 +571,10 @@
             id += '.mtl';
         }
         
-        if (fileObj) fileResourceMap.set(id, fileObj);
+        if (fileObj) {
+            fileResourceMap.set(id, fileObj);
+
+        }
         
         return { type: isSupport ? 'support' : (isTexture ? 'texture' : (isModel ? 'model' : 'animation')), modId, id };
     }
@@ -633,8 +647,7 @@
                     const bStarts = keyword && bLower.startsWith(keyword) ? 0 : 1;
                     if (aStarts !== bStarts) return aStarts - bStarts;
                     return aLower.localeCompare(bLower);
-                })
-                .slice(0, 50);
+                });
         }
 
         function groupMatches(items) {
@@ -1927,6 +1940,20 @@
 
         rootGroup.updateMatrixWorld(true);
 
+        // 每帧只计算一次骨骼蒙皮矩阵。旧实现会在每个顶点权重上递归更新
+        // 整棵骨架并求逆，复杂模型播放时会阻塞浏览器主线程。
+        const groupInverse = new THREE.Matrix4().copy(rootGroup.matrixWorld).invert();
+        const skinMatrices = new Array(cpu.boneList.length);
+        for (let jointIndex = 0; jointIndex < cpu.boneList.length; jointIndex++) {
+            const bone = cpu.boneList[jointIndex];
+            const toOrigin = bindToOriginArr[jointIndex];
+            if (bone && toOrigin) {
+                skinMatrices[jointIndex] = new THREE.Matrix4()
+                    .multiplyMatrices(groupInverse, bone.matrixWorld)
+                    .multiply(toOrigin);
+            }
+        }
+
         for (let i = 0; i < cpu.vertexCount; i++) {
             const basePosIdx = i * 3;
             const skinIdxBase = i * 4;
@@ -1939,12 +1966,10 @@
                 if (weight <= 0) continue;
 
                 const jointIndex = cpu.skinIndices[skinIdxBase + j];
-                const bone = cpu.boneList[jointIndex];
-                const toOrigin = bindToOriginArr[jointIndex];
-                if (!bone || !toOrigin) continue;
+                const skinMat = skinMatrices[jointIndex];
+                if (!skinMat) continue;
 
-                const poseMat = getBoneMatrixRelativeToGroup(bone, rootGroup);
-                const finalMat = _matB.copy(poseMat).multiply(toOrigin);
+                const finalMat = _matB.copy(skinMat);
 
                 _vec4A.set(
                     cpu.basePositions[basePosIdx],
@@ -2733,10 +2758,10 @@
                         rootGroup.add(mesh);
 
                         rootGroup.updateMatrixWorld(true);
-                        bindToOrigin = boneList.map(bone => {
-                            rootGroup.updateMatrixWorld(true);
-                            return new THREE.Matrix4().copy(rootGroup.matrixWorld).invert().multiply(bone.matrixWorld).invert();
-                        });
+                        const bindGroupInverse = new THREE.Matrix4().copy(rootGroup.matrixWorld).invert();
+                        bindToOrigin = boneList.map(bone =>
+                            new THREE.Matrix4().multiplyMatrices(bindGroupInverse, bone.matrixWorld).invert()
+                        );
                         
                         mesh.userData.cpuSkinning = cpuSkinning ? {
                             ...cpuSkinning,
@@ -3140,6 +3165,17 @@
                 // 将数组格式化为单行，以节省空间并优化排版
                 jsonStr = jsonStr.replace(/\[\s+([-\d.]+),\s+([-\d.]+),\s+([-\d.]+)\s+\]/g, '[$1, $2, $3]');
                 return jsonStr;
+            },
+            highlightedEditorJSON() {
+                let json = this.jsonEditorText || '';
+                json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                    let cls = 'number';
+                    if (/^"/.test(match)) cls = /:$/.test(match) ? 'key' : 'string';
+                    else if (/true|false/.test(match)) cls = 'boolean';
+                    else if (/null/.test(match)) cls = 'null';
+                    return '<span class="' + cls + '">' + match + '</span>';
+                });
             },
             highlightedJSON() {
                 let json = this.generatedJSON;
@@ -3552,6 +3588,13 @@
             resetJSONEditor() {
                 this.jsonEditorText = this.generatedJSON;
                 this.jsonEditorDirty = false;
+            },
+            syncJSONEditorScroll(event) {
+                const highlight = event.target.previousElementSibling;
+                if (highlight) {
+                    highlight.scrollTop = event.target.scrollTop;
+                    highlight.scrollLeft = event.target.scrollLeft;
+                }
             },
             copyJSON() {
                 navigator.clipboard.writeText(this.jsonEditorText || this.generatedJSON).then(() => {
