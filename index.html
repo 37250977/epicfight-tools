@@ -7,6 +7,7 @@
     
     <!-- 引入 Vue 3 和 Three.js 依赖 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="game-resource-library.js"></script>
     <script type="importmap">
         {
             "imports": {
@@ -221,6 +222,7 @@
             <div style="font-weight:bold; margin-bottom:10px;">{{ t('动画资源导入与预览') }}</div>
             <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
                 <button class="btn" @click="openAssetFolderPicker" :title="t('导入本地文件夹（推荐）')">{{ t('导入资源文件夹') }}</button>
+                <button class="btn secondary" @click="openGameDirectoryPicker">{{ t('选择游戏目录 / 共享库') }}</button>
                 <button class="btn secondary" @click="openAssetZipPicker" :title="t('支持直接导入 Mod jar 或资源包 zip 文件')">{{ t('导入 ZIP/JAR') }}</button>
             </div>
             <input type="file" id="assetFolderInput" webkitdirectory directory multiple @change="importAnimationResources" style="display:none" aria-label="导入资源文件夹">
@@ -415,6 +417,8 @@
 
     const messages = {
         en: {
+            '选择游戏目录 / 共享库': 'Choose game directory / Shared library',
+            '共享资源脚本未加载，请使用原导入方式。': 'The shared resource script did not load. Please use the original import options.',
             "Trail (轨迹) 调节器": "Trail Visualizer",
             "CE 动作": "CE Action",
             "Indestructible 编辑器": "Indestructible Editor",
@@ -3431,7 +3435,11 @@
             openAssetZipPicker() {
                 document.getElementById('assetZipInput').click();
             },
-            async importZipResources(event) {
+            openGameDirectoryPicker() {
+                if (!window.GameResourceLibrary) { alert(this.t('共享资源脚本未加载，请使用原导入方式。')); return; }
+                window.GameResourceLibrary.open(this, this.lang);
+            },
+            async importZipResources(event, options = {}) {
                 const files = Array.from((event.target && event.target.files) || []);
                 if (!files.length) return;
 
@@ -3487,12 +3495,13 @@
                             worker.postMessage({ file });
                         });
                     } catch (e) {
+                        if (options.strict) { URL.revokeObjectURL(workerUrl); throw e; }
                         console.error(e);
                         alert(this.t('解析文件失败:') + ' ' + file.name);
                     }
                 }
                 URL.revokeObjectURL(workerUrl);
-                this.processExtractedFiles(allExtractedFiles);
+                await this.processExtractedFiles(allExtractedFiles, options);
                 event.target.value = '';
             },
             async importAnimationResources(event) {
@@ -3501,7 +3510,7 @@
                 this.processExtractedFiles(files);
                 event.target.value = '';
             },
-            async processExtractedFiles(files) {
+            async processExtractedFiles(files, options = {}) {
                 try {
                 
                 const animationSet = new Set(this.availableAnimations);
@@ -3554,6 +3563,7 @@
                 this.showToast('成功加载 ' + this.availableModels.length + ' 个模型, ' + this.availableAnimations.length + ' 个动画。');
             } catch(err) {
                 console.error(err);
+                if (options.strict) throw err;
                 alert("导入过程中发生错误: " + err.message);
             }
             },

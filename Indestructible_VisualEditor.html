@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Indestructible 数据包可视化编辑器</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="game-resource-library.js"></script>
     <script type="importmap">
         {
             "imports": {
@@ -186,6 +187,7 @@
                 </div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap">
                     <button class="btn mini" @click="openAssetFolderPicker" :title="t('导入本地文件夹（推荐）')">{{ t('导入资源文件夹') }}</button>
+                    <button class="btn secondary mini" @click="openGameDirectoryPicker">{{ t('选择游戏目录 / 共享库') }}</button>
                     <button class="btn secondary mini" @click="openAssetZipPicker" :title="t('支持直接导入 Mod jar 或资源包 zip 文件')">{{ t('导入 ZIP/JAR') }}</button>
                     <button class="btn secondary mini" @click="clearAnimationLibrary" :disabled="availableAnimations.length===0">{{ t('清空索引') }}</button>
                 </div>
@@ -1101,6 +1103,8 @@ let animationAutocompleteController=null;
 const messages = {
     zh: {},
     en: {
+        '选择游戏目录 / 共享库': 'Choose game directory / Shared library',
+        '共享资源脚本未加载，请使用原导入方式。': 'The shared resource script did not load. Please use the original import options.',
         "Indestructible 数据包可视化编辑器": "Indestructible Datapack Visual Editor",
         "Trail 调节器": "Trail Visualizer",
         "CE 动作": "CE Action",
@@ -1392,7 +1396,11 @@ createApp({
         collectAnimationResources(files){const anims=new Set(),models=new Set(),modCounts=new Map();let matched=0;files.forEach(file=>{const d=extractAnimationDescriptor(file.webkitRelativePath||file.name, file);if(!d)return;if(d.type==='animation'){matched+=1;anims.add(d.id);modCounts.set(d.modId,(modCounts.get(d.modId)||0)+1)}else if(d.type==='model'||d.type==='texture'){models.add(d.id)}});return{animations:Array.from(anims).sort(),models:Array.from(models).sort(),modCounts:Array.from(modCounts.entries()).map(([modId,count])=>({modId,count})).sort((a,b)=>a.modId.localeCompare(b.modId)),matchedFileCount:matched}},
         mergeLoadedAnimationMods(nextMods){const merged=new Map(this.loadedAnimationMods.map(item=>[item.modId,item.count]));nextMods.forEach(item=>merged.set(item.modId,(merged.get(item.modId)||0)+item.count));this.loadedAnimationMods=Array.from(merged.entries()).map(([modId,count])=>({modId,count})).sort((a,b)=>a.modId.localeCompare(b.modId))},
         openAssetZipPicker(){document.getElementById('assetZipInput').click()},
-        async importZipResources(event){
+        openGameDirectoryPicker(){
+            if(!window.GameResourceLibrary){alert(this.t('共享资源脚本未加载，请使用原导入方式。'));return}
+            window.GameResourceLibrary.open(this, this.lang);
+        },
+        async importZipResources(event, options = {}){
             const files=Array.from(event.target.files||[]);
             if(!files.length)return;
             const workerCode=`importScripts('https://unpkg.com/jszip@3.10.1/dist/jszip.min.js');self.onmessage=async function(e){try{const zip=await JSZip.loadAsync(e.data.file);const entries=[];const promises=[];zip.forEach((path,zipEntry)=>{if(zipEntry.dir)return;promises.push(zipEntry.async('blob').then(blob=>{entries.push({path,blob,name:zipEntry.name.split('/').pop()||'unknown'})}))});await Promise.all(promises);self.postMessage({success:true,entries})}catch(err){self.postMessage({success:false,error:err.message})}};`;
@@ -1407,10 +1415,10 @@ createApp({
                         worker.onerror=(err)=>{reject(err);worker.terminate()};
                         worker.postMessage({file});
                     })
-                }catch(e){console.error(e);alert(this.t('解析文件失败:')+' '+file.name)}
+                }catch(e){if(options.strict){URL.revokeObjectURL(workerUrl);throw e}console.error(e);alert(this.t('解析文件失败:')+' '+file.name)}
             }
             URL.revokeObjectURL(workerUrl);
-            this.processExtractedFiles(allExtractedFiles);
+            await this.processExtractedFiles(allExtractedFiles);
             event.target.value='';
         },
         processExtractedFiles(files){
